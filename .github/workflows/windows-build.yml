@@ -1,15 +1,26 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# بناء نسخة ويندوز v3 — موصولة بالسحابة عبر أسرار CI المشفرة
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# الجديد في v3 (قرار المالك — مهمة التكافؤ، البند سابعاً):
+#   مفاتيح السحابة تُحقن وقت البناء من GitHub Actions Secrets (مشفرة،
+#   ليست في الكود ولا في تاريخ git) — فيخرج EXE موصولاً بالسحابة مثل
+#   APK الأندرويد تماماً: دخول سحابي + اشتراك وكود تفعيل + مزامنة.
+#
+#   ⚠ قبل التشغيل أضف الأسرار الستة في:
+#     Settings → Secrets and variables → Actions → New repository secret
+#   (الأسماء أدناه حرفياً، والقيم من ملف cloud.env عندك):
+#     SUPABASE_URL, SUPABASE_ANON_KEY, R2_WORKER,
+#     PHONE_IDENTITY, COLD_FETCH, GOOGLE_WEB_CLIENT_ID
+#
+#   ملاحظة أمانة: هذه القيم مصممة للدمج داخل كل نسخة عميل توزعها
+#   (موجودة داخل APK أصلاً)، أما مخزن التوقيع dental_dev.jks وكلمتاه
+#   فلا تُرفع إلى GitHub بأي صورة — بناء ويندوز لا يحتاجها.
+#
+# موروث من v2: إعادة تجميع المشروع من أجزاء base64 في _bootstrap/ مع
+# تحييد CRLF (رانر ويندوز يحول النهايات فيفشل base64 --decode بدونها).
 name: بناء نسخة ويندوز (Bootstrap)
 
-# يُعاد تجميع المشروع من أجزاء base64 في _bootstrap/ ثم يُبنى release + MSIX
-# ويُرفعان كأثر (Artifact).
-#
-# إصلاح v2 — علّة فشل التشغيل الأول (مثبتة بإعادة الإنتاج): رانر ويندوز
-# يحوّل نهايات أسطر الملفات النصية إلى CRLF عند checkout، وbase64 --decode
-# يرفض محرف \r فيفشل بـ exit 1. علاجان متكاملان:
-#   ١) .gitattributes: ‏_bootstrap/** -text (يمنع التحويل من أساسه).
-#   ٢) tr -d '\r' قبل الفكّ (يصمد حتى لو غاب الأول).
-# كما عُزلت خطوة MSIX بـ continue-on-error كي لا يمنع أي عارض توقيع
-# الحصولَ على نسخة EXE الكاملة، ويُرفع الناتج دائماً.
 on:
   push:
     branches: [main]
@@ -18,11 +29,23 @@ on:
 
 jobs:
   build-windows:
-    name: بناء ويندوز release + MSIX
+    name: بناء ويندوز release موصول بالسحابة + MSIX
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+
+      - name: التحقق من وجود أسرار السحابة
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "✖ أسرار السحابة غير مضبوطة في المستودع." >&2
+            echo "  أضف SUPABASE_URL وSUPABASE_ANON_KEY (وبقية الستة) في:" >&2
+            echo "  Settings → Secrets and variables → Actions" >&2
+            echo "  ثم أعد تشغيل البناء — بدونها يخرج EXE بوضع محلي بلا سحابة." >&2
+            exit 1
+          fi
+          echo "✓ أسرار السحابة حاضرة"
 
       - name: إعادة تجميع المشروع من الأجزاء
         shell: bash
@@ -32,7 +55,6 @@ jobs:
           cat _bootstrap/proj.b64.part* | tr -d '\r' | base64 --decode > proj.zip
           echo "حجم الأرشيف: $(wc -c < proj.zip) بايت"
           echo "sha256: $(sha256sum proj.zip | cut -d' ' -f1)"
-          # المتوقع: cd66238bcfc2f4c55f84d807979058bc11762fb30906eed643d81832c3a84471
           # تحقق سريع من توقيع ZIP (يبدأ بـ PK).
           head -c 2 proj.zip | grep -q "PK" && echo "✓ توقيع ZIP سليم" || { echo "✗ ليس ملف ZIP"; exit 1; }
 
@@ -44,6 +66,18 @@ jobs:
           Write-Host "✓ فُكّ المشروع — أهم المداخل:"
           Get-ChildItem -Name | Select-Object -First 20
 
+      - name: حارس الأسرار — لا ملف مفاتيح داخل الحزمة
+        shell: bash
+        run: |
+          # طبقة دفاع إضافية: أي jks/cloud.env تسلل للحزمة يفشل البناء فوراً.
+          found=$(find . -name '*.jks' -o -name 'cloud.env' -o -name 'dev_keystore.env' | head -5)
+          if [ -n "$found" ]; then
+            echo "✖ ملفات أسرار داخل الحزمة — ممنوع منعاً باتاً:" >&2
+            echo "$found" >&2
+            exit 1
+          fi
+          echo "✓ الحزمة نظيفة من ملفات الأسرار"
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.8'
@@ -53,8 +87,19 @@ jobs:
       - name: تثبيت الاعتماديات
         run: flutter pub get
 
-      - name: بناء ويندوز release
-        run: flutter build windows --release
+      - name: بناء ويندوز release (موصول بالسحابة)
+        shell: bash
+        env:
+          BUILD_NUM: '2145'
+        run: |
+          flutter build windows --release \
+            --build-name="1.0.${BUILD_NUM}" --build-number="${BUILD_NUM}" \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=R2_WORKER="${{ secrets.R2_WORKER }}" \
+            --dart-define=PHONE_IDENTITY="${{ secrets.PHONE_IDENTITY }}" \
+            --dart-define=COLD_FETCH="${{ secrets.COLD_FETCH }}" \
+            --dart-define=GOOGLE_WEB_CLIENT_ID="${{ secrets.GOOGLE_WEB_CLIENT_ID }}"
 
       - name: فهرس مخرجات البناء
         shell: pwsh
@@ -79,5 +124,5 @@ jobs:
         with:
           name: dental-windows-msix
           path: build/windows/x64/runner/Release/*.msix
-          if-no-files-found: warn
+          if-no-files-found: ignore
           retention-days: 30
