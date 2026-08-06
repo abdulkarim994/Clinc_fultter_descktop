@@ -1,7 +1,15 @@
 name: بناء نسخة ويندوز (Bootstrap)
 
-# يُعاد تجميع المشروع من أجزاء base64 المرفوعة في _bootstrap/ (رُفع عبر
-# واجهة GitHub التي تنقل نصّاً فقط)، ثم يُبنى release + MSIX ويُرفع كأثر.
+# يُعاد تجميع المشروع من أجزاء base64 في _bootstrap/ ثم يُبنى release + MSIX
+# ويُرفعان كأثر (Artifact).
+#
+# إصلاح v2 — علّة فشل التشغيل الأول (مثبتة بإعادة الإنتاج): رانر ويندوز
+# يحوّل نهايات أسطر الملفات النصية إلى CRLF عند checkout، وbase64 --decode
+# يرفض محرف \r فيفشل بـ exit 1. علاجان متكاملان:
+#   ١) .gitattributes: ‏_bootstrap/** -text (يمنع التحويل من أساسه).
+#   ٢) tr -d '\r' قبل الفكّ (يصمد حتى لو غاب الأول).
+# كما عُزلت خطوة MSIX بـ continue-on-error كي لا يمنع أي عارض توقيع
+# الحصولَ على نسخة EXE الكاملة، ويُرفع الناتج دائماً.
 on:
   push:
     branches: [main]
@@ -12,7 +20,7 @@ jobs:
   build-windows:
     name: بناء ويندوز release + MSIX
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -20,14 +28,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat _bootstrap/proj.b64.part* | base64 --decode > proj.zip
+          # tr -d '\r' يبطل أي تحويل CRLF أصاب الأجزاء عند checkout.
+          cat _bootstrap/proj.b64.part* | tr -d '\r' | base64 --decode > proj.zip
           echo "حجم الأرشيف: $(wc -c < proj.zip) بايت"
+          echo "sha256: $(sha256sum proj.zip | cut -d' ' -f1)"
+          # المتوقع: cd66238bcfc2f4c55f84d807979058bc11762fb30906eed643d81832c3a84471
+          # تحقق سريع من توقيع ZIP (يبدأ بـ PK).
+          head -c 2 proj.zip | grep -q "PK" && echo "✓ توقيع ZIP سليم" || { echo "✗ ليس ملف ZIP"; exit 1; }
 
       - name: فكّ ضغط المشروع
         shell: pwsh
         run: |
           Expand-Archive -Path proj.zip -DestinationPath . -Force
           if (-not (Test-Path pubspec.yaml)) { throw "pubspec.yaml مفقود بعد الفكّ" }
+          Write-Host "✓ فُكّ المشروع — أهم المداخل:"
           Get-ChildItem -Name | Select-Object -First 20
 
       - uses: subosito/flutter-action@v2
@@ -42,13 +56,28 @@ jobs:
       - name: بناء ويندوز release
         run: flutter build windows --release
 
-      - name: حزمة MSIX
+      - name: فهرس مخرجات البناء
+        shell: pwsh
+        run: Get-ChildItem -Recurse build/windows/x64/runner/Release | Select-Object FullName, Length | Format-Table -AutoSize
+
+      # حزمة MSIX — تقريرية عمداً: بلا شهادة حقيقية توقّع الأداة بشهادة
+      # اختبار، وأي عارضٍ فيها يجب ألا يمنع الحصول على نسخة EXE أعلاه.
+      - name: حزمة MSIX (تقريرية)
+        continue-on-error: true
         run: dart run msix:create
 
-      - name: رفع مخرجات البناء (EXE + MSIX)
+      - name: رفع نسخة التشغيل (EXE + ملفاتها)
         uses: actions/upload-artifact@v4
         with:
           name: dental-windows-release
           path: build/windows/x64/runner/Release/
           if-no-files-found: error
+          retention-days: 30
+
+      - name: رفع حزمة MSIX (إن أُنتجت)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dental-windows-msix
+          path: build/windows/x64/runner/Release/*.msix
+          if-no-files-found: warn
           retention-days: 30
