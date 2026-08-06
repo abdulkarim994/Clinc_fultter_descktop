@@ -1,0 +1,54 @@
+name: بناء نسخة ويندوز (Bootstrap)
+
+# يُعاد تجميع المشروع من أجزاء base64 المرفوعة في _bootstrap/ (رُفع عبر
+# واجهة GitHub التي تنقل نصّاً فقط)، ثم يُبنى release + MSIX ويُرفع كأثر.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/windows-build.yml']
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: بناء ويندوز release + MSIX
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: إعادة تجميع المشروع من الأجزاء
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat _bootstrap/proj.b64.part* | base64 --decode > proj.zip
+          echo "حجم الأرشيف: $(wc -c < proj.zip) بايت"
+
+      - name: فكّ ضغط المشروع
+        shell: pwsh
+        run: |
+          Expand-Archive -Path proj.zip -DestinationPath . -Force
+          if (-not (Test-Path pubspec.yaml)) { throw "pubspec.yaml مفقود بعد الفكّ" }
+          Get-ChildItem -Name | Select-Object -First 20
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      - name: تثبيت الاعتماديات
+        run: flutter pub get
+
+      - name: بناء ويندوز release
+        run: flutter build windows --release
+
+      - name: حزمة MSIX
+        run: dart run msix:create
+
+      - name: رفع مخرجات البناء (EXE + MSIX)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dental-windows-release
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 30
