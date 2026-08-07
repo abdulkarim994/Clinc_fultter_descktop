@@ -1,0 +1,64 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# بناء ويندوز v4 — «المسار المباشر»: يبني من ملفات المستودع مباشرة
+# ═══════════════════════════════════════════════════════════════════════════
+# استعمل هذه النسخة فقط بعد أن ترفع مجلد المشروع الحقيقي إلى جذر المستودع
+# (بدل أجزاء _bootstrap) — انظر «المسار أ» في دليل التسليم.
+# الأسرار الستة تبقى كما هي في Settings → Secrets → Actions.
+name: بناء نسخة ويندوز (مباشر)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: بناء ويندوز release موصول بالسحابة
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: التحقق من وجود أسرار السحابة
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "✖ أضف الأسرار الستة في Settings → Secrets → Actions ثم أعد التشغيل" >&2
+            exit 1
+          fi
+          echo "✓ الأسرار حاضرة"
+
+      - name: حارس الأسرار — لا ملفات مفاتيح داخل المستودع
+        shell: bash
+        run: |
+          found=$(find . -name '*.jks' -o -name 'cloud.env' -o -name 'dev_keystore.env' | head -5)
+          if [ -n "$found" ]; then echo "✖ ملفات أسرار داخل المستودع!" >&2; echo "$found" >&2; exit 1; fi
+          echo "✓ نظيف"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      - name: تثبيت الاعتماديات
+        run: flutter pub get
+
+      - name: بناء ويندوز release (موصول بالسحابة)
+        shell: bash
+        run: |
+          flutter build windows --release \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=R2_WORKER="${{ secrets.R2_WORKER }}" \
+            --dart-define=PHONE_IDENTITY="${{ secrets.PHONE_IDENTITY }}" \
+            --dart-define=COLD_FETCH="${{ secrets.COLD_FETCH }}" \
+            --dart-define=GOOGLE_WEB_CLIENT_ID="${{ secrets.GOOGLE_WEB_CLIENT_ID }}"
+
+      - name: رفع نسخة التشغيل
+        uses: actions/upload-artifact@v4
+        with:
+          name: dental-windows-release
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 30
