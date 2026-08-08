@@ -1,0 +1,20 @@
+# ============================================================================
+#  مفتاح توقيع الإصدار — انسخ هذا الملف إلى android/key.properties واملأه
+#      cp android/key.properties.example android/key.properties
+#
+#  ⚠ android/key.properties و*.jks مستثنيان من git عمداً — لا تُضِفهما.
+#
+#  م68/دفعة ثانٍ-أ: كان مخزن التوقيع مضمّناً في المستودع وكلمتا مروره
+#  مكتوبتين في build.gradle.kts، ونسخة release توقَّع به.
+#  ⚠ ذلك المفتاح محروق — ولّد مخزناً جديداً:
+#      keytool -genkey -v -keystore ~/dental-release.jks -keyalg RSA \
+#              -keysize 2048 -validity 10000 -alias dental
+#  واحفظه خارج المستودع ودوّن كلمتيه في مدير أسرار — فقدانه يعني
+#  استحالة ترقية النسخ المنصَّبة.
+# ============================================================================
+
+# مسار المخزن — نسبي لمجلد android/app أو مطلق
+storeFile=/absolute/path/to/dental-release.jks
+storePassword=
+keyAlias=dental
+keyPassword=

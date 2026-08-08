@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>التقرير الأمني — نظام التراخيص والاشتراكات</title>
+<style>
+  :root{
+    --cream:#f4efe4;      /* خلفية كريمية */
+    --cream-2:#efe8d8;
+    --ink:#22303a;        /* حبر داكن سريري */
+    --ink-soft:#4a5b66;
+    --line:#d9cfba;       /* خطوط فاصلة */
+    --teal:#0f6b6b;       /* لون طبي هادئ */
+    --teal-soft:#e2efec;
+    --ok:#1f7a4d;         /* مفعّل */
+    --ok-bg:#e4f1e8;
+    --measure:#8a6d1f;    /* قياس/مطفأ */
+    --measure-bg:#f6eecf;
+    --card:#fbf8f0;
+    --shadow:0 1px 2px rgba(34,48,58,.06),0 6px 18px rgba(34,48,58,.05);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:"Segoe UI","Noto Naskh Arabic","Amiri",Tahoma,system-ui,sans-serif;
+    line-height:1.7;
+    font-size:15px;
+    padding:28px 7%;               /* حشو أفقي واضح */
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px;margin:0 auto}
+
+  header.report{
+    border-bottom:2px solid var(--line);
+    padding-bottom:16px;margin-bottom:20px;
+    display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;
+  }
+  header.report h1{
+    font-size:24px;margin:0 0 4px;letter-spacing:.2px;font-weight:800;color:var(--ink);
+  }
+  header.report .sub{color:var(--ink-soft);font-size:13.5px;margin:0}
+  .badge{
+    background:var(--teal);color:#fff;border-radius:999px;
+    padding:6px 14px;font-size:12.5px;font-weight:700;white-space:nowrap;
+  }
+
+  h2{
+    font-size:16px;margin:26px 0 12px;color:var(--teal);
+    display:flex;align-items:center;gap:9px;font-weight:800;
+  }
+  h2::before{content:"";width:9px;height:9px;background:var(--teal);border-radius:2px;display:inline-block}
+
+  /* لقطة الوضع */
+  .posture{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:12px;margin:0 0 6px;
+  }
+  .pcard{
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;box-shadow:var(--shadow);
+  }
+  .pcard .k{font-size:12px;color:var(--ink-soft);margin:0 0 4px}
+  .pcard .v{font-size:20px;font-weight:800;margin:0;line-height:1.2}
+  .pcard .v small{font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:800}
+  .pill.on{background:var(--ok-bg);color:var(--ok)}
+  .pill.off{background:var(--measure-bg);color:var(--measure)}
+
+  .note-line{
+    background:var(--teal-soft);border:1px solid #cfe3de;border-radius:10px;
+    padding:10px 14px;font-size:13.5px;color:#0c4f4f;margin:12px 0 0;
+  }
+
+  /* مصفوفة الضوابط */
+  table{
+    width:100%;border-collapse:collapse;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    box-shadow:var(--shadow);font-size:13.5px;
+  }
+  caption{caption-side:top;text-align:right;color:var(--ink-soft);font-size:12.5px;padding:0 2px 8px}
+  thead th{
+    background:var(--cream-2);color:var(--ink);text-align:right;
+    padding:11px 12px;font-weight:800;border-bottom:1.5px solid var(--line);white-space:nowrap;
+  }
+  tbody td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:nth-child(even){background:rgba(217,207,186,.14)}
+  td.ctrl{font-weight:700;color:var(--ink);white-space:nowrap}
+  code{
+    background:var(--cream-2);border:1px solid var(--line);border-radius:6px;
+    padding:1px 6px;font-size:12.5px;font-family:"Cascadia Mono",Consolas,"Courier New",monospace;
+    color:#2b4a4a;direction:ltr;display:inline-block;
+  }
+  .st{white-space:nowrap;font-weight:800;font-size:12.5px}
+  .st.on{color:var(--ok)}
+  .st.measure{color:var(--measure)}
+  .dash{color:var(--ink-soft)}
+
+  /* المنهجية */
+  ul.method{margin:6px 0 0;padding:0 18px 0 0;list-style:none}
+  ul.method li{position:relative;padding:5px 20px 5px 0;color:var(--ink-soft);font-size:13.8px}
+  ul.method li strong{color:var(--ink);font-weight:700}
+  ul.method li::before{
+    content:"✓";position:absolute;right:0;top:5px;color:var(--teal);font-weight:800;
+  }
+
+  .closing{
+    margin-top:22px;border-right:4px solid var(--teal);
+    background:var(--card);border-radius:0 10px 10px 0;
+    padding:14px 16px;font-size:14px;color:var(--ink);box-shadow:var(--shadow);
+  }
+  .closing strong{color:var(--teal)}
+
+  footer{
+    margin-top:24px;padding-top:12px;border-top:1px solid var(--line);
+    color:var(--ink-soft);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+  }
+
+  @media print{
+    body{padding:14px 6%;font-size:12.5px;background:#fff}
+    .pcard,table,.closing{box-shadow:none}
+    h2{margin:16px 0 8px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="report">
+    <div>
+      <h1>التقرير الأمني — نظام التراخيص والاشتراكات</h1>
+      <p class="sub">مراجعةُ ضوابط الإنفاذ على الخادم والواجهة — تطبيق عيادات الأسنان</p>
+    </div>
+    <span class="badge">لقطة بتاريخ ٢٠٢٦‑٠٨‑٠٥</span>
+  </header>
+
+  <!-- ═══ لقطة الوضع ═══ -->
+  <h2>لقطة الوضع الأمني</h2>
+  <div class="posture">
+    <div class="pcard">
+      <p class="k">البوابة العامة <code>gate.enforce</code></p>
+      <p class="v"><span class="pill on">مفعّل</span></p>
+    </div>
+    <div class="pcard">
+      <p class="k">مفاتيح الإنفاذ الفرعية</p>
+      <p class="v" style="font-size:14px;line-height:1.5">
+        التخزين <span class="pill off">مطفأ</span>
+        العيادات <span class="pill off">مطفأ</span>
+        الأجهزة <span class="pill off">مطفأ</span>
+      </p>
+    </div>
+    <div class="pcard">
+      <p class="k">إجمالي المستخدمين</p>
+      <p class="v">١١ <small>مستخدماً</small></p>
+    </div>
+    <div class="pcard">
+      <p class="k">محجوبون بالحالة <small>(غير active/trial)</small></p>
+      <p class="v">٢</p>
+    </div>
+    <div class="pcard">
+      <p class="k">سيتأثّرون لو فُعِّل حارس التخزين</p>
+      <p class="v">٠ <small>مستخدم</small></p>
+    </div>
+    <div class="pcard">
+      <p class="k">سيتأثّرون لو فُعِّل حارس العيادات</p>
+      <p class="v">١ <small>مستخدم</small></p>
+    </div>
+    <div class="pcard">
+      <p class="k">سيتأثّرون لو فُعِّل حارس الأجهزة</p>
+      <p class="v">٤ <small>مستخدمين</small></p>
+    </div>
+  </div>
+  <p class="note-line">
+    البوابة العامة مفعّلة (اشتراكٌ منتهٍ لا يزامن)، أمّا الحُرّاس الثلاثة الجديدة فما زالت
+    في وضع <strong>القياس فقط</strong>: تُحصي «مَن سيتأثّر» دون أن تحجب أحداً، ريثما يقرّر
+    المالك تفعيل كلٍّ منها على حدة.
+  </p>
+
+  <!-- ═══ مصفوفة الضوابط ═══ -->
+  <h2>مصفوفة الضوابط</h2>
+  <table>
+    <caption>لكلّ ضابطٍ تحقُّقٌ على الخادم (المنع الفعلي) وآخر في الواجهة (حاجز التجربة)، ومفتاحُ تحكّمٍ وحالةٌ راهنة.</caption>
+    <thead>
+      <tr>
+        <th>الضابط</th>
+        <th>التحقّق على الخادم</th>
+        <th>التحقّق في الواجهة</th>
+        <th>المفتاح</th>
+        <th>الحالة</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="ctrl">رفع الصور / التخزين</td>
+        <td>Worker + <code>storage_can_upload</code></td>
+        <td>StorageMeter</td>
+        <td><code>gate.enforce_storage</code></td>
+        <td class="st measure">مطفأ / قياس</td>
+      </tr>
+      <tr>
+        <td class="ctrl">العيادات</td>
+        <td><code>apply_changes</code> + <code>clinics_guard</code></td>
+        <td>شاشتا الإعداد والإعدادات</td>
+        <td><code>gate.enforce_clinics</code></td>
+        <td class="st measure">مطفأ / قياس</td>
+      </tr>
+      <tr>
+        <td class="ctrl">الأجهزة</td>
+        <td><code>verify_license</code> · <code>device_block</code></td>
+        <td>شاشة deviceLimit</td>
+        <td><code>gate.enforce_devices</code></td>
+        <td class="st measure">مطفأ / قياس</td>
+      </tr>
+      <tr>
+        <td class="ctrl">المزامنة / صلاحية الاشتراك</td>
+        <td><code>apply_changes</code> · <code>license_allows_sync</code></td>
+        <td>حارس البوابة</td>
+        <td><code>gate.enforce</code></td>
+        <td class="st on">مفعّل</td>
+      </tr>
+      <tr>
+        <td class="ctrl">الحظر / التجميد</td>
+        <td><code>verify_license</code> + البوابة</td>
+        <td>شاشات مخصّصة</td>
+        <td><code>gate.enforce</code></td>
+        <td class="st on">مفعّل</td>
+      </tr>
+      <tr>
+        <td class="ctrl">الفترة التجريبية</td>
+        <td><code>verify_license</code> · منحٌ تلقائي</td>
+        <td class="dash">—</td>
+        <td><code>trial.enabled</code></td>
+        <td class="st">حسب الإعداد</td>
+      </tr>
+      <tr>
+        <td class="ctrl">التراخيص / الأكواد</td>
+        <td><code>activate_code</code> · SHA‑256 + rate‑limit</td>
+        <td>شاشة التفعيل</td>
+        <td class="dash">—</td>
+        <td class="st on">مفعّل دائماً</td>
+      </tr>
+      <tr>
+        <td class="ctrl">سجل التدقيق</td>
+        <td><code>admin_audit</code> · مُشغِّل append‑only</td>
+        <td class="dash">—</td>
+        <td class="dash">—</td>
+        <td class="st on">مفعّل</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══ المنهجية ═══ -->
+  <h2>منهجية الأمان</h2>
+  <ul class="method">
+    <li><strong>RLS على كل الجداول:</strong> عزلٌ صفّيٌّ شامل — لا يرى مستخدمٌ صفوف غيره ولا يكتب باسمه.</li>
+    <li><strong>مسار بحثٍ مثبَّت:</strong> كل دوال <code>SECURITY DEFINER</code> بمسار بحثٍ فارغ، فلا حقن مخطَّطٍ ولا التباس أسماء.</li>
+    <li><strong>أكواد مجزّأة:</strong> أكواد التفعيل تُخزَّن كتجزئة <strong>SHA‑256</strong> فقط — لا نصّ صريح في أي مكان.</li>
+    <li><strong>تقييد المعدّل:</strong> تفعيل الأكواد مُقيَّدٌ (٨ محاولات/ساعة/مستخدم) لكبح التخمين والإساءة.</li>
+    <li><strong>سجل تدقيقٍ غير قابل للعبث:</strong> <code>admin_audit</code> إلحاقٌ فقط بمُشغِّلٍ يمنع التعديل والحذف — حتى من دوال الامتياز.</li>
+    <li><strong>حُرّاسٌ خلف مفاتيح فرعية:</strong> الضوابط الجديدة تبدأ <strong>مطفأة</strong>، تقيس «مَن سيتأثّر» قبل أي تفعيل — إدخالٌ آمنٌ بلا مفاجآت.</li>
+  </ul>
+
+  <!-- ═══ الخاتمة ═══ -->
+  <div class="closing">
+    <strong>قرارٌ صريح للمالك:</strong> لن يُقلَب أيُّ مفتاح إنفاذٍ فرعي
+    (<code>enforce_storage</code> · <code>enforce_clinics</code> · <code>enforce_devices</code>)
+    من «قياس» إلى «حجب» دون قرارٍ صريحٍ من المالك. حتى ذلك الحين تبقى الحُرّاس شاهدةً
+    تُحصي الأثر دون أن تمنع أحداً.
+  </div>
+
+  <footer>
+    <span>نظام التراخيص والاشتراكات — تطبيق عيادات الأسنان</span>
+    <span>تقرير داخلي · للمراجعة الأمنية</span>
+  </footer>
+
+</div>
+</body>
+</html>
