@@ -1,0 +1,74 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# أداة لمرة واحدة: تحويل المستودع للمسار المباشر («المسار أ» في دليل التسليم)
+# تفكّ حمولة _bootstrap المتحقَّق منها إلى ملفات حقيقية على هذا الفرع.
+# يُحذف هذا الملف قبل الدمج في main.
+#
+# ملاحظة: لا تلمس هذه الوظيفة مجلد .github/ إطلاقاً — GITHUB_TOKEN لا يملك
+# صلاحية workflows، وملفات البناء تُدار عبر الواجهة البرمجية في خطوة منفصلة.
+# ═══════════════════════════════════════════════════════════════════════════
+name: تحويل المستودع للمسار المباشر (لمرة واحدة)
+
+on:
+  push:
+    branches: ['takeover/**']
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: فكّ الحمولة والتحقق
+        run: |
+          set -euo pipefail
+          if [ ! -f _bootstrap/proj.b64.part00 ]; then
+            echo "لا حمولة — التحويل تم سابقاً. لا شيء يُعمل."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          cat _bootstrap/proj.b64.part* | tr -d '\r' | base64 --decode > /tmp/proj.zip
+          got=$(sha256sum /tmp/proj.zip | cut -d' ' -f1)
+          expected="576260bd1e77b9d7fcab7bc56d84bca305b0d892e0b721b221065b7d5484a4ad"
+          echo "sha256: $got"
+          if [ "$got" != "$expected" ]; then
+            echo "✖ بصمة الحمولة لا تطابق مصدر v2148 الموثّق — إيقاف." >&2
+            exit 1
+          fi
+          echo "✓ البصمة مطابقة لمصدر v2148 الموثّق في دليل التسليم"
+          mkdir -p /tmp/src
+          unzip -q /tmp/proj.zip -d /tmp/src
+          found=$(find /tmp/src -name '*.jks' -o -name 'cloud.env' -o -name 'dev_keystore.env' | head -5)
+          if [ -n "$found" ]; then
+            echo "✖ ملفات أسرار داخل الحمولة — إيقاف:" >&2
+            echo "$found" >&2
+            exit 1
+          fi
+          echo "✓ الحمولة خالية من الأسرار"
+
+      - name: استبدال محتوى الفرع بالمصدر
+        if: env.SKIP != '1'
+        run: |
+          set -euo pipefail
+          # أبقِ: .git، .github (تُدار منفصلة)، ملفات التسليم. واحذف الباقي
+          # (يشمل _bootstrap و.gitattributes و.ghprobe من عهد الحمولة).
+          find . -mindepth 1 -maxdepth 1 \
+            ! -name '.git' \
+            ! -name '.github' \
+            ! -name '_handover' \
+            ! -name 'دليل_التطوير_والرفع.md' \
+            -exec rm -rf {} +
+          rsync -a --exclude='.github' /tmp/src/ ./
+          git add -A
+          if git diff --cached --quiet; then
+            echo "لا تغيير — الشجرة مطابقة أصلاً."
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898024+github-actions[bot]@users.noreply.github.com' \
+              commit -m 'المسار المباشر: نقل مصدر v2148 كاملاً من حمولة _bootstrap (sha256 متحقَّق)'
+          git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
+          echo "✓ دُفع المصدر إلى الفرع"

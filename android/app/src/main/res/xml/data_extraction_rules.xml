@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  م68/دفعة ثانٍ-أ — قواعد استخراج البيانات (أندرويد 12+).
+  تغطي مسارين: النسخ السحابي، ونقل البيانات جهازاً لجهاز. كلاهما يستثني
+  بيانات المرضى والاعتمادات — فلا تغادر معلومات صحية الجهاز عبرهما.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="dental_clinic_offline.db" />
+        <exclude domain="file" path="dental_clinic_offline.db-wal" />
+        <exclude domain="file" path="dental_clinic_offline.db-shm" />
+        <exclude domain="file" path="session.json" />
+        <exclude domain="file" path="cloud_config.json" />
+        <exclude domain="file" path="xray_images/" />
+        <exclude domain="file" path="exports/" />
+    </cloud-backup>
+    <!--
+      م77 — كان هذا القسم يستثني الجلسة والإعداد فقط، وكل ما لا يُستثنى
+      مشمولٌ افتراضياً: فترحيل جهاز إلى جهاز على أندرويد 12+ كان ينسخ
+      **قاعدة المرضى كاملةً وشجرة صور الأشعة** إلى الهاتف الجديد. وترويسة
+      هذا الملف نفسها تؤكّد أن «كليهما يستثني بيانات المرضى» — فكان الملف
+      يكذّب نفسه، وكان البند مُحتسَباً منجَزاً في دليل الأمن.
+      والسيناريو ليس نظرياً: عيادة تستبدل لوحاً وتشغّل معالج النقل القياسي.
+    -->
+    <device-transfer>
+        <exclude domain="file" path="dental_clinic_offline.db" />
+        <exclude domain="file" path="dental_clinic_offline.db-wal" />
+        <exclude domain="file" path="dental_clinic_offline.db-shm" />
+        <exclude domain="file" path="session.json" />
+        <exclude domain="file" path="cloud_config.json" />
+        <exclude domain="file" path="xray_images/" />
+        <exclude domain="file" path="exports/" />
+    </device-transfer>
+</data-extraction-rules>

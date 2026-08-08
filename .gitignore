@@ -1,0 +1,61 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ── أسرار البناء والتشغيل (م68/دفعة ثانٍ-أ) ──────────────────────────────
+# لا يجوز أن يدخل أيٌّ من هذه المستودعَ: كانت مفاتيح Supabase مكتوبةً نصاً
+# في سكربتَي البناء، ومخزن التوقيع مضمّناً بكلمات مروره.
+tool/cloud.env
+android/key.properties
+**/*.jks
+**/*.keystore
+# إعداد الاتصال السحابي المحلي وجلسة الدخول (تُكتبان بجوار القاعدة)
+cloud_config.json
+session.json
+
+# م77 — دليل التشغيل الأمني يحمل معرّف المشروع الحيّ وأوامر تشغيلية.
+# يُسلَّم يداً بيد، ولا يدخل المستودع.
+SECURITY_RUNBOOK_AR.md
+tool/dev_keystore.env

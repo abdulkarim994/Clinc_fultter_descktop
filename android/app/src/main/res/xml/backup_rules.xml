@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  م68/دفعة ثانٍ-أ — قواعد النسخ الاحتياطي (أندرويد 11 وما دون).
+  النسخ معطَّل أصلاً بـ allowBackup="false"؛ هذه القواعد دفاعٌ بالعمق لو
+  أُعيد تفعيله: تستثني كل ما يحمل بيانات مرضى أو اعتمادات.
+-->
+<full-backup-content>
+    <!-- قاعدة المرضى (غير مشفّرة حالياً) وملفات WAL المرافقة -->
+    <exclude domain="file" path="dental_clinic_offline.db" />
+    <exclude domain="file" path="dental_clinic_offline.db-wal" />
+    <exclude domain="file" path="dental_clinic_offline.db-shm" />
+    <!-- رموز الجلسة وإعداد الاتصال السحابي -->
+    <exclude domain="file" path="session.json" />
+    <exclude domain="file" path="cloud_config.json" />
+    <!-- صور الأشعة وملفات PDF المصدَّرة -->
+    <exclude domain="file" path="xray_images/" />
+    <exclude domain="file" path="exports/" />
+</full-backup-content>
