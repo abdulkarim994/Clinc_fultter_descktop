@@ -1,40 +1,72 @@
 # ═══════════════════════════════════════════════════════════════════════════
-# بناء نسخة ويندوز v3 — موصولة بالسحابة عبر أسرار CI المشفرة
+# بناء ويندوز v4 — «المسار المباشر»: يبني من ملفات المستودع مباشرة
 # ═══════════════════════════════════════════════════════════════════════════
-#
-# الجديد في v3 (قرار المالك — مهمة التكافؤ، البند سابعاً):
-#   مفاتيح السحابة تُحقن وقت البناء من GitHub Actions Secrets (مشفرة،
-#   ليست في الكود ولا في تاريخ git) — فيخرج EXE موصولاً بالسحابة مثل
-#   APK الأندرويد تماماً: دخول سحابي + اشتراك وكود تفعيل + مزامنة.
-#
-#   ⚠ قبل التشغيل أضف الأسرار الستة في:
-#     Settings → Secrets and variables → Actions → New repository secret
-#   (الأسماء أدناه حرفياً، والقيم من ملف cloud.env عندك):
-#     SUPABASE_URL, SUPABASE_ANON_KEY, R2_WORKER,
-#     PHONE_IDENTITY, COLD_FETCH, GOOGLE_WEB_CLIENT_ID
-#
-#   ملاحظة أمانة: هذه القيم مصممة للدمج داخل كل نسخة عميل توزعها
-#   (موجودة داخل APK أصلاً)، أما مخزن التوقيع dental_dev.jks وكلمتاه
-#   فلا تُرفع إلى GitHub بأي صورة — بناء ويندوز لا يحتاجها.
-#
-# موروث من v2: إعادة تجميع المشروع من أجزاء base64 في _bootstrap/ مع
-# تحييد CRLF (رانر ويندوز يحول النهايات فيفشل base64 --decode بدونها).
-name: بناء نسخة ويندوز (Bootstrap)
+# المستودع تحوّل للمسار المباشر (المسار أ في دليل التسليم): المصدر الحقيقي
+# في الجذر، فيبني هذا الملف من الملفات مباشرة — لا إعادة تجميع من أجزاء.
+# الأسرار الستة تبقى كما هي في Settings → Secrets → Actions.
+name: بناء نسخة ويندوز (مباشر)
 
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/windows-build.yml']
   workflow_dispatch:
 
 jobs:
   build-windows:
-    name: بناء ويندوز release موصول بالسحابة + MSIX
+    name: بناء ويندوز release موصول بالسحابة
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
+      - name: التحقق من وجود أسرار السحابة
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "✖ أضف الأسرار الستة في Settings → Secrets → Actions ثم أعد التشغيل" >&2
+            exit 1
+          fi
+          echo "✓ الأسرار حاضرة"
+
+      - name: حارس الأسرار — لا ملفات مفاتيح داخل المستودع
+        shell: bash
+        run: |
+          found=$(find . -name '*.jks' -o -name 'cloud.env' -o -name 'dev_keystore.env' | head -5)
+          if [ -n "$found" ]; then echo "✖ ملفات أسرار داخل المستودع!" >&2; echo "$found" >&2; exit 1; fi
+          echo "✓ نظيف"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+
+      - name: تثبيت الاعتماديات
+        run: flutter pub get
+
+      - name: بناء ويندوز release (موصول بالسحابة)
+        shell: bash
+        env:
+          # رقم البناء — القاعدة الذهبية: يتصاعد دائماً مع كل إصدار يوزَّع
+          # (آخر APK كان 2148، فأي جديد 2149 فأعلى). زده هنا مع كل إصدار.
+          BUILD_NUM: '2149'
+        run: |
+          flutter build windows --release \
+            --build-name="1.0.${BUILD_NUM}" --build-number="${BUILD_NUM}" \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=R2_WORKER="${{ secrets.R2_WORKER }}" \
+            --dart-define=PHONE_IDENTITY="${{ secrets.PHONE_IDENTITY }}" \
+            --dart-define=COLD_FETCH="${{ secrets.COLD_FETCH }}" \
+            --dart-define=GOOGLE_WEB_CLIENT_ID="${{ secrets.GOOGLE_WEB_CLIENT_ID }}"
+
+      - name: رفع نسخة التشغيل
+        uses: actions/upload-artifact@v4
+        with:
+          name: dental-windows-release
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 30
       - name: التحقق من وجود أسرار السحابة
         shell: bash
         run: |
