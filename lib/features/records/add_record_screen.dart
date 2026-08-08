@@ -41,7 +41,7 @@ import 'medical_info_dialog.dart';
 import 'mini_calculator.dart' show showMiniCalculator;
 import 'record_saver.dart';
 import 'tooth_report_dialog.dart' show showToothReportDialog, teethKeysOf;
-import '../settings/settings_screen.dart' show enabledAnalyses;
+import '../settings/analyses3.dart' show triAnalysesEnabled;
 import '../staff/staff_gate.dart' show gateStaff;
 
 /// config.labs — كما في labsList computed.
@@ -313,12 +313,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
   bool showPhone2 = false;
   List<PatientSuggestion> suggestions = const [];
 
-  // ── نظام «التحاليل» — تحليلٌ مخبري مرافق للزيارة (معزول مالياً) ──
-  // التفعيل يبسط منطقة اختيار التحليل + سعره + طريقة دفعه. لا يُحفظ إلا
-  // مع «حفظ الزيارة» (صفٌّ isAnalysis في نفس معاملة saveNewRecord).
+  // ── نظام «التحاليل الثلاثية» — تحليلٌ واحدٌ ثابتُ الاسم والسعر (معزول مالياً) ──
+  // التفعيل يظهر قائمة طريقة الدفع فقط — الاسم والسعر ثابتان من الإعدادات.
   bool hasAnalysis = false;
-  String analysisName = '';
-  final analysisPriceCtl = TextEditingController();
   String analysisPay = 'كاش';
 
   /// المريض المحدد — يُضبط فقط باختيار اقتراح صريح (سلوك الأصل)؛
@@ -346,7 +343,6 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       notesCtl,
       prosUnitsCtl,
       prosUnitPriceCtl,
-      analysisPriceCtl,
     ]) {
       c.dispose();
     }
@@ -699,18 +695,15 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         report: hasReport && reportEntries.isNotEmpty
             ? {'entries': reportEntries, 'meta': reportMeta}
             : null,
-        // نظام «التحاليل» — يُمرَّر فقط في الإنشاء وبقيمةٍ موجبة. **وضع
-        // التعديل يمرّره null دائماً** (لا يُعاد إنشاء التحليل عند الاستبدال).
-        analysis: (widget.editEntry == null &&
-                hasAnalysis &&
-                analysisName.isNotEmpty &&
-                jsNumOr0(analysisPriceCtl.text) > 0)
-            ? AnalysisInput(
-                name: analysisName,
-                price: jsNumOr0(analysisPriceCtl.text),
-                payment: analysisPay,
-              )
-            : null,
+        // نظام «التحاليل الثلاثية» — دالة نقية تعيد null في وضع التعديل أو
+        // حين الميزة معطّلة أو السعر صفر، وإلا تعيد AnalysisInput بالاسم
+        // والسعر الثابتَين من الإعدادات.
+        analysis: triAnalysisFor(
+          creating: widget.editEntry == null,
+          checked: hasAnalysis,
+          cfg: config,
+          payment: analysisPay,
+        ),
       );
 
       // ═══ م100 — وضع التعديل: إنشاء البديل أولاً ثم حذف الأصل ═══
@@ -770,10 +763,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         prosType = '';
         prosUnitsCtl.text = '1';
         prosUnitPriceCtl.clear();
-        // نظام «التحاليل» — تصفير حالة التحليل بعد الحفظ.
+        // نظام «التحاليل الثلاثية» — تصفير حالة التحليل بعد الحفظ.
         hasAnalysis = false;
-        analysisName = '';
-        analysisPriceCtl.clear();
         analysisPay = 'كاش';
       });
       // في الورقة السفلية: تُغلق بعد حفظٍ ناجح (جدول الدخل يتحدّث عبر
@@ -1366,9 +1357,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                               color: BrandColors.mut,
                             ),
                           ),
-                          // نظام «التحاليل» — علامة صحٍّ بجانب «دين» تبسط
-                          // منطقة اختيار التحليل + سعره + طريقة دفعه.
-                          _analToggle(),
+                          // نظام «التحاليل الثلاثية» — يظهر الصح فقط في وضع
+                          // الإنشاء وحين الميزة مفعّلة.
+                          _analToggle(config),
                           const Spacer(),
                           // م41 — الكبسولة تنكمش بدل الفيضان عند التكبير.
                           Flexible(
@@ -1649,7 +1640,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               // ── نظام «التحاليل» — منطقة التحليل المنبسطة ──
               if (hasAnalysis) ...[
                 const SizedBox(height: 10),
-                _analysisSection(config, dec, keyPrefix: 'rec'),
+                _analysisSection(keyPrefix: 'rec'),
               ],
 
               // ── معلومات مختصرة (قرار المالك — ميزة الملاحظات المختصرة) ──
@@ -1986,8 +1977,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             onChanged: (v) => setState(() => isDebt = v),
           ),
           Text('دين', style: TextStyle(fontSize: 12, color: BrandColors.mut)),
-          // نظام «التحاليل» — علامة صحٍّ بجانب «دين» (توأم الوضع العمودي).
-          _analToggle(),
+          // نظام «التحاليل الثلاثية» — يظهر الصح فقط في وضع الإنشاء
+          // وحين الميزة مفعّلة (توأم الوضع العمودي).
+          _analToggle(config),
           const Spacer(),
           Flexible(
             child: FittedBox(
@@ -2357,7 +2349,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         // نظام «التحاليل» — منطقة التحليل المنبسطة (توأم الوضع العمودي).
         if (hasAnalysis) ...[
           const SizedBox(height: 10),
-          _analysisSection(config, dec, keyPrefix: 'rec'),
+          _analysisSection(keyPrefix: 'rec'),
         ],
         const SizedBox(height: 10),
         colTitle(Icons.sticky_note_2_outlined, 'معلومات مختصرة'),
@@ -2402,49 +2394,51 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           child: Padding(padding: const EdgeInsets.all(14), child: child),
         );
 
-  /// نظام «التحاليل» — علامة صحٍّ + عنوان «تحليل» بجانب مفتاح «دين».
-  /// التفعيل يبسط منطقة اختيار التحليل؛ الإلغاء يمسحها. الافتراض عند
-  /// التفعيل: طريقة الدفع من دفع الزيارة إن كانت كاش/تحويل وإلا كاش.
-  Widget _analToggle() => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: Checkbox(
-              key: const Key('rec-analysis-toggle'),
-              value: hasAnalysis,
-              activeColor: BrandColors.green,
-              visualDensity: VisualDensity.compact,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              onChanged: (v) => setState(() {
-                hasAnalysis = v ?? false;
-                if (hasAnalysis) {
-                  analysisPay = (payment == 'كاش' || payment == 'تحويل')
-                      ? payment
-                      : 'كاش';
-                } else {
-                  analysisName = '';
-                  analysisPriceCtl.clear();
-                }
-              }),
-            ),
+  /// نظام «التحاليل الثلاثية» — علامة صحٍّ + عنوان «التحاليل الثلاثية» بجانب
+  /// مفتاح «دين». لا يظهر إلا في وضع الإنشاء (editEntry == null) وحين
+  /// الميزة مفعّلة من الإعدادات — كان يظهر دائماً حتى في وضع التعديل حيث
+  /// تُتجاهل قيمه صامتاً (خطأ مؤكد). الافتراض عند التفعيل: طريقة الدفع
+  /// من دفع الزيارة إن كانت كاش/تحويل وإلا كاش.
+  Widget _analToggle(JMap config) {
+    // يُخفى في وضع التعديل أو حين الميزة معطّلة.
+    if (widget.editEntry != null || !triAnalysesEnabled(config)) {
+      return const SizedBox.shrink();
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 22,
+          height: 22,
+          child: Checkbox(
+            key: const Key('rec-analysis-toggle'),
+            value: hasAnalysis,
+            activeColor: BrandColors.green,
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            onChanged: (v) => setState(() {
+              hasAnalysis = v ?? false;
+              if (hasAnalysis) {
+                analysisPay = (payment == 'كاش' || payment == 'تحويل')
+                    ? payment
+                    : 'كاش';
+              }
+            }),
           ),
-          const SizedBox(width: 3),
-          Text('تحليل',
-              style: TextStyle(fontSize: 12, color: BrandColors.mut)),
-        ],
-      );
+        ),
+        const SizedBox(width: 3),
+        Text('التحاليل الثلاثية',
+            style: TextStyle(fontSize: 12, color: BrandColors.mut)),
+      ],
+    );
+  }
 
-  /// نظام «التحاليل» — منطقة إدخال التحليل: قائمة التحاليل المفعّلة (تملأ
-  /// السعر)، سعرٌ حرّ، وطريقة دفعٍ (كاش/تحويل) معزولة عن دفع الزيارة.
-  Widget _analysisSection(
-    JMap config,
-    InputDecoration Function(String) dec, {
+  /// نظام «التحاليل الثلاثية» — منطقة مبسّطة: قائمة طريقة الدفع فقط.
+  /// الاسم والسعر ثابتان من الإعدادات — لا قائمة أسماء ولا حقل سعر.
+  Widget _analysisSection({
     required String keyPrefix,
   }) {
-    final analyses = enabledAnalyses(config);
     return Container(
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
@@ -2452,80 +2446,17 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: BrandColors.green.withValues(alpha: .35)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.science_rounded, size: 15, color: BrandColors.green),
-              const SizedBox(width: 6),
-              Text('التحاليل (دخل مخبري معزول)',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    color: BrandColors.green,
-                  )),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  key: Key('$keyPrefix-analysis-name'),
-                  initialValue: analysisName.isEmpty ? null : analysisName,
-                  decoration: dec('التحليل'),
-                  items: [
-                    for (final a in analyses)
-                      DropdownMenuItem(
-                        value: '${a['name']}',
-                        child: Text('${a['name']}',
-                            overflow: TextOverflow.ellipsis),
-                      ),
-                  ],
-                  onChanged: (v) => setState(() {
-                    analysisName = v ?? '';
-                    // اختيار التحليل يملأ سعره المضبوط (يبقى حراً للتعديل).
-                    for (final a in analyses) {
-                      if ('${a['name']}' == analysisName &&
-                          jsNumOr0(a['price']) > 0) {
-                        analysisPriceCtl.text =
-                            jsNumOr0(a['price']).toStringAsFixed(0);
-                        break;
-                      }
-                    }
-                  }),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 2,
-                child: TextField(
-                  key: Key('$keyPrefix-analysis-price'),
-                  controller: analysisPriceCtl,
-                  keyboardType: TextInputType.number,
-                  decoration: dec('السعر'),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            key: Key('$keyPrefix-analysis-pay'),
-            initialValue: analysisPay,
-            decoration: dec('طريقة الدفع'),
-            items: const [
-              DropdownMenuItem(value: 'كاش', child: Text('كاش')),
-              DropdownMenuItem(value: 'تحويل', child: Text('تحويل')),
-            ],
-            onChanged: (v) => setState(() => analysisPay = v ?? 'كاش'),
-          ),
+      child: DropdownButtonFormField<String>(
+        isExpanded: true,
+        key: Key('$keyPrefix-analysis-pay'),
+        initialValue: analysisPay,
+        decoration: const InputDecoration(
+            labelText: 'طريقة دفع التحاليل الثلاثية', isDense: true),
+        items: const [
+          DropdownMenuItem(value: 'كاش', child: Text('كاش')),
+          DropdownMenuItem(value: 'تحويل', child: Text('تحويل')),
         ],
+        onChanged: (v) => setState(() => analysisPay = v ?? 'كاش'),
       ),
     );
   }

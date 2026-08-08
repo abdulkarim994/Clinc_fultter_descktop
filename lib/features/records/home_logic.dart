@@ -1032,24 +1032,29 @@ List<LedgerRow> todayLedgerRows(
   return rows;
 }
 
-// ── نظام «التحاليل» — ربط صفوف الدخل بتحاليلها (عرضاً فقط) ──────────────────
+// ── نظام «التحاليل» — ربط صفوف الدخل بتحاليلها (عرضاً وحذفاً) ──────────────
 //
 //  صفوف التحاليل محروسةٌ خارج جدول الدخل والمالية (isAnalysis)، فتُقرأ من
 //  جدول السجلات مباشرة لبناء خريطتَي ربط: بمعرّف الزيارة (analysisOf) وهي
 //  الرابط الحقيقي الذي يكتبه الحفظ، وباسم المريض + يومٍ للاحتياط. لا قيمة
-//  مالية تدخل أي إجمالي — هذا عرضٌ بحت (علامة صح + تلميح).
+//  مالية تدخل أي إجمالي — عرضٌ بالصلاحية العامة وحذفٌ مشروطٌ بـrecords.delete.
 
-/// تحليلٌ مرتبطٌ لعرضه (الاسم/القيمة/الطريقة).
+/// تحليلٌ مرتبطٌ للعرض والحذف (الاسم/القيمة/الطريقة/المعرّف).
+/// [id] معرّف سجل التحليل في قاعدة البيانات — يتيح الحذف المباشر من الجداول
+/// عبر repos.records.delete(id). القيمة الافتراضية '' للتوافق الخلفي.
 class AnalysisLink {
   const AnalysisLink({
     required this.name,
     required this.amount,
     required this.payment,
+    this.id = '',
   });
 
   final String name;
   final num amount;
   final String payment;
+  // معرّف السجل في قاعدة البيانات — يتيح الحذف المباشر من الجداول.
+  final String id;
 
   bool get isCash => payment == 'كاش';
 }
@@ -1072,15 +1077,18 @@ class AnalysisIndex {
 
 /// يبني فهرس التحاليل من صفوف السجلات (isAnalysis فقط). [day] الافتراضي
 /// اليوم الحالي (لمفتاح الاسم+اليوم) — يمرَّر صراحةً في الاختبارات.
+/// حقل [id] في كل رابط يُملأ من 'id' السجل ليتيح الحذف المباشر.
 AnalysisIndex buildAnalysisIndex(List<JMap> records) {
   final byRecord = <String, List<AnalysisLink>>{};
   final byPatDay = <String, List<AnalysisLink>>{};
   for (final r in records) {
     if (!jsTruthy(r['isAnalysis'])) continue;
+    // معرّف سجل التحليل — يُمرَّر في الرابط لإتاحة الحذف المباشر.
     final link = AnalysisLink(
       name: jsTruthy(r['analysisName']) ? '${r['analysisName']}' : 'تحليل',
       amount: jsNumOr0(r['amount']),
       payment: '${r['payment'] ?? ''}'.trim(),
+      id: '${r['id'] ?? ''}',
     );
     final of = '${r['analysisOf'] ?? ''}';
     if (of.isNotEmpty && of != 'null') {

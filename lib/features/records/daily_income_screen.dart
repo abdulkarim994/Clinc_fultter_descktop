@@ -387,68 +387,118 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
   }
 
   /// نظام «التحاليل» — نافذةٌ تعرض تحاليل الصف (الاسم/القيمة/الطريقة).
-  /// بلا أثرٍ مالي — عرضٌ بحت لدخلٍ مخبري معزول.
+  /// عرضٌ بحت عند غياب الصلاحية؛ وحذفٌ مباشر مشروطٌ بـrecords.delete
+  /// — دخلٌ مخبري معزول لا يمس مجاميع الزيارة.
   Future<void> _showRowAnalyses(
       LedgerRow row, List<AnalysisLink> analyses) async {
     final n = formatNumber;
     final cur = ref.read(currencyProvider);
+    // نسخة قابلة للتعديل لتحديث القائمة بعد حذف بند واحد دون إغلاق الحوار.
+    final remaining = List<AnalysisLink>.of(analyses);
     await showDialog<void>(
       context: context,
-      builder: (dctx) => AlertDialog(
-        title: Row(children: [
-          Icon(Icons.science_rounded, size: 18, color: BrandColors.green),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text('تحاليل — ${row.name}',
-                style: const TextStyle(fontSize: 14)),
-          ),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (final a in analyses)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(children: [
-                  Expanded(
-                    child: Text(a.name,
-                        style: const TextStyle(
-                            fontSize: 12.5, fontWeight: FontWeight.w700)),
-                  ),
-                  Text('${n(a.amount)} $cur',
-                      style: const TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                          color: BrandColors.green)),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: (a.isCash
-                              ? BrandColors.green
-                              : const Color(0xFF8A6D1B))
-                          .withValues(alpha: .12),
-                      borderRadius: BorderRadius.circular(6),
+      builder: (dctx) => StatefulBuilder(
+        builder: (dctx, setDlg) => AlertDialog(
+          title: Row(children: [
+            Icon(Icons.science_rounded, size: 18, color: BrandColors.green),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('تحاليل — ${row.name}',
+                  style: const TextStyle(fontSize: 14)),
+            ),
+          ]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < remaining.length; i++)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(remaining[i].name,
+                          style: const TextStyle(
+                              fontSize: 12.5, fontWeight: FontWeight.w700)),
                     ),
-                    child: Text(a.payment,
-                        style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: a.isCash
+                    Text('${n(remaining[i].amount)} $cur',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: BrandColors.green)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: (remaining[i].isCash
                                 ? BrandColors.green
-                                : const Color(0xFF8A6D1B))),
-                  ),
-                ]),
-              ),
+                                : const Color(0xFF8A6D1B))
+                            .withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(remaining[i].payment,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: remaining[i].isCash
+                                  ? BrandColors.green
+                                  : const Color(0xFF8A6D1B))),
+                    ),
+                    // زر حذف البند — يظهر فقط بصلاحية records.delete ومعرّف غير فارغ.
+                    if (staffAllowed('records.delete') &&
+                        remaining[i].id.isNotEmpty)
+                      IconButton(
+                        key: ValueKey('anal-del-$i'),
+                        icon: const Icon(Icons.delete_outline),
+                        iconSize: 18,
+                        color: BrandColors.red,
+                        tooltip: 'حذف هذا التحليل',
+                        onPressed: () async {
+                          final link = remaining[i];
+                          // حوار تأكيد موجز قبل الحذف.
+                          final ok = await showDialog<bool>(
+                            context: dctx,
+                            builder: (ctx2) => AlertDialog(
+                              title: const Text('حذف التحليل'),
+                              content: Text(
+                                  'حذف «${link.name}» بقيمة ${n(link.amount)}؟'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx2, false),
+                                  child: const Text('إلغاء'),
+                                ),
+                                FilledButton(
+                                  style: FilledButton.styleFrom(
+                                      backgroundColor: BrandColors.red),
+                                  onPressed: () => Navigator.pop(ctx2, true),
+                                  child: const Text('حذف'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (ok != true) return;
+                          // الحذف الناعم المتزامن عبر repos.records.delete.
+                          ref.read(reposProvider).records.delete(link.id);
+                          remaining.removeAt(i);
+                          if (remaining.isEmpty) {
+                            // أُغلق الحوار عند حذف جميع التحاليل.
+                            if (dctx.mounted) Navigator.pop(dctx);
+                          } else {
+                            setDlg(() {});
+                          }
+                          setState(() {});
+                        },
+                      ),
+                  ]),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dctx),
+                child: const Text('إغلاق')),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dctx),
-              child: const Text('إغلاق')),
-        ],
       ),
     );
   }

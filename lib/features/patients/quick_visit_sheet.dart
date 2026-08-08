@@ -30,9 +30,9 @@ import '../records/day_close_store.dart' show confirmClosedDayWrite;
 import '../records/income_day_dialog.dart' show askIncomeDay;
 import '../records/mini_calculator.dart' show showMiniCalculator;
 import '../records/record_saver.dart'
-    show AnalysisInput, SaveRecordInput, isProsthetic, saveNewRecord;
+    show SaveRecordInput, isProsthetic, saveNewRecord, triAnalysisFor;
 import '../records/tooth_report_dialog.dart' show showToothReportDialog;
-import '../settings/settings_screen.dart' show enabledAnalyses;
+import '../settings/analyses3.dart' show triAnalysesEnabled;
 import 'patients_tab.dart' show patientsRevProvider;
 import '../staff/staff_gate.dart' show gateStaff;
 
@@ -107,10 +107,8 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
   final amountCtl = TextEditingController();
   final firstPayCtl = TextEditingController();
 
-  // ── نظام «التحاليل» — تحليلٌ مخبري مرافق (معزول مالياً) ──
+  // ── نظام «التحاليل الثلاثية» — تحليلٌ واحدٌ ثابتُ الاسم والسعر (معزول مالياً) ──
   bool hasAnalysis = false;
-  String analysisName = '';
-  final analysisPriceCtl = TextEditingController();
   String analysisPay = 'كاش';
 
   // معلومات مختصرة (قرار المالك): ملاحظة تلتصق بصف هذه الزيارة/الدفعة
@@ -146,7 +144,6 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
     prosUnitsCtl.dispose();
     prosUnitPriceCtl.dispose();
     labValueCtl.dispose();
-    analysisPriceCtl.dispose();
     super.dispose();
   }
 
@@ -262,16 +259,13 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
           report: reportEntries.isNotEmpty
               ? {'entries': reportEntries, 'meta': reportMeta}
               : null,
-          // نظام «التحاليل» — يُمرَّر عند التفعيل بقيمةٍ موجبة (إنشاء فقط).
-          analysis: (hasAnalysis &&
-                  analysisName.isNotEmpty &&
-                  jsNumOr0(analysisPriceCtl.text) > 0)
-              ? AnalysisInput(
-                  name: analysisName,
-                  price: jsNumOr0(analysisPriceCtl.text),
-                  payment: analysisPay,
-                )
-              : null,
+          // نظام «التحاليل الثلاثية» — الورقة السريعة إنشاءٌ صرف دائماً.
+          analysis: triAnalysisFor(
+            creating: true,
+            checked: hasAnalysis,
+            cfg: cfg,
+            payment: analysisPay,
+          ),
         ),
       );
     } catch (e) {
@@ -365,10 +359,9 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
     );
   }
 
-  /// نظام «التحاليل» — منطقة إدخال التحليل (توأم add_record): قائمة
-  /// التحاليل المفعّلة تملأ السعر، سعرٌ حرّ، وطريقة دفعٍ معزولة.
-  Widget _analysisSection(Map<String, Object?> cfg) {
-    final analyses = enabledAnalyses(cfg);
+  /// نظام «التحاليل الثلاثية» — منطقة مبسّطة: قائمة طريقة الدفع فقط.
+  /// الاسم والسعر ثابتان من الإعدادات — لا قائمة أسماء ولا حقل سعر.
+  Widget _analysisSection() {
     return Container(
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
@@ -376,66 +369,17 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: BrandColors.green.withValues(alpha: .35)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Expanded(
-              flex: 3,
-              child: DropdownButtonFormField<String>(
-                isExpanded: true,
-                key: const Key('qv-analysis-name'),
-                initialValue: analysisName.isEmpty ? null : analysisName,
-                decoration: const InputDecoration(
-                    labelText: 'التحليل', isDense: true),
-                items: [
-                  for (final a in analyses)
-                    DropdownMenuItem(
-                        value: '${a['name']}',
-                        child: Text('${a['name']}',
-                            style: const TextStyle(fontSize: 12.5),
-                            overflow: TextOverflow.ellipsis)),
-                ],
-                onChanged: (v) => setState(() {
-                  analysisName = v ?? '';
-                  for (final a in analyses) {
-                    if ('${a['name']}' == analysisName &&
-                        jsNumOr0(a['price']) > 0) {
-                      analysisPriceCtl.text =
-                          jsNumOr0(a['price']).toStringAsFixed(0);
-                      break;
-                    }
-                  }
-                }),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: TextField(
-                key: const Key('qv-analysis-price'),
-                controller: analysisPriceCtl,
-                keyboardType: TextInputType.number,
-                style: const TextStyle(fontSize: 12.5),
-                decoration: const InputDecoration(
-                    labelText: 'السعر', isDense: true),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            key: const Key('qv-analysis-pay'),
-            initialValue: analysisPay,
-            decoration: const InputDecoration(
-                labelText: 'طريقة الدفع', isDense: true),
-            items: const [
-              DropdownMenuItem(value: 'كاش', child: Text('كاش')),
-              DropdownMenuItem(value: 'تحويل', child: Text('تحويل')),
-            ],
-            onChanged: (v) => setState(() => analysisPay = v ?? 'كاش'),
-          ),
+      child: DropdownButtonFormField<String>(
+        isExpanded: true,
+        key: const Key('qv-analysis-pay'),
+        initialValue: analysisPay,
+        decoration: const InputDecoration(
+            labelText: 'طريقة دفع التحاليل الثلاثية', isDense: true),
+        items: const [
+          DropdownMenuItem(value: 'كاش', child: Text('كاش')),
+          DropdownMenuItem(value: 'تحويل', child: Text('تحويل')),
         ],
+        onChanged: (v) => setState(() => analysisPay = v ?? 'كاش'),
       ),
     );
   }
@@ -753,38 +697,37 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
             ],
             const SizedBox(height: 10),
 
-            // ── نظام «التحاليل» — علامة صحٍّ تبسط منطقة التحليل ──
-            Row(children: [
-              SizedBox(
-                width: 22,
-                height: 22,
-                child: Checkbox(
-                  key: const Key('qv-analysis-toggle'),
-                  value: hasAnalysis,
-                  activeColor: BrandColors.green,
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  onChanged: (v) => setState(() {
-                    hasAnalysis = v ?? false;
-                    if (hasAnalysis) {
-                      analysisPay =
-                          (payment == 'كاش' || payment == 'تحويل')
-                              ? payment
-                              : 'كاش';
-                    } else {
-                      analysisName = '';
-                      analysisPriceCtl.clear();
-                    }
-                  }),
+            // ── نظام «التحاليل الثلاثية» — يظهر الصح فقط حين الميزة مفعّلة ──
+            if (triAnalysesEnabled(cfg)) ...[
+              Row(children: [
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: Checkbox(
+                    key: const Key('qv-analysis-toggle'),
+                    value: hasAnalysis,
+                    activeColor: BrandColors.green,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (v) => setState(() {
+                      hasAnalysis = v ?? false;
+                      if (hasAnalysis) {
+                        analysisPay =
+                            (payment == 'كاش' || payment == 'تحويل')
+                                ? payment
+                                : 'كاش';
+                      }
+                    }),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              Text('تحليل مخبري (معزول مالياً)',
-                  style: TextStyle(fontSize: 12.5, color: BrandColors.mut)),
-            ]),
-            if (hasAnalysis) ...[
-              const SizedBox(height: 8),
-              _analysisSection(cfg),
+                const SizedBox(width: 6),
+                Text('التحاليل الثلاثية',
+                    style: TextStyle(fontSize: 12.5, color: BrandColors.mut)),
+              ]),
+              if (hasAnalysis) ...[
+                const SizedBox(height: 8),
+                _analysisSection(),
+              ],
             ],
             const SizedBox(height: 10),
 

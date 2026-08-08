@@ -36,7 +36,6 @@ import '../../core/theme/app_theme.dart';
 import '../xrays/storage_meter.dart'
     show StorageMeter, StorageLevel, humanBytesAr;
 import '../../core/utils/js_compat.dart';
-import '../../core/utils/uid.dart' show genId;
 import '../../data/db/local_db.dart' show LocalDb;
 import '../../data/rates/rate_snapshot.dart';
 import '../../data/repositories/repositories.dart' show Repositories;
@@ -52,6 +51,12 @@ import '../auth/lock_prefs.dart';
 import '../auth/pin_setup.dart';
 import '../notifications/notification_center.dart'
     show showUpdateButtonPref, setShowUpdateButtonPref;
+import 'analyses3.dart'
+    show
+        kTriAnalysesCfgKey,
+        kTriAnalysesName,
+        triAnalysesEnabled,
+        triAnalysesPrice;
 
 typedef JMap = Map<String, Object?>;
 
@@ -61,24 +66,6 @@ typedef JMap = Map<String, Object?>;
 // وحذف/تعديل باقي المعالجات (حشوا العصب وأيّ إضافة) يبقى متاحاً.
 const Set<String> _kLockedPayments = {'كاش', 'تحويل'};
 const Set<String> _kLockedServices = {'تركيبات'};
-
-// ── نظام «التحاليل» — قائمة التحاليل في app.config ─────────────────────────
-//
-//  كل عنصرٍ خريطةٌ بمعرّفٍ ثابت {id, name, price, enabled} — لا نمط labTypes
-//  بلا id (يولّد قبوراً عند تعديل الاسم لأن بصمة الصف = jsonEncode للكائن
-//  كله فيتغيّر). المعرّف الثابت يجعل التعديل يدهس صفَّه، والحذف حتمياً.
-
-/// كل التحاليل المعرّفة (خرائط بمعرّف ثابت).
-List<JMap> analysesList(JMap cfg) => cfg['analyses'] is List
-    ? [
-        for (final a in cfg['analyses'] as List)
-          if (a is Map) Map<String, Object?>.from(a),
-      ]
-    : const [];
-
-/// التحاليل المفعّلة فقط (للنموذج) — enabled != false.
-List<JMap> enabledAnalyses(JMap cfg) =>
-    [for (final a in analysesList(cfg)) if (a['enabled'] != false) a];
 
 // م143 — مهلة التراجع عن الحذف (بالثواني): تفضيلٌ محليٌّ لكل جهاز في
 // sync_meta (لا يُزامَن — نفس مكان تفضيلات القفل م87). الغياب ⇒ 3 ثوانٍ،
@@ -171,10 +158,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     for (final svc in svcPriceCtls.keys.toList()) {
       _commitSvcPrice(svc, ui: false);
     }
-    // نظام «التحاليل» — يُلتزم بأي سعر تحليلٍ معلّق قبل الإغلاق (توأم svc).
-    for (final id in analPriceCtls.keys.toList()) {
-      _commitAnalPrice(id, ui: false);
-    }
+    // «التحاليل الثلاثية» — يُلتزم بالسعر المعلّق قبل إغلاق القسم (توأم svc).
+    _commitTriAnalPrice(ui: false);
     setState(() => openSection = null);
   }
 
@@ -195,8 +180,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final newLabCtl = TextEditingController();
   final newLabTypeNameCtl = TextEditingController();
   final newLabTypePriceCtl = TextEditingController();
-  // نظام «التحاليل» — حقل إضافة تحليلٍ جديد.
-  final newAnalysisCtl = TextEditingController();
+
+  // «التحاليل الثلاثية» — متحكم سعر التحليل الثابت وعقدة تركيزه.
+  final triAnalPriceCtl = TextEditingController();
+  final triAnalPriceFocus = FocusNode(debugLabel: 'tri-anal-price');
 
   int? editingClinicIdx;
   final renameClinicCtl = TextEditingController();
@@ -208,14 +195,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // م55 — عقدة تركيز لكل حقل سعر معالجة: مغادرة الحقل = حفظ (كان الحفظ
   // على Enter فقط فيضيع السعر عند اللمس خارجاً أو الرجوع من الشاشة).
   final svcPriceFocusNodes = <String, FocusNode>{};
-
-  // نظام «التحاليل» — متحكمات/عقد تركيز أسعار التحاليل (بنمط svc-price:
-  // مفتاحها معرّف التحليل الثابت لا اسمه، فتنجو إعادة التسمية والمزامنة).
-  final analPriceCtls = <String, TextEditingController>{};
-  final analPriceFocusNodes = <String, FocusNode>{};
-  // متحكمات أسماء التحاليل (ثابتة بالمعرّف عبر إعادة البناء — لا تُنشأ في
-  // build كي لا يقفز المؤشر ولا تتسرّب).
-  final analNameCtls = <String, TextEditingController>{};
 
   // قوالب واتساب والمختبرات — قوائم محلية تُحفظ بزر (نموذج الأصل).
   List<Map<String, TextEditingController>> waTpls = [];
@@ -263,10 +242,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     for (final n in svcPriceFocusNodes.values) {
       n.dispose();
     }
-    // نظام «التحاليل» — عقد تركيز أسعار التحاليل (بنمط svc-price في dispose).
-    for (final n in analPriceFocusNodes.values) {
-      n.dispose();
-    }
+    // «التحاليل الثلاثية» — تفكيك عقدة تركيز السعر الثابت.
+    triAnalPriceFocus.dispose();
     for (final c in [
       centerCtl,
       currencyCtl,
@@ -283,18 +260,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       newLabCtl,
       newLabTypeNameCtl,
       newLabTypePriceCtl,
-      newAnalysisCtl,
+      triAnalPriceCtl,
       renameClinicCtl,
     ]) {
       c.dispose();
     }
     for (final c in svcPriceCtls.values) {
-      c.dispose();
-    }
-    for (final c in analPriceCtls.values) {
-      c.dispose();
-    }
-    for (final c in analNameCtls.values) {
       c.dispose();
     }
     for (final c in dcDurCtls.values) {
@@ -1616,184 +1587,129 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _snack(n > 0 ? 'حُفظ سعر «$svc»' : 'أُزيل سعر «$svc»');
   }
 
-  // ── نظام «التحاليل» — بطاقة الإعدادات ─────────────────────────────────────
+  // ── نظام «التحاليل الثلاثية» — بطاقة الإعدادات ────────────────────────────
 
-  /// يعيد صف تحليلٍ بمعرّفه (أو null).
-  JMap? _analById(String id) {
-    for (final a in analysesList(_readConfig())) {
-      if ('${a['id']}' == id) return a;
-    }
-    return null;
-  }
-
-  /// يدهس صفَّ التحليل نفسه بمعرّفه الثابت (configAddItem بنفس id) — تعديل
-  /// اسمٍ/سعرٍ/تفعيل لا يولّد قبراً ولا يكرّر العنصر (بصمة العنصر = id).
-  void _upsertAnalysis(JMap item, {bool ui = true}) {
-    ref.read(reposProvider).settings.configAddItem(['analyses'], item);
-    _configRev?.state++;
-    if (ui) {
-      ref.read(configRevProvider.notifier).state++;
-      if (mounted) setState(() {});
-    }
-  }
-
-  /// متحكم اسم تحليلٍ ثابتٌ بالمعرّف — يُبذر من المخزون مرةً عند الإنشاء
-  /// (لا يُطارَد كل بناء كي لا يقفز المؤشر أثناء الكتابة). التغيير يُلتزم
-  /// عند الإرسال (onSubmitted).
-  TextEditingController _analNameCtl(String id, Object? current) =>
-      analNameCtls.putIfAbsent(
-        id,
-        () => TextEditingController(text: '${current ?? ''}'),
-      );
-
-  /// متحكم سعر تحليلٍ (بنمط _svcPriceCtl: يُبذر من المخزون ويتحدّث بالمزامنة
-  /// إلا أثناء الكتابة).
-  TextEditingController _analPriceCtl(String id, Object? current) {
-    final nn = jsNumOr0(current);
+  /// يُبذر متحكم سعر التحليل الثابت من المخزون ويتحدّث بالمزامنة إلا أثناء
+  /// الكتابة (بنمط _svcPriceCtl تماماً).
+  void _seedTriAnalPrice(JMap cfg) {
+    final nn = triAnalysesPrice(cfg);
     final want = nn > 0 ? nn.toStringAsFixed(0) : '';
-    final ctl = analPriceCtls.putIfAbsent(
-      id,
-      () => TextEditingController(text: want),
+    if (!triAnalPriceFocus.hasFocus && triAnalPriceCtl.text.trim() != want) {
+      triAnalPriceCtl.text = want;
+    }
+  }
+
+  /// يُسجّل مستمع تركيز «التحاليل الثلاثية» مرةً واحدةً في الجلسة —
+  /// يُستدعى من build أول مرة يُبنى فيها الحقل (لا توجد putIfAbsent هنا
+  /// فالعقدة ثابتة لا خريطة).
+  bool _triAnalFocusListened = false;
+  void _ensureTriAnalFocusListener() {
+    if (_triAnalFocusListened) return;
+    _triAnalFocusListened = true;
+    // مغادرة الحقل = التزام السعر تلقائياً (توأم svc-price).
+    triAnalPriceFocus.addListener(() {
+      if (!triAnalPriceFocus.hasFocus) _commitTriAnalPrice();
+    });
+  }
+
+  /// يكتب خريطة التحاليل الثلاثية {'price', 'enabled'} تحت kTriAnalysesCfgKey
+  /// عبر آلية _update نفسها المستخدمة لمفاتيح config البسيطة.
+  void _writeTriAnal({required num price, required bool enabled}) {
+    _update(
+      (c) => {
+        ...c,
+        kTriAnalysesCfgKey: {'price': price, 'enabled': enabled},
+      },
     );
-    final focused = analPriceFocusNodes[id]?.hasFocus ?? false;
-    if (!focused && ctl.text.trim() != want) ctl.text = want;
-    return ctl;
   }
 
-  /// عقدة تركيز سعر التحليل — مغادرة الحقل تلتزم (توأم _svcPriceFocus).
-  FocusNode _analPriceFocus(String id) =>
-      analPriceFocusNodes.putIfAbsent(id, () {
-        final node = FocusNode(debugLabel: 'anal-price-$id');
-        node.addListener(() {
-          if (!node.hasFocus) _commitAnalPrice(id);
-        });
-        return node;
-      });
-
-  /// يلتزم بسعر التحليل عند تغيّرٍ حقيقي فقط (توأم _commitSvcPrice).
-  void _commitAnalPrice(String id, {bool ui = true}) {
-    final ctl = analPriceCtls[id];
-    if (ctl == null) return;
-    final a = _analById(id);
-    if (a == null) return;
-    final stored = jsNumOr0(a['price']);
-    final now = jsNumOr0(ctl.text);
+  /// يلتزم بسعر التحاليل الثلاثية عند تغيّرٍ حقيقي فقط (توأم _commitSvcPrice).
+  void _commitTriAnalPrice({bool ui = true}) {
+    final cfg = _readConfig();
+    final stored = triAnalysesPrice(cfg);
+    final now = jsNumOr0(triAnalPriceCtl.text);
     if (now == stored) return;
-    _upsertAnalysis({...a, 'price': now}, ui: ui);
-    if (ui && mounted) _snack('حُفظ سعر «${a['name']}»');
+    final enabled = triAnalysesEnabled(cfg);
+    final repos = _repos;
+    if (repos == null) return;
+    repos.settings.set(
+      'app.config',
+      {...cfg, kTriAnalysesCfgKey: {'price': now, 'enabled': enabled}},
+      configBase: cfg,
+    );
+    _configRev?.state++;
+    if (!ui || !mounted) return;
+    setState(() {});
+    _snack('حُفظ سعر «$kTriAnalysesName»');
   }
 
+  /// بطاقة «التحاليل الثلاثية» — تحليلٌ واحدٌ ثابتُ الاسم بسعرٍ ومفتاح تفعيل.
   Widget _analysesCard(JMap cfg) {
-    final analyses = analysesList(cfg);
-    Widget itemRow(Widget content, {required List<Widget> actions}) =>
-        Container(
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: BrandColors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: BrandColors.line),
-          ),
-          child: Row(
-            children: [
-              Expanded(child: content),
-              ...actions,
-            ],
-          ),
-        );
+    _ensureTriAnalFocusListener();
+    _seedTriAnalPrice(cfg);
+    final enabled = triAnalysesEnabled(cfg);
+    final storedPrice = triAnalysesPrice(cfg);
 
     return _glass(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _secH('التحاليل'),
-          for (var i = 0; i < analyses.length; i++)
-            () {
-              final a = analyses[i];
-              final id = '${a['id']}';
-              final enabled = a['enabled'] != false;
-              return itemRow(
-                TextField(
-                  key: Key('anal-name-$id'),
-                  controller: _analNameCtl(id, a['name']),
-                  style: const TextStyle(fontSize: 12.5),
+          // عنوان بطاقة التحاليل الثلاثية.
+          _secH(kTriAnalysesName),
+          const SizedBox(height: 8),
+          // سطر السعر ومفتاح التفعيل في صف واحد.
+          Row(
+            children: [
+              // حقل السعر الرقمي — يلتزم عند الإرسال وفقدان التركيز.
+              SizedBox(
+                width: 110,
+                child: TextField(
+                  key: const Key('tri-anal-price'),
+                  controller: triAnalPriceCtl,
+                  focusNode: triAnalPriceFocus,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 13),
                   decoration: const InputDecoration(
                     isDense: true,
-                    border: InputBorder.none,
+                    hintText: 'السعر',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                   ),
-                  onSubmitted: (v) {
-                    final nm = v.trim();
-                    if (nm.isEmpty) return;
-                    _upsertAnalysis({...a, 'name': nm});
-                    _snack('حُفظ اسم التحليل');
-                  },
+                  // اللمس خارج الحقل يُفقده التركيز فيمر مستمع الالتزام.
+                  onTapOutside: (_) => triAnalPriceFocus.unfocus(),
+                  onSubmitted: (_) => _commitTriAnalPrice(),
                 ),
-                actions: [
-                  SizedBox(
-                    width: 74,
-                    child: TextField(
-                      key: Key('anal-price-$id'),
-                      controller: _analPriceCtl(id, a['price']),
-                      focusNode: _analPriceFocus(id),
-                      keyboardType: TextInputType.number,
-                      style: const TextStyle(fontSize: 11.5),
-                      decoration: const InputDecoration(
-                        isDense: true,
-                        hintText: 'السعر',
-                      ),
-                      onTapOutside: (_) =>
-                          analPriceFocusNodes[id]?.unfocus(),
-                      onSubmitted: (_) => _commitAnalPrice(id),
-                    ),
+              ),
+              const SizedBox(width: 12),
+              // اسم التحليل الثابت (للعرض فقط — لا يُعدَّل).
+              Expanded(
+                child: Text(
+                  kTriAnalysesName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                   ),
-                  Switch(
-                    key: Key('anal-enabled-$id'),
-                    value: enabled,
-                    activeTrackColor: BrandColors.brand600,
-                    onChanged: (v) => _upsertAnalysis({...a, 'enabled': v}),
-                  ),
-                  IconButton(
-                    key: Key('anal-del-$id'),
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      size: 15,
-                      color: BrandColors.red,
-                    ),
-                    onPressed: () {
-                      ref
-                          .read(reposProvider)
-                          .settings
-                          .configRemoveItem(['analyses'], a);
-                      ref.read(configRevProvider.notifier).state++;
-                      setState(() {});
-                    },
-                  ),
-                ],
-              );
-            }(),
-          const SizedBox(height: 4),
-          _inputSave(
-            const Key('new-analysis-input'),
-            newAnalysisCtl,
-            'اسم تحليل جديد',
-            saveKey: const Key('add-analysis'),
-            () {
-              final v = newAnalysisCtl.text.trim();
-              if (v.isEmpty) return;
-              _upsertAnalysis({
-                'id': genId(),
-                'name': v,
-                'price': 0,
-                'enabled': true,
-              });
-              newAnalysisCtl.clear();
-              _snack('أُضيف التحليل');
-            },
+                ),
+              ),
+              // مفتاح التفعيل — يكتب {'price', 'enabled'} عبر _writeTriAnal.
+              Switch(
+                key: const Key('tri-anal-enabled'),
+                value: enabled,
+                activeTrackColor: BrandColors.brand600,
+                onChanged: (v) =>
+                    _writeTriAnal(price: storedPrice, enabled: v),
+              ),
+            ],
           ),
+          const SizedBox(height: 8),
+          // سطر توضيحي بنص المواصفة حرفياً.
           Text(
-            'دخلٌ مخبري خاص بالعيادة — معزولٌ مالياً عن الأرباح والخزينة '
-            'والأرشيف. السعر يملأ قيمة التحليل تلقائياً في النموذج.',
+            'دخلٌ مخبري خاص بالعيادة — معزولٌ مالياً عن الأرباح والخزينة. '
+            'تفعيلُ الزر يُظهر خيار التحاليل الثلاثية في شاشة الإضافة وملف '
+            'المريض، وإيقافه يخفيه.',
             style: TextStyle(fontSize: 11, color: BrandColors.mut2),
           ),
         ],

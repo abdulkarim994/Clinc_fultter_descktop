@@ -19,6 +19,7 @@ import '../print/reports.dart'
     show prostheticsReportPdf, simpleTablePdf, treatmentTablesPdf;
 import '../print/treatment_tables.dart'
     show buildTreatmentTables, formatNumber;
+import 'analyses_filter.dart' show filterAnalysesRows;
 import 'debts_section.dart' show debtsClinicFilterProvider;
 import 'finance_screen.dart' hide JMap;
 import 'treasury_logic.dart';
@@ -32,7 +33,7 @@ class TreasurySection extends ConsumerStatefulWidget {
 }
 
 class _TreasurySectionState extends ConsumerState<TreasurySection> {
-  String? detailView; // cash | xfer | pros
+  String? detailView; // cash | xfer | pros | anal
   String detailCli = '';
   final nameCtl = TextEditingController();
   String filterFrom = '';
@@ -41,9 +42,15 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
   String sortMode = 'date-desc';
   final expandedPros = <String>{};
 
+  // ── حالة بحث/فلتر التحاليل (محلية — تُصفَّر عند تغيير الفئة مقبول) ──
+  final _analSearchCtl = TextEditingController();
+  /// وضع فلتر التحاليل: 'all' | 'cash' | 'transfer'
+  String _analFilterMode = 'all';
+
   @override
   void dispose() {
     nameCtl.dispose();
+    _analSearchCtl.dispose();
     super.dispose();
   }
 
@@ -581,18 +588,127 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
         // المحتوى
         if (detailView == 'pros')
           ..._prosCards(s, groups, cur, n)
-        else if (items.isEmpty)
+        // نظام «التحاليل» — شريط البحث/الفلتر ثم البنود القابلة للتعديل والحذف.
+        // يسبق شرط الفراغ لأن الفلتر قد يُظهر «لا نتائج مطابقة» بدلاً من «لا عناصر».
+        else if (detailView == 'anal') ...[
+          // ── شريط البحث والفلتر الخاص بالتحاليل ──────────────────────────
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(children: [
+              // حقل البحث — يحاكي زخرفة tr-search
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: TextField(
+                    key: const Key('tr-anal-search'),
+                    controller: _analSearchCtl,
+                    style: const TextStyle(fontSize: 12),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: 'بحث في التحاليل…',
+                      hintStyle:
+                          TextStyle(fontSize: 12, color: BrandColors.mut2),
+                      prefixIcon: Icon(Icons.search_rounded,
+                          size: 16, color: BrandColors.mut2),
+                      filled: true,
+                      fillColor: BrandColors.surface,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: BrandColors.line, width: .8),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: BrandColors.line, width: .8),
+                      ),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // زر الفلتر مع شارة الوضع غير الافتراضي
+              Builder(builder: (context) {
+                final filterActive = _analFilterMode != 'all';
+                return Stack(clipBehavior: Clip.none, children: [
+                  Material(
+                    color: BrandColors.gold
+                        .withValues(alpha: filterActive ? .18 : .08),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      side: BorderSide(
+                          color: BrandColors.gold.withValues(alpha: .3)),
+                    ),
+                    child: PopupMenuButton<String>(
+                      key: const Key('tr-anal-filter'),
+                      tooltip: 'فلتر التحاليل',
+                      onSelected: (v) =>
+                          setState(() => _analFilterMode = v),
+                      itemBuilder: (context) => [
+                        CheckedPopupMenuItem(
+                          key: const Key('tr-anal-filter-all'),
+                          value: 'all',
+                          checked: _analFilterMode == 'all',
+                          child: const Text('جميع التحاليل',
+                              style: TextStyle(fontSize: 12.5)),
+                        ),
+                        CheckedPopupMenuItem(
+                          key: const Key('tr-anal-filter-cash'),
+                          value: 'cash',
+                          checked: _analFilterMode == 'cash',
+                          child: const Text('تحاليل كاش',
+                              style: TextStyle(fontSize: 12.5)),
+                        ),
+                        CheckedPopupMenuItem(
+                          key: const Key('tr-anal-filter-transfer'),
+                          value: 'transfer',
+                          checked: _analFilterMode == 'transfer',
+                          child: const Text('تحاليل تحويل',
+                              style: TextStyle(fontSize: 12.5)),
+                        ),
+                      ],
+                      child: const SizedBox(
+                        width: 38,
+                        height: 36,
+                        child: Icon(Icons.filter_list_rounded,
+                            size: 16, color: BrandColors.goldDark),
+                      ),
+                    ),
+                  ),
+                  // شارة صغيرة تُظهر الوضع غير الافتراضي
+                  if (filterActive)
+                    Positioned(
+                      top: -4,
+                      left: -4,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: BrandColors.goldDark,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: BrandColors.surface, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ]);
+              }),
+            ]),
+          ),
+          // ── بنود التحاليل بعد تطبيق الفلتر ──────────────────────────────
+          ..._buildAnalItems(items, cur, n),
+        ] else if (items.isEmpty)
           Card(
             child: Padding(
-              padding: EdgeInsets.all(18),
+              padding: const EdgeInsets.all(18),
               child: Text('لا عناصر',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: BrandColors.mut2, fontSize: 12.5)),
             ),
           )
-        // نظام «التحاليل» — بنودٌ قابلة للتعديل (القيمة/الطريقة) والحذف.
-        else if (detailView == 'anal')
-          for (final r in items) _analDetailTile(r, cur, n)
         else
           for (final r in items)
             Card(
@@ -637,6 +753,29 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
         ),
       ],
     );
+  }
+
+  /// بناء بنود التحاليل بعد تطبيق فلتر البحث والوضع (عرضي — المجاميع لا تتأثر).
+  List<Widget> _buildAnalItems(
+      List<JMap> allItems, String cur, String Function(Object?) n) {
+    final filtered = filterAnalysesRows(
+      allItems,
+      query: _analSearchCtl.text,
+      mode: _analFilterMode,
+    );
+    if (filtered.isEmpty) {
+      return [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Text('لا نتائج مطابقة',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: BrandColors.mut2, fontSize: 12.5)),
+          ),
+        ),
+      ];
+    }
+    return [for (final r in filtered) _analDetailTile(r, cur, n)];
   }
 
   List<ProsGroup> _filteredGroups(TreasurySlice s, num doctorPct) {

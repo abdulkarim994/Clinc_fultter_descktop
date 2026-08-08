@@ -32,8 +32,8 @@ import 'package:dental_clinic_flutter/features/records/home_logic.dart'
         todayPatientsByClinic;
 import 'package:dental_clinic_flutter/features/records/record_saver.dart'
     hide JMap;
-import 'package:dental_clinic_flutter/features/settings/settings_screen.dart'
-    show analysesList, enabledAnalyses;
+import 'package:dental_clinic_flutter/features/settings/analyses3.dart'
+    show kTriAnalysesCfgKey, triAnalysesEnabled, triAnalysesPrice;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -375,68 +375,59 @@ void main() {
     });
   });
 
-  // ── (د) الإعدادات — معرّف ثابت بلا قبور ─────────────────────────────────
+  // ── (د) الإعدادات — التحاليل الثلاثية ──────────────────────────────────────
 
-  group('الإعدادات — قائمة analyses بمعرّف ثابت', () {
-    test('إضافة تحليل ثم تعديل سعره بنفس المعرّف لا يكرّر ولا يترك قبراً', () {
+  group('الإعدادات — التحاليل الثلاثية', () {
+    test('كتابة {price:5000, enabled:true} تُقرأ صحيحةً عبر triAnalyses*', () {
       final c = container();
       addTearDown(c.dispose);
       final repos = c.read(reposProvider);
-      // إضافة تحليلٍ بمعرّف ثابت.
-      const id = 'anal-fixed-1';
-      repos.settings.configAddItem(['analyses'], {
-        'id': id,
-        'name': 'صورة دم',
-        'price': 100,
-        'enabled': true,
-      });
-      var cfg = repos.settings.get('app.config') as JMap;
-      var list = analysesList(cfg);
-      expect(list, hasLength(1));
-      expect(jsNumOr0(list.single['price']), 100);
-
-      // تعديل السعر بنفس المعرّف (يدهس صفَّه).
-      repos.settings.configAddItem(['analyses'], {
-        'id': id,
-        'name': 'صورة دم',
-        'price': 250,
-        'enabled': true,
-      });
-      cfg = repos.settings.get('app.config') as JMap;
-      list = analysesList(cfg);
-      expect(list, hasLength(1), reason: 'لا عنصرٌ مكرَّر (نفس المعرّف)');
-      expect(jsNumOr0(list.single['price']), 250, reason: 'السعر دُهس');
-
-      // تعطيل التحليل يُخفيه عن enabledAnalyses بلا حذف.
-      repos.settings.configAddItem(['analyses'], {
-        'id': id,
-        'name': 'صورة دم',
-        'price': 250,
-        'enabled': false,
-      });
-      cfg = repos.settings.get('app.config') as JMap;
-      expect(analysesList(cfg), hasLength(1));
-      expect(enabledAnalyses(cfg), isEmpty, reason: 'المعطّل خارج المفعّلة');
+      // كتابة الخريطة بنفس مسار _update المستخدم في البطاقة (settings.set مباشر).
+      final base = repos.settings.get('app.config');
+      final baseCfg = base is Map ? JMap.from(base) : <String, Object?>{};
+      repos.settings.set(
+        'app.config',
+        {...baseCfg, kTriAnalysesCfgKey: {'price': 5000, 'enabled': true}},
+        configBase: baseCfg,
+      );
+      final cfg =
+          JMap.from(repos.settings.get('app.config') as Map<dynamic, dynamic>);
+      // triAnalysesEnabled يقرأ true.
+      expect(triAnalysesEnabled(cfg), isTrue,
+          reason: 'الميزة مفعّلة بعد كتابة enabled:true');
+      // triAnalysesPrice يقرأ 5000.
+      expect(triAnalysesPrice(cfg), 5000,
+          reason: 'السعر 5000 محفوظٌ وُيُقرأ صحيحاً');
     });
 
-    test('الحذف يزيل التحليل (حتمي)', () {
+    test('تعطيل enabled:false يقرأ معطّلاً مع بقاء السعر', () {
       final c = container();
       addTearDown(c.dispose);
       final repos = c.read(reposProvider);
-      const item = {
-        'id': 'anal-del-1',
-        'name': 'أشعة',
-        'price': 50,
-        'enabled': true,
-      };
-      repos.settings.configAddItem(['analyses'], item);
-      final withItem = repos.settings.get('app.config');
-      expect(analysesList(withItem is Map ? JMap.from(withItem) : {}),
-          hasLength(1));
-      repos.settings.configRemoveItem(['analyses'], item);
-      // بعد حذف آخر عنصرٍ قد تعود القائمة/الإعدادات فارغةً (null) — آمنٌ.
-      final after = repos.settings.get('app.config');
-      expect(analysesList(after is Map ? JMap.from(after) : {}), isEmpty);
+      // تفعيل أولاً بسعر 3000 ثم تعطيل.
+      final base = repos.settings.get('app.config');
+      final baseCfg = base is Map ? JMap.from(base) : <String, Object?>{};
+      repos.settings.set(
+        'app.config',
+        {...baseCfg, kTriAnalysesCfgKey: {'price': 3000, 'enabled': true}},
+        configBase: baseCfg,
+      );
+      // الآن تعطيل مع الإبقاء على السعر.
+      final mid = repos.settings.get('app.config');
+      final midCfg = mid is Map ? JMap.from(mid) : <String, Object?>{};
+      repos.settings.set(
+        'app.config',
+        {...midCfg, kTriAnalysesCfgKey: {'price': 3000, 'enabled': false}},
+        configBase: midCfg,
+      );
+      final cfg =
+          JMap.from(repos.settings.get('app.config') as Map<dynamic, dynamic>);
+      // يُقرأ معطّلاً.
+      expect(triAnalysesEnabled(cfg), isFalse,
+          reason: 'الميزة معطّلة بعد enabled:false');
+      // السعر يبقى 3000 رغم التعطيل.
+      expect(triAnalysesPrice(cfg), 3000,
+          reason: 'السعر 3000 يبقى محفوظاً رغم التعطيل');
     });
   });
 }
