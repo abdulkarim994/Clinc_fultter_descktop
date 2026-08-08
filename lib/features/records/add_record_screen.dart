@@ -1751,7 +1751,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           labelText: label,
           floatingLabelBehavior: FloatingLabelBehavior.always,
           floatingLabelStyle: TextStyle(
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: FontWeight.w800,
             color: BrandColors.brandText,
           ),
@@ -1785,7 +1785,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         decoration: ddec('التاريخ'),
         child: Text(
           _arDate(date),
-          style: const TextStyle(fontSize: 13),
+          style: const TextStyle(fontSize: 14),
           maxLines: 1,
         ),
       ),
@@ -1810,6 +1810,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           child: TextField(
             key: const Key('rec-phone'),
             controller: phoneCtl,
+            style: const TextStyle(fontSize: 14),
             keyboardType: TextInputType.phone,
             textDirection: TextDirection.ltr,
             decoration: ddec('رقم الهاتف', hint: 'الرقم…'),
@@ -1843,6 +1844,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           child: TextField(
             key: const Key('rec-name'),
             controller: nameCtl,
+            style: const TextStyle(fontSize: 14),
             decoration: ddec('اسم المريض', hint: 'ابحث أو أدخل اسماً'),
             onChanged: _refreshNameSuggestions,
           ),
@@ -1856,6 +1858,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           child: TextField(
             key: const Key('rec-phone2'),
             controller: phone2Ctl,
+            style: const TextStyle(fontSize: 14),
             keyboardType: TextInputType.phone,
             textDirection: TextDirection.ltr,
             decoration: ddec('رقم ثانٍ', hint: 'اختياري'),
@@ -1975,6 +1978,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     final amountField = TextField(
       key: const Key('rec-amount'),
       controller: amountCtl,
+      style: const TextStyle(fontSize: 14),
       keyboardType: TextInputType.number,
       decoration: ddec('القيمة ($cur)', hint: '0').copyWith(
         suffixIcon: IconButton(
@@ -2031,12 +2035,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 14, color: fg),
+                Icon(icon, size: 15, color: fg),
                 const SizedBox(width: 5),
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 11.5,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                     color: fg,
                   ),
@@ -2120,7 +2124,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               Text(
                 'موعد',
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                   color: BrandColors.goldDark,
                 ),
@@ -2199,6 +2203,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           child: TextField(
             key: const Key('rec-firstpay'),
             controller: firstPayCtl,
+            style: const TextStyle(fontSize: 14),
             keyboardType: TextInputType.number,
             decoration: ddec('الدفعة الأولى', hint: '0'),
           ),
@@ -2271,6 +2276,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 child: TextField(
                   key: const Key('rec-prosunits'),
                   controller: prosUnitsCtl,
+                  style: const TextStyle(fontSize: 14),
                   keyboardType: TextInputType.number,
                   decoration: ddec('عدد الواحدات'),
                   onChanged: (_) => _onUnitsChange(),
@@ -2281,6 +2287,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 child: TextField(
                   key: const Key('rec-prosunitprice'),
                   controller: prosUnitPriceCtl,
+                  style: const TextStyle(fontSize: 14),
                   keyboardType: TextInputType.number,
                   decoration: ddec('سعر الوحدة'),
                   onChanged: (_) => _onUnitsChange(),
@@ -2291,6 +2298,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 child: TextField(
                   key: const Key('rec-lab'),
                   controller: labValueCtl,
+                  style: const TextStyle(fontSize: 14),
                   keyboardType: TextInputType.number,
                   decoration: ddec('قيمة المعمل'),
                   onChanged: (_) => setState(() {}),
@@ -2337,6 +2345,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     final notesField = TextField(
       key: const Key('rec-notes'),
       controller: notesCtl,
+      style: const TextStyle(fontSize: 14),
       maxLines: 2,
       minLines: 1,
       decoration: ddec('معلومات مختصرة', hint: 'اختياري'),
@@ -2359,11 +2368,11 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     );
 
     // ── عنوان قسمٍ صغير موحد ──
-    Widget colTitle(IconData icon, String text) => Padding(
-      padding: EdgeInsets.only(bottom: airy ? 12 : 8),
+    Widget colTitle(IconData icon, String text, {bool pad = true}) => Padding(
+      padding: EdgeInsets.only(bottom: pad ? (airy ? 12 : 8) : 0),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: BrandColors.brandIcon),
+          Icon(icon, size: 15, color: BrandColors.brandIcon),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -2372,7 +2381,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 12.5,
+                fontSize: 13.5,
                 color: BrandColors.brandText,
               ),
             ),
@@ -2433,16 +2442,25 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         if (suggestions.isNotEmpty) suggestionsPanel,
         sectionGap(),
 
-        // ── 2) المعالجة والقيمة — الرقاقات مدمجة في سطر العنوان ──
-        Row(
-          children: [
-            Expanded(
-              child: colTitle(Icons.medical_services_rounded, 'المعالجة والقيمة'),
-            ),
-            teethChip,
-            const SizedBox(width: 8),
-            medicalChip,
-          ],
+        // ── 2) المعالجة والقيمة — الرقاقات مدمجة في سطر العنوان،
+        // والفسحة أسفل الصف كاملاً كي لا تلتصق الرقاقات بالحقول تحتها ──
+        Padding(
+          padding: EdgeInsets.only(bottom: airy ? 12 : 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: colTitle(
+                  Icons.medical_services_rounded,
+                  'المعالجة والقيمة',
+                  pad: false,
+                ),
+              ),
+              teethChip,
+              const SizedBox(width: 8),
+              medicalChip,
+            ],
+          ),
         ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
