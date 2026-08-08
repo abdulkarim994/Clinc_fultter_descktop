@@ -184,6 +184,10 @@ jobs:
       # السلسلة (تلك تُفرَض كاملةً على ubuntu في وظيفة verify أعلاه).
       - name: اختبارات (تقريرية على ويندوز)
         continue-on-error: true
+        # م77/هـ — سقف صارم: أول تشغيل حقيقي أظهرها تلتهم 23 دقيقة (إخفاقات
+        # SQLCipher البطيئة) فتقتل الوظيفة بمهلتها قبل وصول خطوة MSIX.
+        # غرضها تقريري بحت — السلسلة تُفرض كاملة على ubuntu في verify.
+        timeout-minutes: 10
         run: flutter test --reporter=expanded
 
       # بلا dart-define أسرار: الوضع المحلي كافٍ لإثبات أن سطح المكتب
@@ -194,7 +198,8 @@ jobs:
 
       # لفّ الناتج حزمةَ MSIX من msix_config. الحزمة غير موقَّعة هنا
       # (install_certificate=false) فتصلح للفحص لا للتوزيع.
-      - name: إنشاء حزمة MSIX
+      - name: إنشاء حزمة MSIX (تقريرية — قرار v3: لا تمنع نسخة EXE)
+        continue-on-error: true
         run: dart run msix:create
 
       # رفع مجلد EXE كاملاً (يشمل ملف MSIX الذي يوضع بجواره).
