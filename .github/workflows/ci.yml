@@ -198,7 +198,7 @@ jobs:
 
       # لفّ الناتج حزمةَ MSIX من msix_config. الحزمة غير موقَّعة هنا
       # (install_certificate=false) فتصلح للفحص لا للتوزيع.
-      - name: إنشاء حزمة MSIX (تقريرية — قرار v3: لا تمنع نسخة EXE)
+      - name: إنشاء حزمة MSIX — تقريرية بقرار v3 الموثق، لا تمنع نسخة EXE
         continue-on-error: true
         run: dart run msix:create
 
