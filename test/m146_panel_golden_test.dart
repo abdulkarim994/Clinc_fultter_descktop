@@ -49,13 +49,22 @@ Future<void> _loadAppFonts() async {
     'Cairo-SemiBold.ttf',
     'Cairo-Bold.ttf',
   ]);
-  // خط الأيقونات من كاش فلاتر — بدونه تُرسم الأيقونات مربعاتٍ فارغة.
-  final iconsLoader = FontLoader('MaterialIcons');
-  final iconBytes = File(
-    '/agent/workspace/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
-  ).readAsBytesSync();
-  iconsLoader.addFont(Future.value(ByteData.view(iconBytes.buffer)));
-  await iconsLoader.load();
+  // خط الأيقونات من كاش فلاتر — بدونه تُرسم الأيقونات مربعاتٍ فارغة في
+  // اللقطات. المسار يُحلّ من FLUTTER_ROOT (تضبطه أداة flutter test)، وإن
+  // غاب الملف نتجاوز بهدوء: الأيقونات تلزم اللقطات المحلية فقط، وحارس
+  // اللاتمرير على CI لا يحتاجها.
+  final root = Platform.environment['FLUTTER_ROOT'];
+  if (root != null) {
+    final iconsFile = File(
+      '$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+    );
+    if (iconsFile.existsSync()) {
+      final iconsLoader = FontLoader('MaterialIcons');
+      final iconBytes = iconsFile.readAsBytesSync();
+      iconsLoader.addFont(Future.value(ByteData.view(iconBytes.buffer)));
+      await iconsLoader.load();
+    }
+  }
 }
 
 void main() {
