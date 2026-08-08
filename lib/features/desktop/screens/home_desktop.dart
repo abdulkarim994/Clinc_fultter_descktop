@@ -281,7 +281,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
               }
               _deleteRow(list.first);
             },
-            contextMenuOf: (r) => _rowMenu(r, tags[_rowKey(r)]),
+            contextMenuOf: (r) => _rowMenu(r, tags[_rowKey(r)], analOf),
             selectionActions: (sel) => [
               TextButton.icon(
                 onPressed: () {
@@ -419,17 +419,11 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
                 minWidth: 70,
                 sortable: false,
                 cell: (_, r) {
-                  if (r.isExpense) {
-                    return Text('—',
-                        style: TextStyle(
-                            fontSize: 11.5, color: BrandColors.faint2));
-                  }
+                  // المواصفة — الخلية تبقى فارغة بلا تحليل.
+                  if (r.isExpense) return const SizedBox.shrink();
                   final links = analOf(r);
-                  if (links.isEmpty) {
-                    return Text('—',
-                        style: TextStyle(
-                            fontSize: 11.5, color: BrandColors.faint2));
-                  }
+                  // المواصفة — الخلية تبقى فارغة بلا تحليل.
+                  if (links.isEmpty) return const SizedBox.shrink();
                   final hasCash = links.any((a) => a.isCash);
                   // خضراء متى وُجد كاشٌ، وإلا ذهبية (تحويلٌ فقط).
                   final color = hasCash
@@ -652,7 +646,12 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
 
   // ── قائمة سياق الصف — توأم قائمة م99 مع «وسم اللون» ──
 
-  List<CtxItem> _rowMenu(LedgerRow row, String? currentTag) {
+  /// [getAnalOf] — دالة التحاليل المُمرَّرة من build() لتجنّب إعادة بناء الفهرس.
+  List<CtxItem> _rowMenu(
+    LedgerRow row,
+    String? currentTag,
+    List<AnalysisLink> Function(LedgerRow) getAnalOf,
+  ) {
     return [
       if (!row.isExpense) ...[
         if (staffAllowed('patients.view'))
@@ -697,6 +696,19 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         onPick: (tag) => setRowTag(ref, _rowKey(row), tag),
       ),
       CtxItem.divider,
+      // بند «حذف التحاليل» — يظهر فقط للصفوف غير المصروفية التي لها تحاليل
+      // وللموظفين ذوي صلاحية records.delete. دخلٌ مخبري معزول لا يمس الزيارة.
+      if (!row.isExpense &&
+          getAnalOf(row).isNotEmpty &&
+          staffAllowed('records.delete'))
+        CtxItem(
+          'حذف التحاليل',
+          icon: Icons.delete_outline,
+          destructive: true,
+          // keyId: 'del-analysis' → Key('ctx-del-analysis') كما تطلب المواصفة.
+          keyId: 'del-analysis',
+          onTap: () => _deleteRowAnalyses(row, getAnalOf),
+        ),
       if (staffAllowed(row.isExpense ? 'expenses.delete' : 'records.delete'))
         CtxItem(
           row.isExpense ? 'حذف المصروف' : 'حذف السجل',
@@ -859,6 +871,50 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     ref.read(financeRevProvider.notifier).state++;
     setState(() {});
     _snack('تم حذف السجل');
+  }
+
+  /// حذف تحاليل صفٍّ مباشرةً من جدول سطح المكتب — دخلٌ مخبري معزول لا يمس
+  /// مجاميع الزيارة. يحاكي نمط _deleteRow شكلاً وسلوكاً (حوار تأكيد + أزرار).
+  /// [getAnalOf] — مُمرَّرة من _rowMenu لتجنّب إعادة بناء الفهرس.
+  Future<void> _deleteRowAnalyses(
+    LedgerRow row,
+    List<AnalysisLink> Function(LedgerRow) getAnalOf,
+  ) async {
+    final links = getAnalOf(row);
+    if (links.isEmpty) return;
+    // حساب إجمالي قيمة التحاليل لعرضه في الحوار.
+    final totalAmt = links.fold<num>(0, (s, a) => s + a.amount);
+    final countStr = links.length.toString();
+    final amtStr = formatNumber(totalAmt);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('حذف التحاليل'),
+        content: Text(
+          'حذف تحاليل هذا الصف ($countStr بقيمة $amtStr)؟'
+          '\nدخل مخبري معزول — لا يمس مجاميع الزيارة.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: BrandColors.red),
+            onPressed: () => Navigator.pop(dctx, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final repos = ref.read(reposProvider);
+    // حذف كل رابط له معرّف غير فارغ عبر الحذف الناعم المتزامن.
+    for (final a in links) {
+      if (a.id.isNotEmpty) repos.records.delete(a.id);
+    }
+    setState(() {});
+    _snack('تم حذف التحاليل');
   }
 
   // ═══ م120 — تقرير تسليم الوردية (توأم حرفي لتدفق الهاتف) ═══

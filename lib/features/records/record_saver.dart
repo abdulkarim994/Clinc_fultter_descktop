@@ -18,6 +18,8 @@ import '../../data/repositories/repositories.dart';
 import '../../data/sync/feature_flags.dart';
 import '../patients/archive_store.dart' show PatientArchiveStore;
 import '../staff/staff_session.dart' show staffCreatedBy;
+import '../settings/analyses3.dart'
+    show kTriAnalysesName, triAnalysesEnabled, triAnalysesPrice;
 
 
 typedef JMap = Map<String, Object?>;
@@ -46,6 +48,29 @@ class AnalysisInput {
 
   /// طريقة الدفع (كاش/تحويل) — معزولة عن دفع الزيارة نفسها.
   final String payment;
+}
+
+/// دالة نقية عليا لبناء مدخل التحليل الثلاثي — تعيد null إن لم تتحقق
+/// جميع الشروط: وضع الإنشاء (creating)، ووضع العلامة (checked)، وتفعيل
+/// الميزة في الإعدادات (triAnalysesEnabled)، وسعرٌ موجب (> 0). وإلا
+/// تعيد AnalysisInput بالاسم الثابت والسعر من الإعدادات وطريقة الدفع
+/// المطبّعة (أي قيمة غير 'تحويل' تُعامل 'كاش').
+AnalysisInput? triAnalysisFor({
+  required bool creating,
+  required bool checked,
+  required Map<String, Object?> cfg,
+  required String payment,
+}) {
+  if (!creating) return null;
+  if (!checked) return null;
+  if (!triAnalysesEnabled(cfg)) return null;
+  final price = triAnalysesPrice(cfg);
+  if (price <= 0) return null;
+  return AnalysisInput(
+    name: kTriAnalysesName,
+    price: price,
+    payment: payment == 'تحويل' ? 'تحويل' : 'كاش',
+  );
 }
 
 class SaveRecordInput {
