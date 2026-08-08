@@ -115,7 +115,14 @@ android {
             // الأصلي (com.dental.clinic) بلا تعارض توقيع. هوية release
             // تبقى المعرّف الأصلي (PACKAGING_AR.md).
             applicationIdSuffix = ".debug"
-            signingConfig = signingConfigs.getByName("dentalDev")
+            // م77/ج — مخزن التطوير خارج المستودع بالتصميم، فبيئة CI النظيفة
+            // لا تملكه وكان `validateSigningDebug` يفشل بها (كُشف بأول تشغيل
+            // حقيقي لوظيفة «بناء أندرويد» على GitHub). بغيابه نسقط إلى توقيع
+            // debug الافتراضي — يكفي غرضَ الوظيفة (إثبات الترجمة)؛ ومحلياً
+            // حيث المخزن موجود تبقى البصمة الثابتة المعهودة لترقية التجربة.
+            if (file("dental_dev.jks").exists()) {
+                signingConfig = signingConfigs.getByName("dentalDev")
+            }
         }
         release {
             // نسخة تجريبية بمعرّف جانبي: تُفعَّل بخاصية المشروع trialSuffix
