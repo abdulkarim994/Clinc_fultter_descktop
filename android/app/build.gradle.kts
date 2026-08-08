@@ -132,17 +132,28 @@ android {
             if (isTrial) {
                 applicationIdSuffix = ".debug"
             }
+            // م77/د — كان الرمي أدناه يقع في طور الضبط نفسه، وgradle يضبط
+            // كل الأنواع حتى لبناء debug: فأي بيئة بلا key.properties وبلا
+            // trialSuffix (بيئة CI النظيفة تحديداً) كانت تسقط قبل أن تبدأ.
+            // القرار يبقى صاخباً كما صُمم (م68: لا توقيع بمكشوف صامتاً)
+            // لكن في وقته الصحيح: عند طلب مهمة release فعلاً لا عند الضبط.
+            val wantsRelease = gradle.startParameter.taskNames.any {
+                it.contains("release", ignoreCase = true)
+            }
             signingConfig = when {
                 hasReleaseKey -> signingConfigs.getByName("release")
                 // تجربة بمعرّف جانبي: المفتاح التجريبي مقبول هنا.
                 isTrial -> signingConfigs.getByName("dentalDev")
-                // نشر حقيقي بلا مفتاح: نفشل بصوت عالٍ لا نوقّع بمكشوف.
-                else -> throw GradleException(
+                // نشر حقيقي مطلوب بلا مفتاح: نفشل بصوت عالٍ لا نوقّع بمكشوف.
+                wantsRelease -> throw GradleException(
                     "لا يوجد android/key.properties — النشر الحقيقي يتطلب " +
                     "مفتاح توقيع خاصاً. أنشئ الملف بالحقول storeFile و" +
                     "storePassword وkeyAlias وkeyPassword (مستثنى من git)، " +
                     "أو ابنِ نسخة تجريبية بـ -PtrialSuffix=true."
                 )
+                // ضبطٌ عابر لغير مهام release (بناء debug مثلاً): لا توقيع
+                // release يلزم هنا أصلاً — ولا release يُنتَج من هذا المسار.
+                else -> null
             }
         }
     }
