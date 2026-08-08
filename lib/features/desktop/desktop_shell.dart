@@ -28,7 +28,7 @@ import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../records/add_record_screen.dart' show openAddRecordSheet;
 import 'widgets/add_record_dock.dart'
-    show AddRecordDock, addRecordDockProvider;
+    show AddRecordSidePanel, addRecordDockProvider;
 import '../settings/settings_screen.dart';
 import '../shell/app_shell.dart' show LocalModeBanner;
 import '../staff/staff_account_screen.dart' show StaffAccountScreen;
@@ -130,8 +130,8 @@ class DesktopShell extends ConsumerWidget {
     var active = ref.watch(desktopTabProvider);
     if (!desktopTabAllowed(staffU, active)) active = 'home';
     final cfg = ref.watch(appConfigProvider);
-    // لوح «زيارة جديدة» المرسى — null = مغلق. حين يُفتح يعيش أسفل مساحة
-    // العمل (يدفعها للأعلى) لا فوقها.
+    // لوح «زيارة جديدة» الجانبي (م146) — null = مغلق. حين يُفتح يطفو فوق
+    // مساحة العمل من حافة البداية (يمين RTL) بظلٍّ بلا حاجزٍ معتم.
     final dock = ref.watch(addRecordDockProvider);
 
     final body = switch (active) {
@@ -205,21 +205,26 @@ class DesktopShell extends ConsumerWidget {
                         width: 1,
                         color: const Color.fromRGBO(20, 80, 59, .08)),
                     // ── مساحة العمل — كامل العرض المتبقي ──
-                    // لوح «زيارة جديدة» المرسى (dock) يعيش أسفلها داخل
-                    // Column: مساحة العمل في Expanded تتقلّص طبيعياً حين
-                    // يُفتح اللوح (لا overlay ولا قصّ) وتستعيد ارتفاعها عند
-                    // إغلاقه.
+                    // م146: لوح «زيارة جديدة» الجانبي يطفو فوقها (Stack)
+                    // بظلٍّ بلا حاجز — الجدول يبقى مرئياً، واللوح يرسو على
+                    // حافة البداية (يمين RTL) ملاصقاً للشريط الجانبي
+                    // بارتفاع مساحة العمل كاملاً.
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                      child: Stack(
                         children: [
-                          Expanded(
+                          Positioned.fill(
                             child: Container(
                               color: BrandColors.paper,
                               child: body,
                             ),
                           ),
-                          if (dock != null) AddRecordDock(request: dock),
+                          if (dock != null)
+                            PositionedDirectional(
+                              start: 0,
+                              top: 0,
+                              bottom: 0,
+                              child: AddRecordSidePanel(request: dock),
+                            ),
                         ],
                       ),
                     ),

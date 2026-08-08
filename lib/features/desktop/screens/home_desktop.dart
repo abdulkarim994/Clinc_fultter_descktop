@@ -33,8 +33,7 @@ import '../../expenses/expenses_report.dart'
     show expenseCategoryLabel, expenseIsCash;
 import '../../expenses/expenses_screen.dart' show expensesRefreshProvider;
 import '../../finance/finance_screen.dart' show financeRevProvider;
-import '../../patients/patient_profile_screen.dart'
-    show PatientProfileScreen;
+import '../../patients/patient_profile_screen.dart' show PatientProfileScreen;
 import '../../patients/patients_tab.dart' show patientsRevProvider;
 import '../../patients/profile_actions.dart' show deleteEntryCascade;
 import '../../patients/quick_info_dialog.dart' show showQuickInfoDialog;
@@ -61,8 +60,7 @@ class DesktopHomeScreen extends ConsumerStatefulWidget {
   const DesktopHomeScreen({super.key});
 
   @override
-  ConsumerState<DesktopHomeScreen> createState() =>
-      _DesktopHomeScreenState();
+  ConsumerState<DesktopHomeScreen> createState() => _DesktopHomeScreenState();
 }
 
 /// نظام «التحاليل» — فلتر ما-بعد على صفوف الجدول حسب حالة تحليلها.
@@ -94,15 +92,12 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
   }
 
   void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(msg),
-            duration: const Duration(milliseconds: 1600)),
-      );
+    SnackBar(content: Text(msg), duration: const Duration(milliseconds: 1600)),
+  );
 
   /// م120 — توأم _staffDisplay: الاسم الظاهر لموظف من اسم دخوله.
   String _staffDisplay(String username) {
-    final u =
-        StaffStore(ref.read(reposProvider).settings).byUsername(username);
+    final u = StaffStore(ref.read(reposProvider).settings).byUsername(username);
     return u == null ? username : '${u['name']}';
   }
 
@@ -115,7 +110,8 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     final today = getCurrentDate();
     final out = <LedgerRow>[];
     for (final e in repos.expenses.getByDay(today)) {
-      final ms = (e['_mod'] as num?)?.toDouble() ??
+      final ms =
+          (e['_mod'] as num?)?.toDouble() ??
           (e['createdAt'] as num?)?.toDouble() ??
           0;
       if (period != null &&
@@ -126,29 +122,31 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       final label = expenseCategoryLabel(e['category']);
       final name = title.isEmpty ? label : title;
       final pay = '${e['payment'] ?? ''}'.trim();
-      out.add(LedgerRow(
-        isExpense: true,
-        name: name,
-        clinic: '—',
-        service: label,
-        payment: 'مصروف',
-        method: expenseIsCash(pay) ? 'كاش' : pay,
-        id: '${e['id'] ?? ''}',
-        kind: 'e',
-        by: '${e['createdBy'] ?? ''}',
-        timeMs: ms,
-        value: (e['amount'] as num?)?.toDouble() ?? 0,
-        paid: 0,
-        remaining: 0,
-      ));
+      out.add(
+        LedgerRow(
+          isExpense: true,
+          name: name,
+          clinic: '—',
+          service: label,
+          payment: 'مصروف',
+          method: expenseIsCash(pay) ? 'كاش' : pay,
+          id: '${e['id'] ?? ''}',
+          kind: 'e',
+          by: '${e['createdBy'] ?? ''}',
+          timeMs: ms,
+          value: (e['amount'] as num?)?.toDouble() ?? 0,
+          paid: 0,
+          remaining: 0,
+        ),
+      );
     }
     out.sort((a, b) => a.timeMs.compareTo(b.timeMs));
     return out;
   }
 
   bool _isTodayClosed() => DayCloseStore(
-        ref.read(reposProvider).settings,
-      ).isClosed(getCurrentDate());
+    ref.read(reposProvider).settings,
+  ).isClosed(getCurrentDate());
 
   // ── البناء ──
 
@@ -206,9 +204,13 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       }
     }
 
-    final income = [for (final r in filtered) if (analOk(r)) r];
-    final expenseRows =
-        _showExpenses ? _todayExpenseRows(_period) : const <LedgerRow>[];
+    final income = [
+      for (final r in filtered)
+        if (analOk(r)) r,
+    ];
+    final expenseRows = _showExpenses
+        ? _todayExpenseRows(_period)
+        : const <LedgerRow>[];
     final rows = [...income, ...expenseRows];
     final tot = ledgerTotals(rows);
 
@@ -229,9 +231,8 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
 
     // ترقيم ثابت بترتيب التسجيل (كترقيم الهاتف/التقارير) مهما تغير الفرز.
     final serial = <String, int>{};
-    final byTime = [
-      for (final r in income) r,
-    ]..sort((a, b) => a.timeMs.compareTo(b.timeMs));
+    final byTime = [for (final r in income) r]
+      ..sort((a, b) => a.timeMs.compareTo(b.timeMs));
     for (var i = 0; i < byTime.length; i++) {
       serial[_rowKey(byTime[i])] = i + 1;
     }
@@ -263,16 +264,15 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
             // والتحويل في صفوف الدفع المختلط (الجدول مُوحَّد الارتفاع).
             rowHeight: 46,
             defaultPinned: const ['name'],
-            emptyTitle:
-                all.isEmpty ? 'لا دخل مسجّل اليوم' : 'لا نتائج مطابقة',
+            emptyTitle: all.isEmpty ? 'لا دخل مسجّل اليوم' : 'لا نتائج مطابقة',
             emptyHint: all.isEmpty
                 ? 'اضغط «زيارة جديدة» أو Ctrl+N لإضافة زيارة أو دفعة.'
                 : 'جرّب تعديل البحث أو الفلاتر.',
             toolbarLeading: _filtersBar(clinicOpts, payOpts),
             toolbarTrailing: _dayActions(),
             rowTagOf: (r) => tags[_rowKey(r)],
-            onTagRows: (list, tag) => setRowTags(
-                ref, [for (final r in list) _rowKey(r)], tag),
+            onTagRows: (list, tag) =>
+                setRowTags(ref, [for (final r in list) _rowKey(r)], tag),
             onOpen: _openProfile,
             onDelete: (list) {
               if (list.length > 1) {
@@ -285,13 +285,18 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
             selectionActions: (sel) => [
               TextButton.icon(
                 onPressed: () {
-                  Clipboard.setData(ClipboardData(
-                      text: [for (final r in sel) r.name].join('\n')));
+                  Clipboard.setData(
+                    ClipboardData(
+                      text: [for (final r in sel) r.name].join('\n'),
+                    ),
+                  );
                   _snack('نُسخت ${sel.length} أسماء');
                 },
                 icon: const Icon(Icons.copy_rounded, size: 15),
-                label: const Text('نسخ الأسماء',
-                    style: TextStyle(fontSize: 11.5)),
+                label: const Text(
+                  'نسخ الأسماء',
+                  style: TextStyle(fontSize: 11.5),
+                ),
               ),
             ],
             columns: [
@@ -381,9 +386,10 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
                 minWidth: 72,
                 numeric: true,
                 sortKey: (r) => r.value,
-                cell: (_, r) => _money(r.value,
-                    color:
-                        r.isExpense ? BrandColors.red : BrandColors.ink),
+                cell: (_, r) => _money(
+                  r.value,
+                  color: r.isExpense ? BrandColors.red : BrandColors.ink,
+                ),
               ),
               DeskCol<LedgerRow>(
                 id: 'paid',
@@ -404,9 +410,13 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
                 numeric: true,
                 sortKey: (r) => r.remaining,
                 cell: (_, r) => r.isExpense || r.remaining <= 0
-                    ? Text('—',
+                    ? Text(
+                        '—',
                         style: TextStyle(
-                            fontSize: 12, color: BrandColors.faint))
+                          fontSize: 12,
+                          color: BrandColors.faint,
+                        ),
+                      )
                     : _money(r.remaining, color: BrandColors.red),
               ),
               // نظام «التحاليل» — عمودٌ بين «المتبقي» و«معلومات مختصرة»:
@@ -430,14 +440,19 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
                       ? BrandColors.green
                       : const Color(0xFF8A6D1B);
                   final tip = links
-                      .map((a) =>
-                          '${a.name}: ${formatNumber(a.amount)} (${a.payment})')
+                      .map(
+                        (a) =>
+                            '${a.name}: ${formatNumber(a.amount)} (${a.payment})',
+                      )
                       .join('\n');
                   return Tooltip(
                     message: tip,
                     waitDuration: const Duration(milliseconds: 400),
-                    child: Icon(Icons.check_circle_rounded,
-                        size: 18, color: color),
+                    child: Icon(
+                      Icons.check_circle_rounded,
+                      size: 18,
+                      color: color,
+                    ),
                   );
                 },
               ),
@@ -454,9 +469,13 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
                   final n =
                       notes['${r.kind == 'dp' ? 'r' : r.kind}:${r.id}'] ?? '';
                   if (n.isEmpty) {
-                    return Text('—',
-                        style: TextStyle(
-                            fontSize: 11.5, color: BrandColors.faint2));
+                    return Text(
+                      '—',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: BrandColors.faint2,
+                      ),
+                    );
                   }
                   return Tooltip(
                     message: n,
@@ -465,8 +484,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
                       n,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          TextStyle(fontSize: 11.5, color: BrandColors.mut),
+                      style: TextStyle(fontSize: 11.5, color: BrandColors.mut),
                     ),
                   );
                 },
@@ -484,15 +502,15 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       '${r.kind}:${r.id.isEmpty ? '${r.name}|${r.timeMs}' : r.id}';
 
   static Widget _money(num v, {required Color color}) => Text(
-        formatNumber(v),
-        textDirection: TextDirection.ltr,
-        style: TextStyle(
-          fontSize: 12.5,
-          fontWeight: FontWeight.w800,
-          color: color,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-      );
+    formatNumber(v),
+    textDirection: TextDirection.ltr,
+    style: TextStyle(
+      fontSize: 12.5,
+      fontWeight: FontWeight.w800,
+      color: color,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    ),
+  );
 
   // ── شريط الفلاتر (توأم فلاتر الهاتف بمظهر مكتبي مضغوط) ──
 
@@ -512,84 +530,90 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      child: Row(children: [
-        seg('كل اليوم', null),
-        seg('صباحي', LedgerPeriod.morning),
-        seg('مسائي', LedgerPeriod.evening),
-        const SizedBox(width: 6),
-        _MultiFilter(
-          label: 'العيادة',
-          options: clinicOpts,
-          selected: _clinics,
-          onChanged: () => setState(() {}),
-        ),
-        const SizedBox(width: 4),
-        _MultiFilter(
-          label: 'الدفع',
-          options: payOpts,
-          selected: _payments,
-          onChanged: () => setState(() {}),
-        ),
-        const SizedBox(width: 6),
-        FilterChip(
-          label:
-              const Text('المتبقي فقط', style: TextStyle(fontSize: 11)),
-          selected: _onlyRemaining,
-          visualDensity: VisualDensity.compact,
-          onSelected: (v) => setState(() => _onlyRemaining = v),
-        ),
-        const SizedBox(width: 4),
-        // نظام «التحاليل» — مجموعة فلتر التحاليل (جميع/كاش/تحويل/بدون).
-        PopupMenuButton<_AnalFilter>(
-          key: const Key('desk-anal-filter'),
-          tooltip: 'فلتر التحاليل',
-          onSelected: (v) => setState(() => _analFilter = v),
-          itemBuilder: (context) => [
-            for (final f in _AnalFilter.values)
-              CheckedPopupMenuItem(
-                key: Key('desk-anal-filter-${f.name}'),
-                value: f,
-                checked: _analFilter == f,
-                child: Text('${_analFilterLabels[f]}',
-                    style: const TextStyle(fontSize: 12.5)),
-              ),
-          ],
-          child: Chip(
-            avatar: Icon(Icons.science_rounded,
+      child: Row(
+        children: [
+          seg('كل اليوم', null),
+          seg('صباحي', LedgerPeriod.morning),
+          seg('مسائي', LedgerPeriod.evening),
+          const SizedBox(width: 6),
+          _MultiFilter(
+            label: 'العيادة',
+            options: clinicOpts,
+            selected: _clinics,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(width: 4),
+          _MultiFilter(
+            label: 'الدفع',
+            options: payOpts,
+            selected: _payments,
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(width: 6),
+          FilterChip(
+            label: const Text('المتبقي فقط', style: TextStyle(fontSize: 11)),
+            selected: _onlyRemaining,
+            visualDensity: VisualDensity.compact,
+            onSelected: (v) => setState(() => _onlyRemaining = v),
+          ),
+          const SizedBox(width: 4),
+          // نظام «التحاليل» — مجموعة فلتر التحاليل (جميع/كاش/تحويل/بدون).
+          PopupMenuButton<_AnalFilter>(
+            key: const Key('desk-anal-filter'),
+            tooltip: 'فلتر التحاليل',
+            onSelected: (v) => setState(() => _analFilter = v),
+            itemBuilder: (context) => [
+              for (final f in _AnalFilter.values)
+                CheckedPopupMenuItem(
+                  key: Key('desk-anal-filter-${f.name}'),
+                  value: f,
+                  checked: _analFilter == f,
+                  child: Text(
+                    '${_analFilterLabels[f]}',
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                ),
+            ],
+            child: Chip(
+              avatar: Icon(
+                Icons.science_rounded,
                 size: 14,
                 color: _analFilter == _AnalFilter.all
                     ? BrandColors.mut
-                    : BrandColors.green),
-            label: Text(
-              _analFilter == _AnalFilter.all
-                  ? 'التحاليل'
-                  : '${_analFilterLabels[_analFilter]}',
-              style: const TextStyle(fontSize: 11),
+                    : BrandColors.green,
+              ),
+              label: Text(
+                _analFilter == _AnalFilter.all
+                    ? 'التحاليل'
+                    : '${_analFilterLabels[_analFilter]}',
+                style: const TextStyle(fontSize: 11),
+              ),
+              visualDensity: VisualDensity.compact,
+              backgroundColor: _analFilter == _AnalFilter.all
+                  ? null
+                  : BrandColors.green.withValues(alpha: .12),
+            ),
+          ),
+          const SizedBox(width: 4),
+          FilterChip(
+            key: const Key('desk-expenses-toggle'),
+            avatar: Icon(
+              Icons.receipt_long_rounded,
+              size: 14,
+              color: _showExpenses ? Colors.white : BrandColors.mut,
+            ),
+            label: const Text('المصروفات', style: TextStyle(fontSize: 11)),
+            selected: _showExpenses,
+            selectedColor: BrandColors.red,
+            labelStyle: TextStyle(
+              color: _showExpenses ? Colors.white : BrandColors.ink,
+              fontWeight: FontWeight.w700,
             ),
             visualDensity: VisualDensity.compact,
-            backgroundColor: _analFilter == _AnalFilter.all
-                ? null
-                : BrandColors.green.withValues(alpha: .12),
+            onSelected: (v) => setState(() => _showExpenses = v),
           ),
-        ),
-        const SizedBox(width: 4),
-        FilterChip(
-          key: const Key('desk-expenses-toggle'),
-          avatar: Icon(Icons.receipt_long_rounded,
-              size: 14,
-              color: _showExpenses ? Colors.white : BrandColors.mut),
-          label:
-              const Text('المصروفات', style: TextStyle(fontSize: 11)),
-          selected: _showExpenses,
-          selectedColor: BrandColors.red,
-          labelStyle: TextStyle(
-            color: _showExpenses ? Colors.white : BrandColors.ink,
-            fontWeight: FontWeight.w700,
-          ),
-          visualDensity: VisualDensity.compact,
-          onSelected: (v) => setState(() => _showExpenses = v),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 
@@ -601,47 +625,48 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       required String tip,
       required VoidCallback onTap,
       Color? color,
-    }) =>
-        Tooltip(
-          message: tip,
-          child: InkWell(
-            key: key,
+    }) => Tooltip(
+      message: tip,
+      child: InkWell(
+        key: key,
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: BrandColors.surface2,
             borderRadius: BorderRadius.circular(9),
-            onTap: onTap,
-            child: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: BrandColors.surface2,
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: BrandColors.line),
-              ),
-              child: Icon(icon,
-                  size: 17, color: color ?? BrandColors.brandIcon),
-            ),
+            border: Border.all(color: BrandColors.line),
           ),
-        );
+          child: Icon(icon, size: 17, color: color ?? BrandColors.brandIcon),
+        ),
+      ),
+    );
 
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      if (staffAllowed('print'))
-        btn(
-          key: const Key('desk-shift-report'),
-          icon: Icons.assignment_ind_rounded,
-          tip: 'تقرير تسليم الوردية',
-          onTap: _onShiftReport,
-        ),
-      if (staffAllowed('print')) const SizedBox(width: 6),
-      if (staffAllowed('dayclose') || staffAllowed('dayreopen'))
-        btn(
-          key: const Key('desk-daily-lock'),
-          icon: _isTodayClosed()
-              ? Icons.lock_rounded
-              : Icons.lock_open_rounded,
-          tip: _isTodayClosed() ? 'اليوم مُقفل' : 'قفل اليوم',
-          color: _isTodayClosed() ? BrandColors.goldDark : null,
-          onTap: _onLockTap,
-        ),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (staffAllowed('print'))
+          btn(
+            key: const Key('desk-shift-report'),
+            icon: Icons.assignment_ind_rounded,
+            tip: 'تقرير تسليم الوردية',
+            onTap: _onShiftReport,
+          ),
+        if (staffAllowed('print')) const SizedBox(width: 6),
+        if (staffAllowed('dayclose') || staffAllowed('dayreopen'))
+          btn(
+            key: const Key('desk-daily-lock'),
+            icon: _isTodayClosed()
+                ? Icons.lock_rounded
+                : Icons.lock_open_rounded,
+            tip: _isTodayClosed() ? 'اليوم مُقفل' : 'قفل اليوم',
+            color: _isTodayClosed() ? BrandColors.goldDark : null,
+            onTap: _onLockTap,
+          ),
+      ],
+    );
   }
 
   // ── قائمة سياق الصف — توأم قائمة م99 مع «وسم اللون» ──
@@ -655,41 +680,54 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     return [
       if (!row.isExpense) ...[
         if (staffAllowed('patients.view'))
-          CtxItem('فتح ملف المريض',
-              icon: Icons.person_rounded,
-              keyId: 'open-profile',
-              onTap: () => _openProfile(row)),
+          CtxItem(
+            'فتح ملف المريض',
+            icon: Icons.person_rounded,
+            keyId: 'open-profile',
+            onTap: () => _openProfile(row),
+          ),
         if (staffAllowed('records.add'))
-          CtxItem('زيارة سريعة جديدة',
-              icon: Icons.add_circle_rounded,
-              onTap: () => showQuickVisitSheet(
-                    context,
-                    name: row.name,
-                    clinic: row.clinic == kNoClinic ? '' : row.clinic,
-                    phone: row.phone,
-                    onFullOptions: () => openAddRecordSheet(context),
-                  )),
+          CtxItem(
+            'زيارة سريعة جديدة',
+            icon: Icons.add_circle_rounded,
+            onTap: () => showQuickVisitSheet(
+              context,
+              name: row.name,
+              clinic: row.clinic == kNoClinic ? '' : row.clinic,
+              phone: row.phone,
+              onFullOptions: () => openAddRecordSheet(context),
+            ),
+          ),
         if (staffAllowed('records.edit'))
-          CtxItem('تعديل السجل',
-              icon: Icons.edit_rounded, onTap: () => _editRow(row)),
+          CtxItem(
+            'تعديل السجل',
+            icon: Icons.edit_rounded,
+            onTap: () => _editRow(row),
+          ),
         // معلومات مختصرة — ملاحظة هذه الدفعة/الزيارة حصراً (عمود
         // «ملاحظات مختصرة» يعرضها، وهذا مدخل تحريرها).
         if (row.id.isNotEmpty)
-          CtxItem('معلومات مختصرة',
-              icon: Icons.sticky_note_2_outlined,
-              keyId: 'quick-info',
-              onTap: () => showQuickInfoDialog(
-                    context,
-                    ref,
-                    kind: row.kind,
-                    id: row.id,
-                    patientName: row.name,
-                  )),
+          CtxItem(
+            'معلومات مختصرة',
+            icon: Icons.sticky_note_2_outlined,
+            keyId: 'quick-info',
+            onTap: () => showQuickInfoDialog(
+              context,
+              ref,
+              kind: row.kind,
+              id: row.id,
+              patientName: row.name,
+            ),
+          ),
       ],
-      CtxItem('نسخ الاسم', icon: Icons.copy_rounded, onTap: () {
-        Clipboard.setData(ClipboardData(text: row.name));
-        _snack('نُسخ الاسم');
-      }),
+      CtxItem(
+        'نسخ الاسم',
+        icon: Icons.copy_rounded,
+        onTap: () {
+          Clipboard.setData(ClipboardData(text: row.name));
+          _snack('نُسخ الاسم');
+        },
+      ),
       CtxItem.divider,
       CtxTagRow(
         current: currentTag,
@@ -759,7 +797,8 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     }
     final e = Map<String, Object?>.from(raw);
     Map<String, Object?>? d;
-    final isDebtCase = e['payment'] == 'دين' ||
+    final isDebtCase =
+        e['payment'] == 'دين' ||
         e['isDebt'] == 1 ||
         e['isDebt'] == true ||
         e['isDebt'] == '1';
@@ -782,8 +821,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       }
     }
     if (!mounted) return;
-    openAddRecordSheet(context,
-        editEntry: e, editKind: row.kind, editDebt: d);
+    openAddRecordSheet(context, editEntry: e, editKind: row.kind, editDebt: d);
   }
 
   /// م117/م119 — توأم _deleteRow حرفياً (بوابات، توقيع الإدارة للمصروف،
@@ -814,16 +852,14 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         context: context,
         builder: (dctx) => AlertDialog(
           title: const Text('حذف البند'),
-          content:
-              Text('حذف «${row.name}» بمبلغ ${formatNumber(row.value)}؟'),
+          content: Text('حذف «${row.name}» بمبلغ ${formatNumber(row.value)}؟'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dctx, false),
               child: const Text('إلغاء'),
             ),
             FilledButton(
-              style:
-                  FilledButton.styleFrom(backgroundColor: BrandColors.red),
+              style: FilledButton.styleFrom(backgroundColor: BrandColors.red),
               onPressed: () => Navigator.pop(dctx, true),
               child: const Text('حذف'),
             ),
@@ -835,8 +871,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         context,
         repos.settings,
         repos.db,
-        reason:
-            'حذف مصروف «${row.name}» بمبلغ ${formatNumber(row.value)}',
+        reason: 'حذف مصروف «${row.name}» بمبلغ ${formatNumber(row.value)}',
       );
       if (signer == null || !mounted) return;
       repos.expenses.delete(row.id);
@@ -1066,7 +1101,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         unattributedNote: orphan == 0
             ? ''
             : 'ملاحظة: باليوم ${formatNumber(orphan)} صف بلا هوية مُدخِل '
-                '(أُدخل قبل نظام الموظفين) غير مشمول بهذا التقرير.',
+                  '(أُدخل قبل نظام الموظفين) غير مشمول بهذا التقرير.',
       );
       recordAudit(
         repos.db,
@@ -1266,8 +1301,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       if (mounted) _snack('أُقفل اليوم — $msg');
     } catch (_) {
       if (mounted) {
-        _snack(
-            'أُقفل اليوم، وتعذّر إنشاء التقرير — أعد المحاولة من زر القفل');
+        _snack('أُقفل اليوم، وتعذّر إنشاء التقرير — أعد المحاولة من زر القفل');
       }
     }
   }
@@ -1336,9 +1370,11 @@ class _MultiFilter extends StatelessWidget {
   Widget build(BuildContext context) {
     return MenuAnchor(
       builder: (ctx, ctl, _) => FilterChip(
-        avatar: Icon(Icons.arrow_drop_down_rounded,
-            size: 16,
-            color: selected.isEmpty ? BrandColors.mut : Colors.white),
+        avatar: Icon(
+          Icons.arrow_drop_down_rounded,
+          size: 16,
+          color: selected.isEmpty ? BrandColors.mut : Colors.white,
+        ),
         label: Text(
           selected.isEmpty ? label : '$label (${selected.length})',
           style: const TextStyle(fontSize: 11),
@@ -1386,8 +1422,7 @@ class _MultiFilter extends StatelessWidget {
                     selected.clear();
                     onChanged();
                   },
-                  child:
-                      const Text('مسح', style: TextStyle(fontSize: 11.5)),
+                  child: const Text('مسح', style: TextStyle(fontSize: 11.5)),
                 ),
             ],
           ),
@@ -1436,16 +1471,16 @@ class _DeskDashboard extends ConsumerWidget {
     const expColor = Color(0xFFB8860B);
 
     Widget cellRow(List<Widget> cells) => Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < cells.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                Expanded(child: cells[i]),
-              ],
-            ],
-          ),
-        );
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < cells.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(child: cells[i]),
+          ],
+        ],
+      ),
+    );
 
     // ارتفاع مضبوط (لا IntrinsicHeight) يتحرّك بسلاسة بين وضعَي الطي/العرض
     // — بلا أي تمرير أفقي على أي دقة شاشة. صفٌّ واحد مطويّاً، ثلاثة موسّعاً.
@@ -1608,16 +1643,17 @@ class _MatrixCell extends StatelessWidget {
             : BrandColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: emphasized
-              ? BrandColors.gold
-              : BrandColors.line,
+          color: emphasized ? BrandColors.gold : BrandColors.line,
           width: emphasized ? 1.4 : 1,
         ),
       ),
       child: Row(
         children: [
-          Icon(icon, size: emphasized ? 20 : 16,
-              color: emphasized ? BrandColors.goldDark : color),
+          Icon(
+            icon,
+            size: emphasized ? 20 : 16,
+            color: emphasized ? BrandColors.goldDark : color,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1632,9 +1668,7 @@ class _MatrixCell extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w700,
-                    color: emphasized
-                        ? BrandColors.goldDark
-                        : BrandColors.mut,
+                    color: emphasized ? BrandColors.goldDark : BrandColors.mut,
                   ),
                 ),
                 const SizedBox(height: 1),
@@ -1642,36 +1676,36 @@ class _MatrixCell extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: AlignmentDirectional.centerStart,
                   child: Text.rich(
-                    TextSpan(children: [
-                      if (negative)
+                    TextSpan(
+                      children: [
+                        if (negative)
+                          TextSpan(
+                            text: '− ',
+                            style: TextStyle(
+                              fontSize: emphasized ? 18 : 15,
+                              fontWeight: FontWeight.w900,
+                              color: BrandColors.red,
+                            ),
+                          ),
                         TextSpan(
-                          text: '− ',
+                          text: value,
                           style: TextStyle(
                             fontSize: emphasized ? 18 : 15,
                             fontWeight: FontWeight.w900,
-                            color: BrandColors.red,
+                            color: emphasized ? BrandColors.goldDark : color,
+                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                         ),
-                      TextSpan(
-                        text: value,
-                        style: TextStyle(
-                          fontSize: emphasized ? 18 : 15,
-                          fontWeight: FontWeight.w900,
-                          color: emphasized ? BrandColors.goldDark : color,
-                          fontFeatures: const [
-                            FontFeature.tabularFigures()
-                          ],
+                        TextSpan(
+                          text: '  $cur',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: BrandColors.mut2,
+                          ),
                         ),
-                      ),
-                      TextSpan(
-                        text: '  $cur',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: BrandColors.mut2,
-                        ),
-                      ),
-                    ]),
+                      ],
+                    ),
                     maxLines: 1,
                   ),
                 ),
@@ -1709,88 +1743,119 @@ class _HeroCard extends StatelessWidget {
         gradient: BrandColors.brandGradient,
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(children: [
-            const Icon(Icons.today_rounded,
-                color: BrandColors.goldLight, size: 16),
-            const SizedBox(width: 6),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: AlignmentDirectional.centerStart,
-                child: Text(
-                  'دخل اليوم • ${appDigits(date)}',
-                  maxLines: 1,
-                  style: const TextStyle(
-                    color: BrandColors.goldLight,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 5),
-          Row(children: [
-            Text(
-              '$count حالة',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(width: 8),
-            if (closed)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color.fromRGBO(201, 162, 75, .25),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.lock_rounded,
-                      size: 11, color: BrandColors.goldLight),
-                  SizedBox(width: 3),
-                  Text('مُقفل',
-                      style: TextStyle(
-                          color: BrandColors.goldLight,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800)),
-                ]),
-              ),
-          ]),
-          const SizedBox(height: 4),
-          Row(
-            key: const ValueKey('dash-debt'),
+      // م146/ملحق — كانت الأسطر الثلاثة بارتفاعاتٍ صلبة تفيض بكسلاتٍ قليلة
+      // مع مقاييس خطوطٍ مختلفة (كشفتها لقطات م146). FittedBox ينكمش
+      // بالكاد عند الضيق فقط ويبقى محايداً في الوضع الطبيعي.
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: AlignmentDirectional.centerStart,
+        child: SizedBox(
+          width: 222,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.hourglass_bottom_rounded,
-                  size: 12, color: Color(0xFFF0B9B0)),
-              const SizedBox(width: 5),
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text(
-                    'الدين المتبقي: $debt',
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: Color(0xFFF6D9D4),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
+              Row(
+                children: [
+                  const Icon(
+                    Icons.today_rounded,
+                    color: BrandColors.goldLight,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        'دخل اليوم • ${appDigits(date)}',
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: BrandColors.goldLight,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Row(
+                children: [
+                  Text(
+                    '$count حالة',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (closed)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color.fromRGBO(201, 162, 75, .25),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.lock_rounded,
+                            size: 11,
+                            color: BrandColors.goldLight,
+                          ),
+                          SizedBox(width: 3),
+                          Text(
+                            'مُقفل',
+                            style: TextStyle(
+                              color: BrandColors.goldLight,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                key: const ValueKey('dash-debt'),
+                children: [
+                  const Icon(
+                    Icons.hourglass_bottom_rounded,
+                    size: 12,
+                    color: Color(0xFFF0B9B0),
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerStart,
+                      child: Text(
+                        'الدين المتبقي: $debt',
+                        maxLines: 1,
+                        style: const TextStyle(
+                          color: Color(0xFFF6D9D4),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
-
