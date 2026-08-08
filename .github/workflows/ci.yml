@@ -1,0 +1,207 @@
+# ============================================================================
+#  م77 — تكامل مستمر أدنى
+# ============================================================================
+#
+#  لماذا الآن
+#  ──────────
+#  توجد 509 اختبارات + اختبارات م76/م77 الجديدة، **ولا شيء يفرضها**.
+#  و`SECURITY_AR.md` يروي ثمن ذلك بنفسه: «مراجعة تغييرات Gradle بالعين دون
+#  بناء — فبقي العيب كامناً حتى أول بناء إصدار حقيقي». هذا بالضبط صنف
+#  الأعطال الذي يمنعه هذا الملف.
+#
+#  ما يفرضه
+#  ────────
+#   • تثبيت إصدار Flutter — يمنع انحراف targetSdk الصامت الذي يُرفض به
+#     الرفع إلى Play (المشروع يترك قيم SDK لافتراضات Flutter).
+#   • التحليل الساكن بلا أي تحذير مقبول.
+#   • الاختبارات كاملةً.
+#   • **بناء أندرويد فعلي** — الخطوة التي كان غيابها هو العلة أعلاه.
+#     يُبنى بأسرار وهمية: الغرض إثبات أن Gradle يترجم، لا إنتاج حزمة.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # ثبّت الإصدار ولا تستعمل "stable": ترقية صامتة قد تغيّر targetSdk
+  # الافتراضي فينكسر الرفع إلى Play بلا تغيير سطر واحد في المستودع.
+  #
+  # م78 — صُحِّح من '3.35.5' إلى '3.44.8'. الرقم الأول كان **خطأً**: يحمل
+  # Dart أقدم من `sdk: ^3.12.2` في pubspec، فكان `flutter pub get` ليفشل
+  # في أول تشغيل للتكامل المستمر — أي أن ملف الفحص نفسه كان معطّلاً.
+  # اكتُشف بتثبيت السلسلة فعلياً وتشغيلها، لا بمراجعتها.
+  # Flutter 3.44.8 ⇒ Dart 3.12.2 — مطابق تماماً لقيد المشروع (مُتحقَّق).
+  FLUTTER_VERSION: '3.44.8'
+
+jobs:
+  verify:
+    name: تحليل واختبارات
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: تثبيت الاعتماديات
+        run: flutter pub get
+
+      # غير حاجب عمداً في البداية: المشروع لم يُنسَّق آلياً من قبل، وCI
+      # أحمر من أول يوم يُتجاهَل بعد أسبوع. شغّل `dart format lib test`
+      # مرة، ثم احذف `continue-on-error` ليصير حاجزاً حقيقياً.
+      - name: التحقق من التنسيق (تحذيري مبدئياً)
+        continue-on-error: true
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      # `--fatal-warnings` حاجب من الآن. أما `--fatal-infos` فيُضاف بعد
+      # تنظيف خطّ الأساس — إضافته الآن تُحمِّر البناء على ملاحظات قائمة
+      # لا علاقة لها بأي تغيير جديد.
+      - name: التحليل الساكن
+        run: flutter analyze --fatal-warnings
+
+      - name: الاختبارات
+        run: flutter test --reporter=expanded
+
+      # حارس م76: لا قيمة منطقية تُكتب في حمولة. رخيص، ويمنع عودة الفئة
+      # من مسار كتابة جديد لا يعرف كاتبُه القصة.
+      - name: حارس أنواع الأعلام
+        run: |
+          if grep -rnE "'(isDebt|isPros|isDebtPayment)'\s*:\s*(true|false)" lib --include=*.dart; then
+            echo "::error::م76 — عَلَم منطقي في حمولة. استعمل 0/1."
+            exit 1
+          fi
+          echo "✓ كل الأعلام رقمية"
+
+      # حارس الأسرار: يمنع تكرار حادثة الأرشيف المشحون بمفتاح حيّ.
+      - name: حارس الأسرار
+        run: |
+          fail=0
+          if [ -f tool/cloud.env ]; then
+            echo "::error::tool/cloud.env داخل المستودع"; fail=1
+          fi
+          if find . -name '*.jks' -o -name '*.keystore' | grep -q .; then
+            echo "::error::مخزن توقيع داخل المستودع"; fail=1
+          fi
+          if grep -rn "dental123" android/ 2>/dev/null; then
+            echo "::error::كلمة مرور توقيع نصّية"; fail=1
+          fi
+          exit $fail
+
+      # حارس الطباعة (أمن الإنتاج §سادساً): لا print/debugPrint في lib —
+      # فلا تتسرّب بيانات مريض إلى Console/Logs في نسخة الإصدار. تُستثنى
+      # ميزة الطباعة (features/print) فأسماء دوالها _print* مشروعة.
+      - name: حارس الطباعة
+        run: |
+          hits=$(grep -rnE "(^|[^_a-zA-Z.])(print|debugPrint)[[:space:]]*\(" lib --include=*.dart | grep -v "features/print/" || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::أمن §سادساً — print/debugPrint في lib يسرّب بيانات لسجلّ الإنتاج. استعمل recordError (يمرّ بمنقّي PHI)."
+            exit 1
+          fi
+          echo "✓ لا طباعة تشخيصية في lib"
+
+  build-android:
+    name: بناء أندرويد (إثبات ترجمة)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # أسرار وهمية عمداً: الهدف إثبات أن Gradle وخط البناء يترجمان.
+      # لا يُرفع الناتج ولا يُوزَّع.
+      - name: بناء تجريبي
+        env:
+          DENTAL_DEV_STORE_PASSWORD: ci-not-a-real-password
+          DENTAL_DEV_KEY_PASSWORD: ci-not-a-real-password
+        run: |
+          flutter build apk --debug \
+            --dart-define=SUPABASE_URL=https://example.supabase.co \
+            --dart-define=SUPABASE_ANON_KEY=ci-placeholder
+
+  # ==========================================================================
+  #  بناء ويندوز (إثبات ترجمة + حزمة MSIX)
+  # ==========================================================================
+  #
+  #  لماذا وظيفة منفصلة على windows-latest
+  #  ────────────────────────────────────
+  #  بناء سطح المكتب لا يترجم إلا على ويندوز (سلسلة MSVC + رأسيات Win32
+  #  في windows/runner/). وعلة SECURITY_AR.md — «مراجعة تغيير أصيل بالعين
+  #  دون بناء» — تنطبق حرفياً على شيفرة C++ للنافذة: معالج WM_GETMINMAXINFO
+  #  وحدّ الحجم الأدنى لا يُثبِت أحدٌ أنهما يترجمان إلا مترجمٌ فعلي. هذه
+  #  الوظيفة هي ذلك المترجم.
+  #
+  #  ما تفرضه: أن windows/runner/ يترجم، وأن msix:create ينتج حزمة من
+  #  msix_config. لا تُوزَّع الحزمة (غير موقَّعة) — التوقيع للنشر عبر
+  #  WINDOWS_DEPLOY_AR.md.
+  build-windows:
+    name: بناء ويندوز (إثبات ترجمة + MSIX)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    needs: verify
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # اختبارات سطح المكتب — تقريرية عمداً (continue-on-error).
+      # السبب: التشفير م83 يشترط SQLCipher، وبينما توفّره sqlcipher على
+      # أندرويد/ويندوز وقت التطبيق المبني، فإن `flutter test` هنا يعمل على
+      # آلة Dart المضيفة لا على تطبيق مبني — فقد لا تُحمَّل مكتبة SQLCipher
+      # الأصلية، فتفشل اختبارات القاعدة بـ«cipher_version» رغم سلامة المنطق.
+      # لا نحجب البناء على ذلك: الغرض إثبات ترجمة سطح المكتب لا تشغيل
+      # السلسلة (تلك تُفرَض كاملةً على ubuntu في وظيفة verify أعلاه).
+      - name: اختبارات (تقريرية على ويندوز)
+        continue-on-error: true
+        run: flutter test --reporter=expanded
+
+      # بلا dart-define أسرار: الوضع المحلي كافٍ لإثبات أن سطح المكتب
+      # يترجم. تُحقن أسرار Supabase/R2 عند البناء الرسمي عبر
+      # tool\build_windows.bat (يقرأها من البيئة) — لا في هذا الفحص.
+      - name: بناء ويندوز release
+        run: flutter build windows --release
+
+      # لفّ الناتج حزمةَ MSIX من msix_config. الحزمة غير موقَّعة هنا
+      # (install_certificate=false) فتصلح للفحص لا للتوزيع.
+      - name: إنشاء حزمة MSIX
+        run: dart run msix:create
+
+      # رفع مجلد EXE كاملاً (يشمل ملف MSIX الذي يوضع بجواره).
+      - name: رفع ناتج ويندوز (EXE + MSIX)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: build/windows/x64/runner/Release/
+          if-no-files-found: error
+          retention-days: 7
