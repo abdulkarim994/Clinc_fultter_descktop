@@ -1737,6 +1737,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       label: const Text('اليوم', style: TextStyle(fontSize: 11)),
     );
 
+    // م146/ب — تباعدٌ تكيفي (ملاحظة المالك: «ملتصقات ببعض»): فسيحٌ على
+    // الشاشات المعتادة (‎≥960 ارتفاعاً — أغلبية أجهزة المكاتب)، ويتكثف
+    // تلقائياً على الأقصر وحدها حفاظاً على ميزانية اللاتمرير في 768.
+    final airy = MediaQuery.sizeOf(context).height >= 960;
+    final rowGap = airy ? 14.0 : 8.0;
+
     // م146 — زخرفة «كثيفة»: المسمى يعوم داخل إطار الحقل بدل سطرٍ مستقل
     // فوقه (نمط النماذج المكتبية الحديث) — يوفّر ~25 نقطة لكل صف، وهو
     // جوهر ميزانية اللاتمرير على شاشة 768.
@@ -1750,9 +1756,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             color: BrandColors.brandText,
           ),
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(
+          contentPadding: EdgeInsets.symmetric(
             horizontal: 12,
-            vertical: 11,
+            vertical: airy ? 14 : 11,
           ),
         );
 
@@ -2354,7 +2360,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
 
     // ── عنوان قسمٍ صغير موحد ──
     Widget colTitle(IconData icon, String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: airy ? 12 : 8),
       child: Row(
         children: [
           Icon(icon, size: 14, color: BrandColors.brandIcon),
@@ -2377,7 +2383,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
 
     // فاصل قسمٍ رقيق — إيقاعٌ بصري موحد بين الأقسام.
     Widget sectionGap() => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(vertical: airy ? 13 : 4),
       child: Container(
         height: 1,
         color: BrandColors.line.withValues(alpha: .6),
@@ -2391,7 +2397,10 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       curve: Curves.easeOutCubic,
       alignment: Alignment.topCenter,
       child: show
-          ? Padding(padding: const EdgeInsets.only(top: 8), child: child)
+          ? Padding(
+              padding: EdgeInsets.only(top: airy ? 12 : 8),
+              child: child,
+            )
           : const SizedBox(width: double.infinity),
     );
 
@@ -2418,7 +2427,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             Expanded(child: clinicField),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: rowGap),
         phoneNameRow,
         if (showPhone2) ...[const SizedBox(height: 8), phone2Row],
         if (suggestions.isNotEmpty) suggestionsPanel,
@@ -2456,7 +2465,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
             child: Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: EdgeInsets.only(top: airy ? 12 : 8),
               child: Row(
                 children: [
                   _analToggle(config),

@@ -91,6 +91,8 @@ class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
   Widget build(BuildContext context) {
     final req = widget.request;
     final screenW = MediaQuery.sizeOf(context).width;
+    // م146/ب — نفس عتبة التباعد التكيفي في النموذج (فسيح ≥960).
+    final airy = MediaQuery.sizeOf(context).height >= 960;
     // عرضٌ مريح لصفوف الحقول الثنائية؛ ينكمش على الشاشات الضيقة كي يبقى
     // جزءٌ من مساحة العمل مرئياً دائماً.
     final width = (screenW * .44).clamp(560.0, 660.0);
@@ -137,7 +139,9 @@ class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
               // للشاشات الأقصر من ميزانية اللاتمرير فحسب.
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                  padding: airy
+                      ? const EdgeInsets.fromLTRB(18, 16, 18, 18)
+                      : const EdgeInsets.fromLTRB(16, 10, 16, 12),
                   child: AddRecordScreen(
                     // مفتاحٌ مقترن بهوية الطلب: تبديل «جديد↔تعديل» أو سجلٍ
                     // لآخر يعيد إنشاء حالة النموذج بلا تسرّب حقول.
