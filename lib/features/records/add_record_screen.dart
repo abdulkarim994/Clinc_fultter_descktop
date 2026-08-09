@@ -1725,17 +1725,13 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     // ── العناصر الذرّية (منسوخة حرفياً من الوضع العمودي بمفاتيحها) ──
 
     // زر «اليوم».
-    final todayBtn = OutlinedButton.icon(
-      key: const Key('rec-today'),
-      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-      onPressed: () {
-        setState(() => date = getCurrentDate());
-        ref.read(selectedMonthProvider.notifier).state = getCurrentDate()
-            .substring(0, 7);
-      },
-      icon: const Icon(Icons.event_rounded, size: 13),
-      label: const Text('اليوم', style: TextStyle(fontSize: 11)),
-    );
+    // م147 — زر «اليوم» انتقل إلى داخل حقل التاريخ (suffix صغير) بدل سطرٍ
+    // مستقل في ترويسة القسم: أقرب لمكانه الوظيفي وأوفر مساحةً (طلب المالك).
+    void setToday() {
+      setState(() => date = getCurrentDate());
+      ref.read(selectedMonthProvider.notifier).state =
+          getCurrentDate().substring(0, 7);
+    }
 
     // م146/و — نظام قياسٍ واحدٌ موحد (طلب المالك: Compact + Balanced):
     // ألغي الازدواج التكيفي؛ حقول 42، مزراب 10، فجوات قسمٍ 8، فواصل 14.
@@ -1780,7 +1776,31 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         }
       },
       child: InputDecorator(
-        decoration: ddec('التاريخ'),
+        decoration: ddec('التاريخ').copyWith(
+          // زر «اليوم» المصغّر داخل الحقل (م147).
+          suffixIcon: Padding(
+            padding: const EdgeInsetsDirectional.only(end: 4),
+            child: TextButton(
+              key: const Key('rec-today'),
+              onPressed: setToday,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: BrandColors.brand700,
+              ),
+              child: const Text(
+                'اليوم',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 44,
+            minHeight: 30,
+          ),
+        ),
         child: Text(
           _arDate(date),
           style: const TextStyle(fontSize: 14),
@@ -2064,25 +2084,79 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       );
     }
 
-    final teethChip = featureChip(
-      key: const Key('rec-report-open'),
-      icon: Icons.grid_view_rounded,
-      label: hasReport && reportEntries.isNotEmpty
-          ? 'الأسنان (${teethCount(reportEntries)})'
+    // م147 — «تحديد الأسنان» أيقونةٌ فقط بجانب حقل المعالجة (طلب المالك):
+    // مربّعٌ صغيرٌ 42 بشارة عدٍّ عند التحديد، يفتح المخطط بالنقر. الضغط
+    // المطوّل يمسح التحديد (بديل زر المسح في الرقاقة القديمة).
+    final teethActive = hasReport && reportEntries.isNotEmpty;
+    final teethIconBtn = Tooltip(
+      message: teethActive
+          ? 'تحديد الأسنان (${teethCount(reportEntries)})'
           : 'تحديد الأسنان',
-      active: hasReport && reportEntries.isNotEmpty,
-      onTap: () {
-        if (!hasReport) setState(() => hasReport = true);
-        _openReport();
-      },
-      clearKey: const Key('rec-report-clear'),
-      onClear: hasReport
-          ? () => setState(() {
-              hasReport = false;
-              reportEntries = [];
-              reportMeta = {};
-            })
-          : null,
+      child: Material(
+        color: teethActive
+            ? BrandColors.brand600.withValues(alpha: .10)
+            : BrandColors.surface2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: teethActive
+                ? BrandColors.brand600.withValues(alpha: .45)
+                : BrandColors.line,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: const Key('rec-report-open'),
+          onTap: () {
+            if (!hasReport) setState(() => hasReport = true);
+            _openReport();
+          },
+          onLongPress: teethActive
+              ? () => setState(() {
+                  hasReport = false;
+                  reportEntries = [];
+                  reportMeta = {};
+                })
+              : null,
+          child: SizedBox(
+            width: 46,
+            height: 42,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.grid_view_rounded,
+                  size: 18,
+                  color: teethActive ? BrandColors.brandText : BrandColors.mut,
+                ),
+                if (teethActive)
+                  PositionedDirectional(
+                    top: 4,
+                    end: 4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: BrandColors.brand600,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${teethCount(reportEntries)}',
+                        style: const TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
 
     final medicalChip = featureChip(
@@ -2427,13 +2501,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── 1) هوية المريض ──
-        Row(
-          children: [
-            Expanded(child: colTitle(Icons.person_rounded, 'هوية المريض')),
-            todayBtn,
-          ],
-        ),
+        // ── 1) هوية المريض (زر «اليوم» صار داخل حقل التاريخ) ──
+        colTitle(Icons.person_rounded, 'هوية المريض'),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2448,8 +2517,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         if (suggestions.isNotEmpty) suggestionsPanel,
         sectionGap(),
 
-        // ── 2) المعالجة والقيمة — الرقاقات مدمجة في سطر العنوان،
-        // والفسحة أسفل الصف كاملاً كي لا تلتصق الرقاقات بالحقول تحتها ──
+        // ── 2) المعالجة والقيمة — العنوان مع رقاقة «المعلومات الطبية»،
+        // وزر الأسنان الأيقوني بجانب حقل المعالجة (م147) ──
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
@@ -2462,8 +2531,6 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                   pad: false,
                 ),
               ),
-              teethChip,
-              const SizedBox(width: 8),
               medicalChip,
             ],
           ),
@@ -2471,7 +2538,17 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: serviceField),
+            // حقل المعالجة وبجانبه زر تحديد الأسنان الأيقوني الصغير.
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: serviceField),
+                  const SizedBox(width: 6),
+                  teethIconBtn,
+                ],
+              ),
+            ),
             const SizedBox(width: 10),
             Expanded(child: amountField),
           ],

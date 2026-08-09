@@ -42,6 +42,7 @@ import '../../print/print_service.dart' show loadPdfBrand, printOrSharePdf;
 import '../../print/reports.dart' show dayClosePdf, shiftReportPdf;
 import '../../print/treatment_tables.dart' show formatNumber;
 import '../../records/add_record_screen.dart' show openAddRecordSheet;
+import '../../records/analysis_actions.dart' show promptAddAnalysisToVisit;
 import '../../records/day_close_store.dart'
     show DayCloseStore, confirmClosedDayWrite;
 import '../../records/home_logic.dart' hide JMap;
@@ -734,6 +735,19 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         onPick: (tag) => setRowTag(ref, _rowKey(row), tag),
       ),
       CtxItem.divider,
+      // م147 — بند «إضافة التحاليل»: يظهر للصفوف غير المصروفية التي لا
+      // تحاليل لها (وللموظفين ذوي صلاحية records.add)، يفتح نافذة كاش/تحويل
+      // ويكتب صفاً معزولاً بسعر الإعدادات (سلوك «زيارة جديدة» حرفياً).
+      if (!row.isExpense &&
+          row.id.isNotEmpty &&
+          getAnalOf(row).isEmpty &&
+          staffAllowed('records.add'))
+        CtxItem(
+          'إضافة التحاليل',
+          icon: Icons.science_outlined,
+          keyId: 'add-analysis',
+          onTap: () => _addRowAnalysis(row),
+        ),
       // بند «حذف التحاليل» — يظهر فقط للصفوف غير المصروفية التي لها تحاليل
       // وللموظفين ذوي صلاحية records.delete. دخلٌ مخبري معزول لا يمس الزيارة.
       if (!row.isExpense &&
@@ -910,6 +924,30 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
 
   /// حذف تحاليل صفٍّ مباشرةً من جدول سطح المكتب — دخلٌ مخبري معزول لا يمس
   /// مجاميع الزيارة. يحاكي نمط _deleteRow شكلاً وسلوكاً (حوار تأكيد + أزرار).
+  /// م147 — إضافة تحليلٍ ثلاثيٍّ لزيارةٍ قائمة من قائمة سياق الصف: نجلب
+  /// السجل الأصلي لنسخ تاريخه/يوم احتسابه/معرّف مريضه، ثم النافذة المشتركة.
+  Future<void> _addRowAnalysis(LedgerRow row) async {
+    final repos = ref.read(reposProvider);
+    Map<String, Object?>? rec;
+    for (final r in repos.records.getAll()) {
+      if ('${r['id']}' == row.id) {
+        rec = Map<String, Object?>.from(r);
+        break;
+      }
+    }
+    final added = await promptAddAnalysisToVisit(
+      context,
+      ref,
+      analysisOf: row.id,
+      patientName: row.name,
+      patientId: rec?['patient_id'] as String?,
+      clinic: row.clinic == kNoClinic ? '' : row.clinic,
+      date: '${rec?['date'] ?? getCurrentDate()}',
+      incomeDate: rec?['incomeDate'] as String?,
+    );
+    if (added && mounted) setState(() {});
+  }
+
   /// [getAnalOf] — مُمرَّرة من _rowMenu لتجنّب إعادة بناء الفهرس.
   Future<void> _deleteRowAnalyses(
     LedgerRow row,

@@ -73,6 +73,56 @@ AnalysisInput? triAnalysisFor({
   );
 }
 
+/// م147 — إضافة تحليلٍ ثلاثيٍّ إلى زيارةٍ **قائمة** (من جدول إدخال اليوم أو
+/// ثلاث نقاط بطاقة المريض)، بسلوكٍ مطابقٍ لإضافته من «زيارة جديدة»: السعر
+/// ثابتٌ من الإعدادات، والطريقة المختارة (كاش/تحويل) وحدها متغيّرة. يكتب
+/// صفَّ isAnalysis معزولاً مربوطاً بـ[analysisOf] (معرّف صف الزيارة) عبر
+/// المستودع المتزامن — نفس بنية الصف في [saveNewRecord] حرفياً.
+///
+/// يعيد true إن كُتب الصف، وfalse إن تعذّر (ميزة معطّلة أو سعرٌ ≤ 0) —
+/// فلا صفوف تحليلٍ شبح. لا يمسّ الزيارة الأصل ولا أي حارسٍ مالي.
+bool addAnalysisToVisit(
+  Repositories repos, {
+  required String analysisOf,
+  required String patientName,
+  String? patientId,
+  required String clinic,
+  required String date,
+  String? incomeDate,
+  required Map<String, Object?> cfg,
+  required String payment,
+}) {
+  if (!triAnalysesEnabled(cfg)) return false;
+  final aPrice = quantize(triAnalysesPrice(cfg));
+  if (aPrice <= 0) return false;
+  final aPay = payment == 'تحويل' ? 'تحويل' : 'كاش';
+  final nowMod = jsNow();
+  repos.records.upsertLocal({
+    'id': genId(),
+    'createdBy': ?staffCreatedBy(),
+    'date': date,
+    'name': patientName,
+    'patient_name': patientName,
+    'amount': aPrice,
+    'patient_id': ?patientId,
+    'clinic': clinic,
+    'clinic_id': clinic,
+    'service': 'تحاليل',
+    'payment': aPay,
+    'incomeDate': ?incomeDate,
+    // حرّاس العزل — عددٌ لا منطقيّ (توأم صف saveNewRecord حرفياً).
+    'isAnalysis': 1,
+    'isDebt': 0,
+    'isPros': 0,
+    'isDebtPayment': 0,
+    'analysisName': kTriAnalysesName,
+    'analysisOf': analysisOf,
+    '_t': 'r',
+    '_activityAt': nowMod,
+  });
+  return true;
+}
+
 class SaveRecordInput {
   const SaveRecordInput({
     required this.name,

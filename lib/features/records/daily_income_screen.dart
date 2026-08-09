@@ -30,6 +30,7 @@ import '../print/print_service.dart' show loadPdfBrand, printOrSharePdf;
 import '../print/reports.dart' show dayClosePdf, shiftReportPdf;
 import '../print/treatment_tables.dart' show formatNumber;
 import 'add_record_screen.dart' show openAddRecordSheet;
+import 'analysis_actions.dart' show promptAddAnalysisToVisit;
 import 'day_close_store.dart' show DayCloseStore, confirmClosedDayWrite;
 import 'home_logic.dart' hide JMap;
 import 'pay_breakdown_dialog.dart' show MixedPayCell;
@@ -357,6 +358,33 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
                     _showRowAnalyses(row, rowAnalyses);
                   },
                 ),
+              // م147 — «إضافة التحاليل»: توأم بند سطح المكتب حرفياً — يظهر
+              // للصفوف غير المصروفية التي لا تحاليل لها وللمستخدم صلاحية
+              // records.add، ويفتح نافذة كاش/تحويل (سلوك «زيارة جديدة»).
+              if (rowAnalyses.isEmpty &&
+                  row.id.isNotEmpty &&
+                  staffAllowed('records.add'))
+                item(
+                  icon: Icons.science_outlined,
+                  label: 'إضافة التحاليل',
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _addRowAnalysis(row);
+                  },
+                ),
+              // م147 — «حذف التحاليل» — يظهر فقط للصفوف التي لها تحاليل
+              // وللمستخدم صلاحية records.delete. دخلٌ مخبري معزول لا يمس
+              // مجاميع الزيارة (توأم بند سطح المكتب).
+              if (rowAnalyses.isNotEmpty && staffAllowed('records.delete'))
+                item(
+                  icon: Icons.delete_outline,
+                  label: 'حذف التحاليل',
+                  color: BrandColors.red,
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _deleteRowAnalyses(row, rowAnalyses);
+                  },
+                ),
             ],
             item(
               icon: Icons.copy_rounded,
@@ -501,6 +529,72 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
         ),
       ),
     );
+  }
+
+  /// م147 — إضافة تحليلٍ ثلاثيٍّ لزيارةٍ قائمة من قائمة الضغط المطول (توأم
+  /// _addRowAnalysis في سطح المكتب حرفياً): نجلب السجل الأصلي لنسخ تاريخه/
+  /// يوم احتسابه/معرّف مريضه، ثم النافذة المشتركة (كاش/تحويل).
+  Future<void> _addRowAnalysis(LedgerRow row) async {
+    final repos = ref.read(reposProvider);
+    Map<String, Object?>? rec;
+    for (final r in repos.records.getAll()) {
+      if ('${r['id']}' == row.id) {
+        rec = Map<String, Object?>.from(r);
+        break;
+      }
+    }
+    final added = await promptAddAnalysisToVisit(
+      context,
+      ref,
+      analysisOf: row.id,
+      patientName: row.name,
+      patientId: rec?['patient_id'] as String?,
+      clinic: row.clinic == kNoClinic ? '' : row.clinic,
+      date: '${rec?['date'] ?? getCurrentDate()}',
+      incomeDate: rec?['incomeDate'] as String?,
+    );
+    if (added && mounted) setState(() {});
+  }
+
+  /// حذف تحاليل صفٍّ مباشرةً (توأم _deleteRowAnalyses في سطح المكتب): حوار
+  /// تأكيدٍ ثم حذف كل رابطٍ عبر الحذف الناعم المتزامن — دخلٌ مخبري معزول
+  /// لا يمس مجاميع الزيارة.
+  Future<void> _deleteRowAnalyses(
+    LedgerRow row,
+    List<AnalysisLink> links,
+  ) async {
+    if (links.isEmpty) return;
+    final totalAmt = links.fold<num>(0, (s, a) => s + a.amount);
+    final countStr = links.length.toString();
+    final amtStr = formatNumber(totalAmt);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('حذف التحاليل'),
+        content: Text(
+          'حذف تحاليل هذا الصف ($countStr بقيمة $amtStr)؟'
+          '\nدخل مخبري معزول — لا يمس مجاميع الزيارة.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: BrandColors.red),
+            onPressed: () => Navigator.pop(dctx, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final repos = ref.read(reposProvider);
+    for (final a in links) {
+      if (a.id.isNotEmpty) repos.records.delete(a.id);
+    }
+    setState(() {});
+    _snack('تم حذف التحاليل');
   }
 
   /// م100 — «تعديل السجل»: يفتح ورقة الإدخال معبأة ببيانات السجل كاملة،
