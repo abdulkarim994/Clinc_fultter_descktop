@@ -29,10 +29,12 @@ import '../records/add_record_screen.dart'
 import '../records/day_close_store.dart' show confirmClosedDayWrite;
 import '../records/income_day_dialog.dart' show askIncomeDay;
 import '../records/mini_calculator.dart' show showMiniCalculator;
+import '../records/analysis_actions.dart'
+    show showTriRepeatBlockedDialog, triRepeatCheck;
 import '../records/record_saver.dart'
     show SaveRecordInput, isProsthetic, saveNewRecord, triAnalysisFor;
 import '../records/tooth_report_dialog.dart' show showToothReportDialog;
-import '../settings/analyses3.dart' show triAnalysesEnabled;
+import '../settings/analyses3.dart' show triAnalysesEnabled, triAnalysesPrice;
 import 'patients_tab.dart' show patientsRevProvider;
 import '../staff/staff_gate.dart' show gateStaff;
 
@@ -216,6 +218,24 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
       _snack('الدفعة الأولى أكبر من القيمة');
       return;
     }
+    // م152 — قاعدة تكرار التحليل: علامة «التحاليل الثلاثية» مؤشرة والمريض
+    // محجوب (لم تمضِ المدة منذ آخر تحليل) ⇒ يتوقف الحفظ **كله** برسالة
+    // الخطأ حتى تُزال العلامة — توأم بوابة «زيارة جديدة» حرفياً (كانت
+    // الورقة السريعة بلا بوابةٍ أصلاً — بلاغ المالك 2026-08-10).
+    {
+      final cfg = ref.read(appConfigProvider);
+      final wouldWriteAnalysis = hasAnalysis &&
+          triAnalysesEnabled(cfg) &&
+          triAnalysesPrice(cfg) > 0;
+      if (wouldWriteAnalysis) {
+        final blocked = triRepeatCheck(ref, patientName: widget.name);
+        if (blocked != null) {
+          await showTriRepeatBlockedDialog(context, blocked);
+          return;
+        }
+      }
+    }
+    if (!mounted) return;
     // م101 — تاريخ غير اليوم: أين يُحسب الإيراد؟ (الإلغاء = لا حفظ).
     final incomeDay = await askIncomeDay(context, date);
     if (incomeDay == null || !mounted) return;
