@@ -138,10 +138,7 @@ void main() {
   }
 
   Future<void> pickDebt(WidgetTester tester) async {
-    await tester.tap(find.descendant(
-      of: find.byKey(const Key('rec-payment-seg')),
-      matching: find.text('دين'),
-    ));
+    await tester.tap(find.byKey(const Key('rec-debt-toggle')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 260));
   }

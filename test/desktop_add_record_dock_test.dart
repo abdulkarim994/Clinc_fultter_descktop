@@ -117,6 +117,7 @@ void main() {
       'rec-amount',
       'rec-calc',
       'rec-payment-seg',
+      'rec-debt-toggle',
       'rec-report-open',
       'rec-medical-open',
       'rec-followup',
@@ -127,8 +128,13 @@ void main() {
       expect(find.byKey(Key(k)), findsOneWidget,
           reason: 'الحقل $k مفقود من لوح عقد «د»');
     }
-    // مفاتيح عقد «ج» المستبدلة يجب ألا تعود للظهور في اللوح المكتبي.
-    for (final gone in ['rec-payment', 'rec-debt', 'rec-report-tgl']) {
+    // مفاتيح عقد «ج» المستبدلة + شريط الدفع المكرر (م146/هـ) يجب ألا تعود.
+    for (final gone in [
+      'rec-payment',
+      'rec-debt',
+      'rec-report-tgl',
+      'rec-debtpay-seg',
+    ]) {
       expect(find.byKey(Key(gone)), findsNothing,
           reason: 'المفتاح القديم $gone عاد للظهور — عقد «د» استبدله');
     }
@@ -144,31 +150,28 @@ void main() {
   });
 
   testWidgets(
-      'اختيار «دين» يكشف الدفعة الأولى وطريقتها — وإطار اللوح لا يتغير',
+      'زر «دين» المستقل يكشف حقل الدفعة الأولى وحده — وإطار اللوح لا يتغير',
       (tester) async {
     await boot(tester);
     await sendCtrlN(tester);
     expect(find.byKey(const Key('rec-firstpay')), findsNothing);
     final frameBefore = tester.getRect(find.byType(AddRecordSidePanel));
-    // اختر «دين» من الشريط المقسّم.
-    await tester.tap(find.descendant(
-      of: find.byKey(const Key('rec-payment-seg')),
-      matching: find.text('دين'),
-    ));
+    // فعّل زر «دين» المستقل (م146/هـ — لا يزاحم كاش/تحويل).
+    await tester.tap(find.byKey(const Key('rec-debt-toggle')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 260));
-    // قسم الدين ظهر بحقليه.
+    // حقل الدفعة الأولى وحده ظهر — بلا شريط كاش/تحويل مكرر (م146/هـ)،
+    // ومسمّاه يحمل الطريقة المختارة.
     expect(find.byKey(const Key('rec-firstpay')), findsOneWidget);
-    expect(find.byKey(const Key('rec-debtpay-seg')), findsOneWidget);
+    expect(find.byKey(const Key('rec-debtpay-seg')), findsNothing);
+    expect(find.text('الدفعة الأولى (كاش)'), findsOneWidget);
+    // اختيار كاش/تحويل بقي كما هو محدداً (لم يُلغَ باختيار الدين).
     // الإطار ثابت: لا قفز أبعادٍ بعد اليوم (جوهر عقد «د»).
     final frameAfter = tester.getRect(find.byType(AddRecordSidePanel));
     expect(frameAfter, equals(frameBefore),
         reason: 'توسعة الدين يجب أن تتحرك داخل اللوح لا أن تغيّر إطاره');
-    // العودة إلى كاش تخفي القسم.
-    await tester.tap(find.descendant(
-      of: find.byKey(const Key('rec-payment-seg')),
-      matching: find.text('كاش'),
-    ));
+    // إلغاء «دين» بنقرةٍ ثانية يخفي الحقل.
+    await tester.tap(find.byKey(const Key('rec-debt-toggle')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 260));
     expect(find.byKey(const Key('rec-firstpay')), findsNothing);
