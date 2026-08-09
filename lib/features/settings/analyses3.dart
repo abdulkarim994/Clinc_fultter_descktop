@@ -47,10 +47,14 @@ bool _isTri(Object? v) =>
 
 /// تاريخ آخر تحليلٍ ثلاثيٍّ للمريض من صفوف السجلات — أو null إن لم يوجد.
 ///
-/// هوية المريض: يطابق **معرّف المريض** (patient_id) حين يتوفر الطرفان،
-/// وإلا **الاسم المطبَّع** ([normalize] — مرِّر أداة التطبيع العربي القائمة
-/// كي يجد «إبراهيم» رغم كتابتها «ابراهيم»). التاريخ نصيٌّ بصيغة
-/// YYYY-MM-DD فالمقارنة المعجمية = الزمنية.
+/// هوية المريض (م152 — قاعدة المالك المؤكدة: «لكل اسم مرة واحدة»):
+/// **الاسم المطبَّع أساس المطابقة** ([normalize] — أداة التطبيع العربي
+/// القائمة، فتُدرك «إبراهيم» رغم كتابتها «ابراهيم»)، **أو** تطابقُ
+/// معرّفَي المريض حين يتوفر الطرفان (يلتقط تغيير الاسم على نفس الهوية).
+/// كانت المقارنة تقف عند اختلاف المعرّفين ولا تسقط للاسم أبداً — فمرّ
+/// التحليل المكرر لنفس الاسم بهاتفٍ مختلف أو بلا هاتف (بلاغ المالك
+/// 2026-08-10 من نوافذ الهاتف الثلاث). التاريخ نصيٌّ بصيغة YYYY-MM-DD
+/// فالمقارنة المعجمية = الزمنية.
 String? lastTriAnalysisDate(
   List<Map<String, Object?>> records, {
   String? patientId,
@@ -67,11 +71,10 @@ String? lastTriAnalysisDate(
     // الثلاثي» نصاً ولا يصح أن تحجب المريض بصفٍّ قديمٍ مختلف.
     if ('${r['analysisName'] ?? ''}' != kTriAnalysesName) continue;
     final rid = '${r['patient_id'] ?? ''}'.trim();
-    final matched = pid.isNotEmpty && rid.isNotEmpty
-        ? rid == pid
-        : normalize('${r['patient_name'] ?? r['name'] ?? ''}'.trim()) ==
-              wanted;
-    if (!matched) continue;
+    final sameName = wanted.isNotEmpty &&
+        normalize('${r['patient_name'] ?? r['name'] ?? ''}'.trim()) == wanted;
+    final sameId = pid.isNotEmpty && rid.isNotEmpty && rid == pid;
+    if (!sameName && !sameId) continue;
     final d = '${r['date'] ?? ''}'.trim();
     if (d.isEmpty || d == 'null') continue;
     if (last == null || d.compareTo(last) > 0) last = d;
