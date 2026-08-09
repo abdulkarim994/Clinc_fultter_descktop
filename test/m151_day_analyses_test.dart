@@ -40,10 +40,10 @@ void main() {
         'clinic': clinic,
         'clinic_id': clinic,
         'date': date ?? today,
-        if (incomeDate != null) 'incomeDate': incomeDate,
-        if (analysisOf != null) 'analysisOf': analysisOf,
+        'incomeDate': ?incomeDate,
+        'analysisOf': ?analysisOf,
         if (by.isNotEmpty) 'createdBy': by,
-        if (createdAt != null) 'createdAt': createdAt,
+        'createdAt': ?createdAt,
         'analysisName': 'التحاليل الثلاثية',
       };
 
