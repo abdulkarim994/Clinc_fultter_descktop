@@ -1,9 +1,13 @@
-/// اختبارات لوح «زيارة جديدة» المرسى (Desktop Bottom Dock):
-///   • Ctrl+N يضبط addRecordDockProvider فيظهر اللوح المرسى داخل DesktopShell
-///     (لا حوارٌ ولا درجٌ منزلق) — مع AddRecordScreen بتخطيطه الأفقي.
-///   • Esc يغلقه (يعيد المزود إلى null).
-///   • كل حقول النموذج (rec-*) موجودة داخل اللوح بمفاتيحها الحرفية.
-///   • تفعيل «دين» يوسّع اللوح تلقائياً (يظهر قسم الدفعة الأولى ويرتفع اللوح).
+/// اختبارات لوح «زيارة جديدة» الجانبي (م146 — عقد التصميم «د»):
+///   • Ctrl+N يضبط addRecordDockProvider فيظهر اللوح الجانبي العائم داخل
+///     DesktopShell — مع AddRecordScreen بتخطيطه المقسّم.
+///   • Esc وزر الإغلاق يغلقانه (يعيدان المزود إلى null).
+///   • كل حقول النموذج (rec-*) موجودة بمفاتيح عقد «د» الحرفية.
+///   • الدفع شريطٌ مقسّم: اختيار «دين» يكشف الدفعة الأولى وطريقتها —
+///     **وإطار اللوح لا يتغير** (نقيض عقد «ج» الذي كان يقفز بين ارتفاعين).
+///   • الحاسبة زرٌّ صغير داخل حقل القيمة نفسه.
+///   • اللوح يطفو فوق مساحة العمل: الشِل والشريط الجانبي يبقيان ظاهرين،
+///     واللوح لا يغطي كامل العرض.
 library;
 
 import 'dart:io';
@@ -71,40 +75,37 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  testWidgets('Ctrl+N يفتح اللوح المرسى (لا درج) بعنوان «زيارة جديدة»',
+  testWidgets('Ctrl+N يفتح اللوح الجانبي بعنوان «زيارة جديدة»',
       (tester) async {
     await boot(tester);
-    // لا لوح قبل الفتح.
-    expect(find.byType(AddRecordDock), findsNothing);
+    expect(find.byType(AddRecordSidePanel), findsNothing);
     await sendCtrlN(tester);
-    // اللوح ظهر داخل الشِل مع النموذج.
-    expect(find.byType(AddRecordDock), findsOneWidget);
+    expect(find.byType(AddRecordSidePanel), findsOneWidget);
     expect(find.byType(AddRecordScreen), findsOneWidget);
     expect(find.byKey(const Key('dock-title')), findsOneWidget);
     expect(find.text('زيارة جديدة'), findsWidgets);
   });
 
-  testWidgets('Esc يغلق اللوح المرسى', (tester) async {
+  testWidgets('Esc يغلق اللوح الجانبي', (tester) async {
     await boot(tester);
     await sendCtrlN(tester);
-    expect(find.byType(AddRecordDock), findsOneWidget);
+    expect(find.byType(AddRecordSidePanel), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byType(AddRecordDock), findsNothing);
+    expect(find.byType(AddRecordSidePanel), findsNothing);
     expect(find.byType(AddRecordScreen), findsNothing);
   });
 
   testWidgets('زر إغلاق اللوح (dock-close) يغلقه', (tester) async {
     await boot(tester);
     await sendCtrlN(tester);
-    expect(find.byType(AddRecordDock), findsOneWidget);
+    expect(find.byType(AddRecordSidePanel), findsOneWidget);
     await tester.tap(find.byKey(const Key('dock-close')));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byType(AddRecordDock), findsNothing);
+    expect(find.byType(AddRecordSidePanel), findsNothing);
   });
 
-  testWidgets('كل حقول النموذج موجودة داخل اللوح (تخطيط أفقي)',
-      (tester) async {
+  testWidgets('كل حقول عقد «د» موجودة داخل اللوح بمفاتيحها', (tester) async {
     await boot(tester);
     await sendCtrlN(tester);
     for (final k in [
@@ -113,53 +114,76 @@ void main() {
       'rec-phone',
       'rec-name',
       'rec-service',
-      'rec-payment',
       'rec-amount',
-      'rec-debt',
+      'rec-calc',
+      'rec-payment-seg',
+      'rec-report-open',
+      'rec-medical-open',
       'rec-followup',
-      'rec-report-tgl',
-      'rec-medical-tgl',
       'rec-notes',
       'rec-save',
-      'rec-calc',
       'rec-today',
     ]) {
       expect(find.byKey(Key(k)), findsOneWidget,
-          reason: 'الحقل $k مفقود من اللوح الأفقي');
+          reason: 'الحقل $k مفقود من لوح عقد «د»');
+    }
+    // مفاتيح عقد «ج» المستبدلة يجب ألا تعود للظهور في اللوح المكتبي.
+    for (final gone in ['rec-payment', 'rec-debt', 'rec-report-tgl']) {
+      expect(find.byKey(Key(gone)), findsNothing,
+          reason: 'المفتاح القديم $gone عاد للظهور — عقد «د» استبدله');
     }
   });
 
-  testWidgets('تفعيل «دين» يوسّع اللوح ويُظهر قسم الدفعة الأولى',
-      (tester) async {
+  testWidgets('الحاسبة زرٌّ صغير داخل حقل القيمة نفسه', (tester) async {
     await boot(tester);
     await sendCtrlN(tester);
-    // قبل التفعيل: لا قسم دين، ونقيس ارتفاع اللوح المضغوط.
-    expect(find.byKey(const Key('rec-firstpay')), findsNothing);
-    final compactH =
-        tester.getSize(find.byType(AddRecordDock)).height;
-    // فعّل مفتاح الدين.
-    await tester.tap(find.byKey(const Key('rec-debt')));
-    await tester.pump(); // بناء النموذج بـ isDebt=true + جدولة إشعار التوسّع.
-    await tester.pump(); // تنفيذ postFrame + setState على اللوح.
-    await tester.pump(const Duration(milliseconds: 260)); // اكتمال الانتقال.
-    // قسم الدفعة الأولى ظهر، واللوح توسّع.
-    expect(find.byKey(const Key('rec-firstpay')), findsOneWidget);
-    final expandedH =
-        tester.getSize(find.byType(AddRecordDock)).height;
-    expect(expandedH, greaterThan(compactH),
-        reason: 'تفعيل الدين يجب أن يوسّع اللوح تلقائياً');
+    final amountBox = tester.getRect(find.byKey(const Key('rec-amount')));
+    final calcCenter = tester.getCenter(find.byKey(const Key('rec-calc')));
+    expect(amountBox.contains(calcCenter), isTrue,
+        reason: 'زر الحاسبة يجب أن يسكن داخل حدود حقل القيمة (suffix)');
   });
 
-  testWidgets('اللوح يعيش أسفل مساحة العمل داخل الشِل (لا فوقها)',
+  testWidgets(
+      'اختيار «دين» يكشف الدفعة الأولى وطريقتها — وإطار اللوح لا يتغير',
       (tester) async {
     await boot(tester);
     await sendCtrlN(tester);
-    // الشِل باقٍ ظاهراً تحت اللوح (اللوح ليس حواراً يغطي كل شيء).
+    expect(find.byKey(const Key('rec-firstpay')), findsNothing);
+    final frameBefore = tester.getRect(find.byType(AddRecordSidePanel));
+    // اختر «دين» من الشريط المقسّم.
+    await tester.tap(find.descendant(
+      of: find.byKey(const Key('rec-payment-seg')),
+      matching: find.text('دين'),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 260));
+    // قسم الدين ظهر بحقليه.
+    expect(find.byKey(const Key('rec-firstpay')), findsOneWidget);
+    expect(find.byKey(const Key('rec-debtpay-seg')), findsOneWidget);
+    // الإطار ثابت: لا قفز أبعادٍ بعد اليوم (جوهر عقد «د»).
+    final frameAfter = tester.getRect(find.byType(AddRecordSidePanel));
+    expect(frameAfter, equals(frameBefore),
+        reason: 'توسعة الدين يجب أن تتحرك داخل اللوح لا أن تغيّر إطاره');
+    // العودة إلى كاش تخفي القسم.
+    await tester.tap(find.descendant(
+      of: find.byKey(const Key('rec-payment-seg')),
+      matching: find.text('كاش'),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(find.byKey(const Key('rec-firstpay')), findsNothing);
+  });
+
+  testWidgets('اللوح يطفو فوق مساحة العمل ولا يحجب الشِل ولا الشريط الجانبي',
+      (tester) async {
+    await boot(tester);
+    await sendCtrlN(tester);
     expect(find.byType(DesktopShell), findsOneWidget);
-    // الشريط الجانبي (زر زيارة جديدة) ما يزال ظاهراً.
+    // الشريط الجانبي (زر زيارة جديدة) ما يزال ظاهراً — اللوح لا يغطيه.
     expect(find.byKey(const Key('desk-new-visit')), findsOneWidget);
-    // اللوح أسفل الهيدر: أعلى اللوح أدنى من أعلى الشاشة.
-    final dockTop = tester.getTopLeft(find.byType(AddRecordDock)).dy;
-    expect(dockTop, greaterThan(0));
+    // اللوح أسفل الهيدر وأضيق من الشاشة (جزء من الجدول يبقى مرئياً).
+    final rect = tester.getRect(find.byType(AddRecordSidePanel));
+    expect(rect.top, greaterThan(0));
+    expect(rect.width, lessThan(700));
   });
 }

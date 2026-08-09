@@ -1737,70 +1737,89 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       label: const Text('اليوم', style: TextStyle(fontSize: 11)),
     );
 
-    final dateField = labeled(
-      'التاريخ',
-      InkWell(
-        key: const Key('rec-date'),
-        borderRadius: BorderRadius.circular(4),
-        onTap: () async {
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: DateTime.parse(date),
-            firstDate: DateTime(2020),
-            lastDate: DateTime(2035),
-          );
-          if (picked != null) {
-            setState(
-              () => date =
-                  '${picked.year.toString().padLeft(4, '0')}-'
-                  '${picked.month.toString().padLeft(2, '0')}-'
-                  '${picked.day.toString().padLeft(2, '0')}',
-            );
-          }
-        },
-        child: InputDecorator(
-          decoration: dec(''),
-          child: Center(
-            child: Text(_arDate(date), style: const TextStyle(fontSize: 13.5)),
+    // م146/ب — تباعدٌ تكيفي (ملاحظة المالك: «ملتصقات ببعض»): فسيحٌ على
+    // الشاشات المعتادة (‎≥960 ارتفاعاً — أغلبية أجهزة المكاتب)، ويتكثف
+    // تلقائياً على الأقصر وحدها حفاظاً على ميزانية اللاتمرير في 768.
+    final airy = MediaQuery.sizeOf(context).height >= 960;
+    final rowGap = airy ? 14.0 : 8.0;
+
+    // م146 — زخرفة «كثيفة»: المسمى يعوم داخل إطار الحقل بدل سطرٍ مستقل
+    // فوقه (نمط النماذج المكتبية الحديث) — يوفّر ~25 نقطة لكل صف، وهو
+    // جوهر ميزانية اللاتمرير على شاشة 768.
+    InputDecoration ddec(String label, {String hint = ''}) =>
+        dec(hint).copyWith(
+          labelText: label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          floatingLabelStyle: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: BrandColors.brandText,
           ),
+          isDense: true,
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: airy ? 14 : 11,
+          ),
+        );
+
+    final dateField = InkWell(
+      key: const Key('rec-date'),
+      borderRadius: BorderRadius.circular(4),
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: DateTime.parse(date),
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2035),
+        );
+        if (picked != null) {
+          setState(
+            () => date =
+                '${picked.year.toString().padLeft(4, '0')}-'
+                '${picked.month.toString().padLeft(2, '0')}-'
+                '${picked.day.toString().padLeft(2, '0')}',
+          );
+        }
+      },
+      child: InputDecorator(
+        decoration: ddec('التاريخ'),
+        child: Text(
+          _arDate(date),
+          style: const TextStyle(fontSize: 14),
+          maxLines: 1,
         ),
       ),
     );
 
-    final clinicField = labeled(
-      'العيادة',
-      DropdownButtonFormField<String>(
-        isExpanded: true,
-        key: const Key('rec-clinic'),
-        icon: const SizedBox.shrink(),
-        initialValue: clinic.isEmpty ? null : clinic,
-        decoration: dec(''),
-        items: [
-          for (final c in clinics) DropdownMenuItem(value: c, child: Text(c)),
-        ],
-        onChanged: (v) => setState(() => clinic = v ?? ''),
-      ),
+    final clinicField = DropdownButtonFormField<String>(
+      isExpanded: true,
+      key: const Key('rec-clinic'),
+      icon: const SizedBox.shrink(),
+      initialValue: clinic.isEmpty ? null : clinic,
+      decoration: ddec('العيادة'),
+      items: [
+        for (final c in clinics) DropdownMenuItem(value: c, child: Text(c)),
+      ],
+      onChanged: (v) => setState(() => clinic = v ?? ''),
     );
 
     final phoneNameRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: labeled(
-            'رقم الهاتف',
-            TextField(
-              key: const Key('rec-phone'),
-              controller: phoneCtl,
-              keyboardType: TextInputType.phone,
-              textDirection: TextDirection.ltr,
-              decoration: dec('الرقم…'),
-              onChanged: _refreshPhoneSuggestions,
-            ),
+          child: TextField(
+            key: const Key('rec-phone'),
+            controller: phoneCtl,
+            style: const TextStyle(fontSize: 14),
+            keyboardType: TextInputType.phone,
+            textDirection: TextDirection.ltr,
+            decoration: ddec('رقم الهاتف', hint: 'الرقم…'),
+            onChanged: _refreshPhoneSuggestions,
           ),
         ),
         if (!showPhone2)
           Padding(
-            padding: const EdgeInsets.only(right: 4, top: 26),
+            padding: const EdgeInsetsDirectional.only(start: 4),
             child: Material(
               color: BrandColors.brand600.withValues(alpha: .08),
               borderRadius: BorderRadius.circular(8),
@@ -1822,14 +1841,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           ),
         const SizedBox(width: 8),
         Expanded(
-          child: labeled(
-            'اسم المريض',
-            TextField(
-              key: const Key('rec-name'),
-              controller: nameCtl,
-              decoration: dec('ابحث أو أدخل اسماً'),
-              onChanged: _refreshNameSuggestions,
-            ),
+          child: TextField(
+            key: const Key('rec-name'),
+            controller: nameCtl,
+            style: const TextStyle(fontSize: 14),
+            decoration: ddec('اسم المريض', hint: 'ابحث أو أدخل اسماً'),
+            onChanged: _refreshNameSuggestions,
           ),
         ),
       ],
@@ -1841,9 +1858,10 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           child: TextField(
             key: const Key('rec-phone2'),
             controller: phone2Ctl,
+            style: const TextStyle(fontSize: 14),
             keyboardType: TextInputType.phone,
             textDirection: TextDirection.ltr,
-            decoration: dec('رقم ثانٍ (اختياري)'),
+            decoration: ddec('رقم ثانٍ', hint: 'اختياري'),
           ),
         ),
         IconButton(
@@ -1853,12 +1871,18 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             showPhone2 = false;
             phone2Ctl.clear();
           }),
-          icon: const Icon(Icons.close_rounded, size: 15, color: BrandColors.red),
+          icon: const Icon(
+            Icons.close_rounded,
+            size: 15,
+            color: BrandColors.red,
+          ),
         ),
         const Spacer(),
       ],
     );
 
+    // اقتراحات الأسماء/الهواتف — سقفٌ بارتفاعها كي لا تكسر ميزانية
+    // اللاتمرير أثناء الكتابة؛ تتمرر داخلياً عند الamounts الكثيرة.
     final suggestionsPanel = Container(
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.all(6),
@@ -1867,233 +1891,343 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: BrandColors.gold.withValues(alpha: .25)),
       ),
-      child: Column(
-        children: [
-          for (final s in suggestions)
-            InkWell(
-              key: Key('rec-suggest-${s.name}'),
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => _selectSuggestion(s),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              s.name,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          if (s.clinic.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Text(
-                                s.clinic,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: BrandColors.brandText,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 126),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              for (final s in suggestions)
+                InkWell(
+                  key: Key('rec-suggest-${s.name}'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _selectSuggestion(s),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  s.name,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    if (s.phone.isNotEmpty)
-                      Text(
-                        s.phone,
-                        textDirection: TextDirection.ltr,
-                        style: TextStyle(fontSize: 11, color: BrandColors.mut2),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-
-    final serviceField = labeled(
-      'المعالجة',
-      DropdownButtonFormField<String>(
-        isExpanded: true,
-        key: const Key('rec-service'),
-        icon: const SizedBox.shrink(),
-        initialValue: service.isEmpty ? null : service,
-        decoration: dec(''),
-        items: [
-          for (final s in services) DropdownMenuItem(value: s, child: Text(s)),
-        ],
-        onChanged: (v) => setState(() {
-          service = v ?? '';
-          final prices = config['servicePrices'];
-          final p0 = prices is Map ? prices[service] : null;
-          if (jsNumOr0(p0) > 0) {
-            amountCtl.text = jsNumOr0(p0).toStringAsFixed(0);
-          }
-        }),
-      ),
-    );
-
-    final amountField = labeled(
-      'القيمة ($cur)',
-      TextField(
-        key: const Key('rec-amount'),
-        controller: amountCtl,
-        keyboardType: TextInputType.number,
-        decoration: dec('0'),
-        onChanged: (_) => setState(() {}),
-      ),
-    );
-
-    final paymentField = labeled(
-      'طريقة الدفع',
-      DropdownButtonFormField<String>(
-        isExpanded: true,
-        key: const Key('rec-payment'),
-        icon: const SizedBox.shrink(),
-        initialValue: payment.isEmpty ? null : payment,
-        decoration: dec(''),
-        items: [
-          for (final p in payments) DropdownMenuItem(value: p, child: Text(p)),
-        ],
-        onChanged: (v) => setState(() => payment = v ?? ''),
-      ),
-    );
-
-    final optionsField = labeled(
-      'خيارات',
-      Row(
-        children: [
-          _miniSwitch(
-            key: const Key('rec-debt'),
-            value: isDebt,
-            onChanged: (v) => setState(() => isDebt = v),
-          ),
-          Text('دين', style: TextStyle(fontSize: 12, color: BrandColors.mut)),
-          // نظام «التحاليل الثلاثية» — يظهر الصح فقط في وضع الإنشاء
-          // وحين الميزة مفعّلة (توأم الوضع العمودي).
-          _analToggle(config),
-          const Spacer(),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Material(
-                color: BrandColors.gold.withValues(alpha: .12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: BrandColors.gold.withValues(alpha: .45),
-                  ),
-                ),
-                child: InkWell(
-                  key: const Key('rec-followup'),
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    ref.read(followUpDraftProvider.notifier).state = {
-                      'name': nameCtl.text.trim(),
-                      'phone': phoneCtl.text.trim(),
-                      'service': service.trim(),
-                    };
-                    widget.onSaved?.call();
-                    ref.read(activeTabProvider.notifier).state = 'calendar';
-                  },
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.event_rounded,
-                          size: 13,
-                          color: BrandColors.goldDark,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'موعد',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: BrandColors.goldDark,
+                              if (s.clinic.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: Text(
+                                    s.clinic,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: BrandColors.brandText,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
+                        if (s.phone.isNotEmpty)
+                          Text(
+                            s.phone,
+                            textDirection: TextDirection.ltr,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: BrandColors.mut2,
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
 
-    final teethToggle = Row(
+    final serviceField = DropdownButtonFormField<String>(
+      isExpanded: true,
+      key: const Key('rec-service'),
+      icon: const SizedBox.shrink(),
+      initialValue: service.isEmpty ? null : service,
+      decoration: ddec('المعالجة'),
+      items: [
+        for (final s in services) DropdownMenuItem(value: s, child: Text(s)),
+      ],
+      onChanged: (v) => setState(() {
+        service = v ?? '';
+        final prices = config['servicePrices'];
+        final p0 = prices is Map ? prices[service] : null;
+        if (jsNumOr0(p0) > 0) {
+          amountCtl.text = jsNumOr0(p0).toStringAsFixed(0);
+        }
+      }),
+    );
+
+    // م146 — الحاسبة زرٌّ صغير داخل حقل القيمة نفسه (suffix) بدل زرٍّ ضخم
+    // في عمودٍ بعيد: أقرب لمكان الاستعمال وأوفر مساحةً (طلب المالك حرفياً).
+    final amountField = TextField(
+      key: const Key('rec-amount'),
+      controller: amountCtl,
+      style: const TextStyle(fontSize: 14),
+      keyboardType: TextInputType.number,
+      decoration: ddec('القيمة ($cur)', hint: '0').copyWith(
+        suffixIcon: IconButton(
+          key: const Key('rec-calc'),
+          tooltip: 'الحاسبة',
+          onPressed: _openCalcInsert,
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(
+            Icons.calculate_rounded,
+            size: 19,
+            color: BrandColors.goldDark,
+          ),
+        ),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
+        ),
+      ),
+      onChanged: (_) => setState(() {}),
+    );
+
+    // م146 — «رقاقة ميزة» موحّدة: بديل مفاتيح التبديل (toggles) لفتح
+    // المحرّرات. المفتاح كان يوحي بإعدادٍ ثنائي بينما الفعل «افتح محرراً»؛
+    // الرقاقة تعرض الحالة (تعبئة/عدّاد) وتفتح بالنقر، وزرُّ مسحٍ صغير
+    // للإلغاء حيث يلزم (نمط الأنظمة المكتبية القياسي).
+    Widget featureChip({
+      required Key key,
+      required IconData icon,
+      required String label,
+      required bool active,
+      required VoidCallback onTap,
+      Key? clearKey,
+      VoidCallback? onClear,
+    }) {
+      final fg = active ? BrandColors.brandText : BrandColors.mut;
+      return Material(
+        color: active
+            ? BrandColors.brand600.withValues(alpha: .10)
+            : BrandColors.surface2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: active
+                ? BrandColors.brand600.withValues(alpha: .45)
+                : BrandColors.line,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: key,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 6, 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 15, color: fg),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: fg,
+                  ),
+                ),
+                if (onClear != null) ...[
+                  const SizedBox(width: 2),
+                  InkWell(
+                    key: clearKey,
+                    customBorder: const CircleBorder(),
+                    onTap: onClear,
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: BrandColors.mut2,
+                    ),
+                  ),
+                ] else
+                  const SizedBox(width: 4),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final teethChip = featureChip(
+      key: const Key('rec-report-open'),
+      icon: Icons.grid_view_rounded,
+      label: hasReport && reportEntries.isNotEmpty
+          ? 'الأسنان (${teethCount(reportEntries)})'
+          : 'تحديد الأسنان',
+      active: hasReport && reportEntries.isNotEmpty,
+      onTap: () {
+        if (!hasReport) setState(() => hasReport = true);
+        _openReport();
+      },
+      clearKey: const Key('rec-report-clear'),
+      onClear: hasReport
+          ? () => setState(() {
+              hasReport = false;
+              reportEntries = [];
+              reportMeta = {};
+            })
+          : null,
+    );
+
+    final medicalChip = featureChip(
+      key: const Key('rec-medical-open'),
+      icon: Icons.medical_information_outlined,
+      label: _hasMedical ? 'المعلومات الطبية ✓' : 'المعلومات الطبية',
+      active: _hasMedical,
+      onTap: _openMedicalInfo,
+    );
+
+    // شريحة «موعد» — توأم النسخة العمودية بمفتاحها نفسه.
+    final followChip = Material(
+      color: BrandColors.gold.withValues(alpha: .12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: BrandColors.gold.withValues(alpha: .45)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const Key('rec-followup'),
+        onTap: () {
+          ref.read(followUpDraftProvider.notifier).state = {
+            'name': nameCtl.text.trim(),
+            'phone': phoneCtl.text.trim(),
+            'service': service.trim(),
+          };
+          widget.onSaved?.call();
+          ref.read(activeTabProvider.notifier).state = 'calendar';
+        },
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.event_rounded, size: 13, color: BrandColors.goldDark),
+              SizedBox(width: 4),
+              Text(
+                'موعد',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: BrandColors.goldDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // م146 — الدفع شريط أزرارٍ مقسّم واحد (كاش | تحويل | دين) بدل قائمةٍ
+    // منسدلة + مفتاح دينٍ منفصل: أوضاعٌ متنافية تُطبَّق فوراً (النمط
+    // المكتبي القياسي للاختيار الفوري من 2-5 خيارات). يربط نفس الحالة
+    // القديمة حرفياً: payment + isDebt — لا تغيير في نموذج البيانات.
+    final segPays = [
+      for (final p in payments)
+        if (p != 'دين') p,
+    ];
+    final paySelected = isDebt
+        ? 'دين'
+        : (segPays.contains(payment) ? payment : segPays.first);
+    final segStyle = SegmentedButton.styleFrom(
+      visualDensity: VisualDensity.compact,
+      backgroundColor: BrandColors.surface2,
+      foregroundColor: BrandColors.mut,
+      selectedBackgroundColor: BrandColors.brand600,
+      selectedForegroundColor: Colors.white,
+      side: BorderSide(color: BrandColors.line),
+      // لا textStyle هنا: يرث خط العلامة من الثيم (تحديده يدوياً كان
+      // يطمس عائلة الخط فتُرسم التسميات بخطٍ غريب).
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+    );
+    final paySegmented = Row(
       children: [
-        _miniSwitch(
-          key: const Key('rec-report-tgl'),
-          value: hasReport,
-          onChanged: (v) {
-            if (v) {
-              setState(() => hasReport = true);
-              _openReport();
+        Text(
+          'طريقة الدفع',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: BrandColors.brandText,
+          ),
+        ),
+        const SizedBox(width: 10),
+        SegmentedButton<String>(
+          key: const Key('rec-payment-seg'),
+          style: segStyle,
+          showSelectedIcon: false,
+          segments: [
+            for (final p in segPays) ButtonSegment(value: p, label: Text(p)),
+            const ButtonSegment(value: 'دين', label: Text('دين')),
+          ],
+          selected: {paySelected},
+          onSelectionChanged: (s) => setState(() {
+            final v = s.first;
+            if (v == 'دين') {
+              isDebt = true;
+              // payment يبقى بمعناه: طريقة الدفعة الأولى.
+              if (payment != 'كاش' && payment != 'تحويل') payment = 'كاش';
             } else {
-              setState(() {
-                hasReport = false;
-                reportEntries = [];
-                reportMeta = {};
-              });
+              isDebt = false;
+              payment = v;
             }
-          },
+          }),
         ),
-        Flexible(
-          child: InkWell(
-            key: const Key('rec-report-open'),
-            onTap: hasReport ? _openReport : null,
-            child: Text(
-              hasReport && reportEntries.isNotEmpty
-                  ? 'تحديد الأسنان (${teethCount(reportEntries)})'
-                  : 'تحديد الأسنان',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: BrandColors.mut),
-            ),
-          ),
-        ),
+        const Spacer(),
+        followChip,
       ],
     );
 
-    final medicalToggle = Row(
+    // صفّ الدين — يظهر داخل مساحةٍ متحركة حين يُختار «دين»: الدفعة الأولى
+    // وطريقتها جنباً إلى جنب (لا فقدان لتركيبة «دينٌ بدفعةٍ أولى تحويلاً»).
+    final debtRow = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        _miniSwitch(
-          key: const Key('rec-medical-tgl'),
-          value: _hasMedical,
-          onChanged: (_) => _openMedicalInfo(),
-        ),
-        Flexible(
-          child: InkWell(
-            key: const Key('rec-medical-open'),
-            onTap: _openMedicalInfo,
-            child: Text(
-              'المعلومات الطبية',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: BrandColors.mut),
-            ),
+        Expanded(
+          child: TextField(
+            key: const Key('rec-firstpay'),
+            controller: firstPayCtl,
+            style: const TextStyle(fontSize: 14),
+            keyboardType: TextInputType.number,
+            decoration: ddec('الدفعة الأولى', hint: '0'),
           ),
+        ),
+        const SizedBox(width: 10),
+        SegmentedButton<String>(
+          key: const Key('rec-debtpay-seg'),
+          style: segStyle,
+          showSelectedIcon: false,
+          segments: [
+            for (final p in segPays) ButtonSegment(value: p, label: Text(p)),
+          ],
+          selected: {segPays.contains(payment) ? payment : segPays.first},
+          onSelectionChanged: (s) => setState(() => payment = s.first),
         ),
       ],
     );
 
+    // قسم التركيبات — صفّا إدخالٍ كثيفان + سطرُ معاينةٍ واحد.
     final prosSection = Container(
-      padding: const EdgeInsets.all(11),
+      padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
         color: BrandColors.surface2,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: BrandColors.line),
       ),
       child: Column(
@@ -2105,7 +2239,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                   isExpanded: true,
                   key: const Key('rec-labname'),
                   initialValue: labName.isEmpty ? null : labName,
-                  decoration: dec('المختبر'),
+                  decoration: ddec('المختبر'),
                   items: [
                     for (final l in labsList(config))
                       DropdownMenuItem(value: l, child: Text(l)),
@@ -2119,7 +2253,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                   isExpanded: true,
                   key: const Key('rec-prostype'),
                   initialValue: prosType.isEmpty ? null : prosType,
-                  decoration: dec('نوع التركيبة'),
+                  decoration: ddec('نوع التركيبة'),
                   items: [
                     for (final t in labTypesList(config))
                       DropdownMenuItem(
@@ -2142,8 +2276,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 child: TextField(
                   key: const Key('rec-prosunits'),
                   controller: prosUnitsCtl,
+                  style: const TextStyle(fontSize: 14),
                   keyboardType: TextInputType.number,
-                  decoration: dec('عدد الواحدات'),
+                  decoration: ddec('عدد الواحدات'),
                   onChanged: (_) => _onUnitsChange(),
                 ),
               ),
@@ -2152,8 +2287,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 child: TextField(
                   key: const Key('rec-prosunitprice'),
                   controller: prosUnitPriceCtl,
+                  style: const TextStyle(fontSize: 14),
                   keyboardType: TextInputType.number,
-                  decoration: dec('سعر الوحدة'),
+                  decoration: ddec('سعر الوحدة'),
                   onChanged: (_) => _onUnitsChange(),
                 ),
               ),
@@ -2162,92 +2298,57 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 child: TextField(
                   key: const Key('rec-lab'),
                   controller: labValueCtl,
+                  style: const TextStyle(fontSize: 14),
                   keyboardType: TextInputType.number,
-                  decoration: dec('قيمة المعمل'),
+                  decoration: ddec('قيمة المعمل'),
                   onChanged: (_) => setState(() {}),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          _previewRow(
-            'صافي الربح:',
-            n(prosNet),
-            BrandColors.goldDark,
-            key: const Key('pros-net'),
-          ),
-          _previewRow(
-            'نسبة الطبيب (${prosPctLive.toStringAsFixed(0)}%):',
-            n(prosDocShare),
-            const Color(0xFF065F46),
-            key: const Key('pros-doc'),
-          ),
-          _previewRow(
-            'نسبة العيادة (${(100 - prosPctLive).toStringAsFixed(0)}%):',
-            n(prosClinShare),
-            const Color(0xFF047857),
-            key: const Key('pros-clin'),
+          const SizedBox(height: 6),
+          // المعاينة الحية سطرٌ واحد بثلاث خلايا متباعدة (كانت ثلاثة أسطر).
+          Row(
+            children: [
+              Expanded(
+                child: _previewRow(
+                  'صافي الربح:',
+                  n(prosNet),
+                  BrandColors.goldDark,
+                  key: const Key('pros-net'),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _previewRow(
+                  'الطبيب (${prosPctLive.toStringAsFixed(0)}%):',
+                  n(prosDocShare),
+                  const Color(0xFF065F46),
+                  key: const Key('pros-doc'),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _previewRow(
+                  'العيادة (${(100 - prosPctLive).toStringAsFixed(0)}%):',
+                  n(prosClinShare),
+                  const Color(0xFF047857),
+                  key: const Key('pros-clin'),
+                ),
+              ),
+            ],
           ),
         ],
-      ),
-    );
-
-    final debtSection = Container(
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: BrandColors.surface2,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: BrandColors.line),
-      ),
-      child: TextField(
-        key: const Key('rec-firstpay'),
-        controller: firstPayCtl,
-        keyboardType: TextInputType.number,
-        decoration: dec('الدفعة الأولى'),
       ),
     );
 
     final notesField = TextField(
       key: const Key('rec-notes'),
       controller: notesCtl,
+      style: const TextStyle(fontSize: 14),
       maxLines: 2,
       minLines: 1,
-      decoration: dec('معلومات مختصرة (اختياري)'),
-    );
-
-    final calcBtn = Material(
-      color: const Color.fromRGBO(201, 162, 75, .1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color.fromRGBO(201, 162, 75, .3)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: const Key('rec-calc'),
-        onTap: _openCalcInsert,
-        child: const SizedBox(
-          height: 48,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.calculate_rounded,
-                size: 20,
-                color: BrandColors.goldDark,
-              ),
-              SizedBox(width: 6),
-              Text(
-                'الحاسبة',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: BrandColors.goldDark,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      decoration: ddec('معلومات مختصرة', hint: 'اختياري'),
     );
 
     final saveBtn = FilledButton.icon(
@@ -2256,7 +2357,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       style: FilledButton.styleFrom(
         backgroundColor: BrandColors.brand600,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 13),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
       ),
       icon: const Icon(Icons.check_rounded, size: 19),
@@ -2266,12 +2367,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       ),
     );
 
-    // ── عنوان عمود صغير موحد ──
-    Widget colTitle(IconData icon, String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+    // ── عنوان قسمٍ صغير موحد ──
+    Widget colTitle(IconData icon, String text, {bool pad = true}) => Padding(
+      padding: EdgeInsets.only(bottom: pad ? (airy ? 12 : 8) : 0),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: BrandColors.brandIcon),
+          Icon(icon, size: 15, color: BrandColors.brandIcon),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -2280,7 +2381,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 12.5,
+                fontSize: 13.5,
                 color: BrandColors.brandText,
               ),
             ),
@@ -2289,10 +2390,38 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       ),
     );
 
-    // ── الأعمدة الأربعة ──
-    final col1 = Column(
+    // فاصل قسمٍ رقيق — إيقاعٌ بصري موحد بين الأقسام.
+    Widget sectionGap() => Padding(
+      padding: EdgeInsets.symmetric(vertical: airy ? 13 : 4),
+      child: Container(
+        height: 1,
+        color: BrandColors.line.withValues(alpha: .6),
+      ),
+    );
+
+    // توسعةٌ ناعمة: تنمو وتنكمش بلا قفزات (طلب المالك — لا تشويه عند
+    // التوسيع). AnimatedSize يتكفل بالانتقال، والمحتوى يظهر أو يختفي.
+    Widget smooth(bool show, Widget child) => AnimatedSize(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: show
+          ? Padding(
+              padding: EdgeInsets.only(top: airy ? 12 : 8),
+              child: child,
+            )
+          : const SizedBox(width: double.infinity),
+    );
+
+    // ═══ م146 «عقد التصميم د» — عمودٌ واحدٌ مقسّم داخل اللوح الجانبي ═══
+    // الميزانية الرأسية مضبوطة لأقصر شاشةٍ مكتبيةٍ شائعة (‎768) بلا تمرير
+    // حتى مع فتح التركيبات والدين والتحاليل معاً؛ وSingleChildScrollView
+    // في اللوح المضيف حارسُ طوارئ للشاشات الأقصر فحسب.
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
+        // ── 1) هوية المريض ──
         Row(
           children: [
             Expanded(child: colTitle(Icons.person_rounded, 'هوية المريض')),
@@ -2307,17 +2436,32 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             Expanded(child: clinicField),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: rowGap),
         phoneNameRow,
         if (showPhone2) ...[const SizedBox(height: 8), phone2Row],
         if (suggestions.isNotEmpty) suggestionsPanel,
-      ],
-    );
+        sectionGap(),
 
-    final col2 = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        colTitle(Icons.medical_services_rounded, 'المعالجة والقيمة'),
+        // ── 2) المعالجة والقيمة — الرقاقات مدمجة في سطر العنوان،
+        // والفسحة أسفل الصف كاملاً كي لا تلتصق الرقاقات بالحقول تحتها ──
+        Padding(
+          padding: EdgeInsets.only(bottom: airy ? 12 : 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: colTitle(
+                  Icons.medical_services_rounded,
+                  'المعالجة والقيمة',
+                  pad: false,
+                ),
+              ),
+              teethChip,
+              const SizedBox(width: 8),
+              medicalChip,
+            ],
+          ),
+        ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2326,62 +2470,45 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             Expanded(child: amountField),
           ],
         ),
-        const SizedBox(height: 10),
+        smooth(pros, prosSection),
+        sectionGap(),
+
+        // ── 3) الدفع ──
+        paySegmented,
+        smooth(isDebt, debtRow),
+        // التحاليل الثلاثية — الصح وقائمة دفعها في صفٍّ واحدٍ مدمج.
+        if (widget.editEntry == null && triAnalysesEnabled(config))
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: EdgeInsets.only(top: airy ? 12 : 8),
+              child: Row(
+                children: [
+                  _analToggle(config),
+                  if (hasAnalysis) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _analysisSection(keyPrefix: 'rec', dense: true),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        sectionGap(),
+
+        // ── 4) معلومات مختصرة + الحفظ — صفٌّ واحدٌ ختامي ──
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Expanded(child: teethToggle),
-            const SizedBox(width: 8),
-            Expanded(child: medicalToggle),
+            Expanded(child: notesField),
+            const SizedBox(width: 10),
+            SizedBox(width: 172, child: saveBtn),
           ],
         ),
-        if (pros) ...[const SizedBox(height: 10), prosSection],
       ],
-    );
-
-    final col3 = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        colTitle(Icons.payments_rounded, 'الدفع والخيارات'),
-        paymentField,
-        const SizedBox(height: 10),
-        optionsField,
-        if (isDebt) ...[const SizedBox(height: 10), debtSection],
-        // نظام «التحاليل» — منطقة التحليل المنبسطة (توأم الوضع العمودي).
-        if (hasAnalysis) ...[
-          const SizedBox(height: 10),
-          _analysisSection(keyPrefix: 'rec'),
-        ],
-        const SizedBox(height: 10),
-        colTitle(Icons.sticky_note_2_outlined, 'معلومات مختصرة'),
-        notesField,
-      ],
-    );
-
-    final col4 = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        colTitle(Icons.save_rounded, 'حفظ'),
-        saveBtn,
-        const SizedBox(height: 10),
-        calcBtn,
-      ],
-    );
-
-    // Row من Expanded يستغل العرض؛ تمريرةٌ رأسية احتياطية للأوضاع القصيرة.
-    return SingleChildScrollView(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(flex: 5, child: col1),
-          const SizedBox(width: 16),
-          Expanded(flex: 5, child: col2),
-          const SizedBox(width: 16),
-          Expanded(flex: 4, child: col3),
-          const SizedBox(width: 16),
-          SizedBox(width: 160, child: col4),
-        ],
-      ),
     );
   }
 
@@ -2438,9 +2565,11 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
   /// الاسم والسعر ثابتان من الإعدادات — لا قائمة أسماء ولا حقل سعر.
   Widget _analysisSection({
     required String keyPrefix,
+    // م146 — الوضع الكثيف للوح المكتبي: حشوة أصغر وارتفاعٌ طبيعي.
+    bool dense = false,
   }) {
     return Container(
-      padding: const EdgeInsets.all(11),
+      padding: EdgeInsets.all(dense ? 8 : 11),
       decoration: BoxDecoration(
         color: BrandColors.surface2,
         borderRadius: BorderRadius.circular(14),

@@ -59,3 +59,6 @@ session.json
 # يُسلَّم يداً بيد، ولا يدخل المستودع.
 SECURITY_RUNBOOK_AR.md
 tool/dev_keystore.env
+
+# م146 — اللقطات الذهبية تولد محلياً فقط (GOLDENS=1) ولا ترفع للمستودع
+test/goldens/

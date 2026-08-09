@@ -1,25 +1,30 @@
 /// ============================================================================
-///  لوح «زيارة جديدة» المرسى — Desktop Bottom Dock
+///  لوح «زيارة جديدة» الجانبي — Desktop Side Panel (م146 — عقد التصميم «د»)
 /// ============================================================================
 ///
-///  (قرار المالك — عقد التصميم «ج»): بديل الدرج الجانبي الضيق على الكمبيوتر
-///  بلوحٍ سفليٍّ **مرسى** يعيش داخل [DesktopShell] لا حوارٌ ولا overlay —
-///  يدفع مساحة العمل للأعلى (تنكمش طبيعياً في Expanded) بدل تغطيتها،
-///  ويستعيد المساحة ارتفاعها عند الإغلاق.
+///  (قرار المالك — 2026‑08‑08): بديل اللوح السفلي المرسى (عقد «ج») بلوحٍ
+///  **جانبيٍّ عائمٍ ينزلق من اليمين** فوق مساحة العمل بظلٍّ بلا حاجزٍ معتم —
+///  الجدول يبقى مرئياً، والشريط الجانبي (يمين RTL) يبقى متاحاً. يوافق نمط
+///  Material 3 القياسي للألواح الجانبية المرفوعة فوق المحتوى (8dp+).
+///
+///  لماذا استُبدل عقد «ج»: اللوح السفلي كان يقفز بين ارتفاعين (34%/62%)
+///  عند فتح التركيبات/الدين، وأعمدته الأربعة متفاوتة الامتلاء، والحاسبة
+///  زرٌّ ضخمٌ بعيدٌ عن حقل القيمة. اللوح الجانبي ثابت الإطار: التوسعات
+///  تتحرك داخله بنعومة (AnimatedSize في النموذج) بلا تغيير في أبعاده.
 ///
 ///  البنية:
-///  - [addRecordDockProvider] — حالة الفتح: null مغلق، وإلا [AddRecordDockRequest]
-///    الحامل لوضع التعديل (editEntry/editKind/editDebt) أو الجديد (كلها null).
-///  - [AddRecordDock] — السطح المرسى: ترويسة زمردية رفيعة (مقبض سحب + عنوان
-///    «زيارة جديدة»/«تعديل السجل» + زر توسيع/طي + زر إغلاق)، ثم النموذج الكامل
-///    [AddRecordScreen] بتخطيطه الأفقي متعدد الأعمدة (horizontal: true) داخل
-///    تمريرةٍ رأسية احتياطية.
-///  - ثلاثة أوضاع ارتفاع عبر AnimatedContainer(220ms easeOutCubic):
-///    مضغوط (screenH*0.34، الافتراضي) وموسّع (screenH*0.62 — تلقائياً عند
-///    تفعيل الدين/التركيبات، أو يدوياً بزر التوسيع).
+///  - [addRecordDockProvider] — حالة الفتح: null مغلق، وإلا
+///    [AddRecordDockRequest] (الاسمان باقيان من عقد «ج» عمداً — كل مواضع
+///    الاستدعاء والاختصارات تبقى كما هي حرفياً).
+///  - [AddRecordSidePanel] — السطح العائم: عرضٌ ثابت (~660، ينكمش على
+///    الشاشات الضيقة كي يبقى الجدول مرئياً)، ارتفاعٌ كامل لمساحة العمل،
+///    ترويسةٌ زمردية رفيعة (عنوان + تلميح Esc + إغلاق)، والنموذج الكامل
+///    [AddRecordScreen] بتخطيطه المقسّم الجديد داخل تمريرةِ طوارئ لا تعمل
+///    إلا على الشاشات الأقصر من ميزانية اللاتمرير.
+///  - انزلاقُ دخولٍ من حافة البداية (يمين RTL) عبر AnimatedSlide.
 ///
 ///  الحقول والمنطق والحفظ كلها في [AddRecordScreen] بلا تغيير — هذا الملف
-///  غلافٌ بصري بحت (استضافة + انتقالات + ترويسة).
+///  غلافٌ بصري بحت (استضافة + انتقال + ترويسة).
 library;
 
 import 'package:flutter/material.dart';
@@ -30,8 +35,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../records/add_record_screen.dart' show AddRecordScreen;
 
 /// طلب فتح اللوح: التعديل يحمل السجل الأصلي ونوعه ودينه؛ الجديد كلها null.
-/// كائنٌ ثابت بسيط (لا يحمل حالة قابلة للتغيير) — تبديل المرجع كافٍ لإعادة
-/// بناء الشِل.
+/// كائنٌ ثابت بسيط — تبديل المرجع كافٍ لإعادة بناء الشِل.
 class AddRecordDockRequest {
   const AddRecordDockRequest({
     this.editEntry,
@@ -51,239 +55,213 @@ class AddRecordDockRequest {
   bool get isEdit => editEntry != null;
 }
 
-/// حالة لوح «زيارة جديدة» المرسى في نسخة الكمبيوتر — null = مغلق.
+/// حالة لوح «زيارة جديدة» في نسخة الكمبيوتر — null = مغلق.
 /// يضبطه [openAddRecordSheet] (فرع الديسكتوب) و_newVisit/Ctrl+N، ويعيده
 /// Esc/زر الإغلاق/الحفظ الناجح إلى null.
 final addRecordDockProvider = StateProvider<AddRecordDockRequest?>(
   (ref) => null,
 );
 
-/// السطح المرسى نفسه — يُبنى فقط حين [addRecordDockProvider] غير null.
-class AddRecordDock extends ConsumerStatefulWidget {
-  const AddRecordDock({super.key, required this.request});
+/// اللوح الجانبي العائم — يُبنى فقط حين [addRecordDockProvider] غير null.
+class AddRecordSidePanel extends ConsumerStatefulWidget {
+  const AddRecordSidePanel({super.key, required this.request});
 
   final AddRecordDockRequest request;
 
   @override
-  ConsumerState<AddRecordDock> createState() => _AddRecordDockState();
+  ConsumerState<AddRecordSidePanel> createState() =>
+      _AddRecordSidePanelState();
 }
 
-class _AddRecordDockState extends ConsumerState<AddRecordDock> {
-  /// موسّع؟ يبدأ مضغوطاً؛ يرتفع تلقائياً عند تفعيل الدين/التركيبات (إشعار
-  /// بصري بحت من النموذج) ويقلبه المستخدم بزر التوسيع.
-  bool _expanded = false;
+class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
+  /// يقود انزلاق الدخول: يبدأ خارج الحافة ثم ينزلق للداخل بعد أول إطار.
+  bool _in = false;
 
-  void _close() =>
-      ref.read(addRecordDockProvider.notifier).state = null;
-
-  /// إشعار بصري من النموذج: للمحتوى أقسامٌ مفتوحة (دين/تركيبات) ⇒ ارفع اللوح.
-  /// يُستدعى بعد الإطار (لا داخل build) فلا يخالف setState-during-build.
-  void _onExpandedContent(bool needsRoom) {
-    if (needsRoom && !_expanded && mounted) {
-      setState(() => _expanded = true);
-    }
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _in = true);
+    });
   }
+
+  void _close() => ref.read(addRecordDockProvider.notifier).state = null;
 
   @override
   Widget build(BuildContext context) {
     final req = widget.request;
-    final screenH = MediaQuery.sizeOf(context).height;
-    // ثلاثة أوضاع: مضغوط (افتراضي) / موسّع (تلقائي عند الدين/التركيبات أو
-    // يدوي). محصورٌ بحدٍّ أدنى/أقصى معقول كي لا ينهار على الشاشات القصيرة
-    // ولا يبتلع الشِل على الطويلة.
-    final targetH =
-        (screenH * (_expanded ? 0.62 : 0.34)).clamp(220.0, screenH - 96);
+    final screenW = MediaQuery.sizeOf(context).width;
+    // م146/ب — نفس عتبة التباعد التكيفي في النموذج (فسيح ≥960).
+    final airy = MediaQuery.sizeOf(context).height >= 960;
+    // عرضٌ مريح لصفوف الحقول الثنائية؛ ينكمش على الشاشات الضيقة كي يبقى
+    // جزءٌ من مساحة العمل مرئياً دائماً.
+    final width = (screenW * .44).clamp(560.0, 660.0);
 
-    return AnimatedContainer(
+    return AnimatedSlide(
+      // في RTL: Offset(-1,0) خارج حافة البداية (اليمين) — فينزلق منها.
+      offset: _in ? Offset.zero : const Offset(-1, 0),
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      height: targetH,
-      decoration: BoxDecoration(
-        color: BrandColors.surface,
-        border: Border(
-          top: BorderSide(
-            color: BrandColors.gold.withValues(alpha: .35),
-            width: 1,
+      child: Container(
+        width: width,
+        decoration: const BoxDecoration(
+          // ظلٌّ نحو مساحة العمل — لوحٌ مرفوع فوق المحتوى بلا حاجز.
+          boxShadow: [
+            BoxShadow(
+              color: Color.fromRGBO(10, 48, 36, .22),
+              blurRadius: 24,
+              spreadRadius: 2,
+              offset: Offset(-10, 0),
+            ),
+          ],
+        ),
+        child: Material(
+          color: BrandColors.surface,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: const BorderRadiusDirectional.only(
+              topEnd: Radius.circular(16),
+              bottomEnd: Radius.circular(16),
+            ),
+            side: BorderSide(color: BrandColors.gold.withValues(alpha: .30)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _PanelHeader(
+                title: req.isEdit ? 'تعديل السجل' : 'زيارة جديدة',
+                subtitle: req.isEdit
+                    ? 'عدّل ما تشاء ثم احفظ — يستبدل السجل الأصلي'
+                    : 'كل خيارات الإدخال — تُحفظ فوراً',
+                onClose: _close,
+              ),
+              // المحتوى: النموذج المقسّم (م146). التمريرة حارسُ طوارئ
+              // للشاشات الأقصر من ميزانية اللاتمرير فحسب.
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: airy
+                      ? const EdgeInsets.fromLTRB(18, 16, 18, 18)
+                      : const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                  child: AddRecordScreen(
+                    // مفتاحٌ مقترن بهوية الطلب: تبديل «جديد↔تعديل» أو سجلٍ
+                    // لآخر يعيد إنشاء حالة النموذج بلا تسرّب حقول.
+                    key: ValueKey(
+                      'panel-${req.isEdit ? '${req.editKind}-${req.editEntry!['id']}' : 'new'}',
+                    ),
+                    compact: true,
+                    horizontal: true,
+                    editEntry: req.editEntry,
+                    editKind: req.editKind,
+                    editDebt: req.editDebt,
+                    onSaved: _close,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color.fromRGBO(10, 48, 36, .18),
-            blurRadius: 18,
-            offset: Offset(0, -6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _DockHeader(
-            title: req.isEdit ? 'تعديل السجل' : 'زيارة جديدة',
-            subtitle: req.isEdit
-                ? 'عدّل ما تشاء ثم احفظ — يستبدل السجل الأصلي'
-                : 'كل خيارات الإدخال — تُحفظ فوراً',
-            expanded: _expanded,
-            onToggleExpand: () => setState(() => _expanded = !_expanded),
-            onClose: _close,
-          ),
-          // المحتوى: النموذج الأفقي متعدد الأعمدة. تمريرةٌ رأسية احتياطية
-          // تحمي عند الأوضاع القصيرة (مضغوط + أقسام مفتوحة) فلا يُقصّ شيء.
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: AddRecordScreen(
-                // مفتاحٌ مقترنٌ بهوية الطلب: تبديل «جديد↔تعديل» أو سجلٍ لآخر
-                // يعيد إنشاء حالة النموذج (تعبئة نظيفة) بلا تسرّب حقول.
-                key: ValueKey(
-                  'dock-${req.isEdit ? '${req.editKind}-${req.editEntry!['id']}' : 'new'}',
-                ),
-                compact: true,
-                horizontal: true,
-                editEntry: req.editEntry,
-                editKind: req.editKind,
-                editDebt: req.editDebt,
-                onSaved: _close,
-                onExpandedContent: _onExpandedContent,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
-/// ترويسة اللوح الرفيعة — هوية زمردية (تدرّج العلامة): مقبض سحب + عنوان
-/// + زر توسيع/طي + زر إغلاق (Esc).
-class _DockHeader extends StatelessWidget {
-  const _DockHeader({
+/// الترويسة الزمردية الرفيعة — عنوانٌ وتلميح Esc وزرُّ إغلاق. لا أوضاع
+/// ارتفاعٍ بعد اليوم: اللوح ثابت الإطار والتوسعات داخلية ناعمة.
+class _PanelHeader extends StatelessWidget {
+  const _PanelHeader({
     required this.title,
     required this.subtitle,
-    required this.expanded,
-    required this.onToggleExpand,
     required this.onClose,
   });
 
   final String title;
   final String subtitle;
-  final bool expanded;
-  final VoidCallback onToggleExpand;
   final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 6, 10, 8),
+      padding: const EdgeInsetsDirectional.fromSTEB(14, 9, 8, 9),
       decoration: const BoxDecoration(gradient: BrandColors.brandGradient),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: [
-          // مقبض السحب العلوي — نقره يقلب التوسّع (توأم سحب اللوح).
-          InkWell(
-            key: const Key('dock-handle'),
-            borderRadius: BorderRadius.circular(4),
-            onTap: onToggleExpand,
-            child: Container(
-              width: 44,
-              height: 5,
-              margin: const EdgeInsets.only(bottom: 6, top: 2),
-              decoration: BoxDecoration(
-                color: BrandColors.goldLight.withValues(alpha: .55),
-                borderRadius: BorderRadius.circular(4),
+          const Icon(
+            Icons.add_circle_rounded,
+            size: 17,
+            color: BrandColors.goldLight,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  key: const Key('dock-title'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: BrandColors.goldLight,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: .72),
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // تلميح الاختصار — Esc يغلق (معالجته في DesktopShell).
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: const Color.fromRGBO(201, 162, 75, .25),
+              ),
+            ),
+            child: Text(
+              'Esc',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: .75),
+                fontSize: 10,
               ),
             ),
           ),
-          Row(
-            children: [
-              const Icon(
-                Icons.add_circle_rounded,
-                size: 17,
-                color: BrandColors.goldLight,
-              ),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      key: const Key('dock-title'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: BrandColors.goldLight,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: .72),
-                        fontSize: 10.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // زر توسيع/طي.
-              Tooltip(
-                message: expanded ? 'طي اللوح' : 'توسيع اللوح',
-                child: InkWell(
-                  key: const Key('dock-expand'),
-                  customBorder: const CircleBorder(),
-                  onTap: onToggleExpand,
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    margin: const EdgeInsets.only(left: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .08),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color.fromRGBO(201, 162, 75, .2),
-                      ),
-                    ),
-                    child: Icon(
-                      expanded
-                          ? Icons.keyboard_arrow_down_rounded
-                          : Icons.keyboard_arrow_up_rounded,
-                      size: 20,
-                      color: BrandColors.goldLight,
-                    ),
+          // زر الإغلاق (Esc).
+          Tooltip(
+            message: 'إغلاق (Esc)',
+            child: InkWell(
+              key: const Key('dock-close'),
+              customBorder: const CircleBorder(),
+              onTap: onClose,
+              child: Container(
+                width: 32,
+                height: 32,
+                margin: const EdgeInsetsDirectional.only(start: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .08),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color.fromRGBO(201, 162, 75, .2),
                   ),
                 ),
-              ),
-              // زر الإغلاق (Esc).
-              Tooltip(
-                message: 'إغلاق (Esc)',
-                child: InkWell(
-                  key: const Key('dock-close'),
-                  customBorder: const CircleBorder(),
-                  onTap: onClose,
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    margin: const EdgeInsets.only(left: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .08),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: const Color.fromRGBO(201, 162, 75, .2),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.close_rounded,
-                      size: 18,
-                      color: BrandColors.goldLight,
-                    ),
-                  ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: BrandColors.goldLight,
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),
