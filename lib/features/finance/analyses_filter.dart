@@ -18,6 +18,8 @@ import '../../core/utils/ar_normalize.dart' show arNorm;
 ///             'cash'     → r['payment'] == 'كاش'
 ///             'transfer' → r['payment'] != 'كاش' (أي تحويل وما شابهه)
 ///             'all'      → بلا تصفية على طريقة الدفع
+/// - [clinic]: م149 — اسم عيادةٍ للتقييد بها (يطابق clinic ثم clinic_id)؛
+///             فارغ = كل العيادات.
 ///
 /// الترتيب لا يتغير — الدالة لا تعيد ترتيب الصفوف.
 ///
@@ -33,17 +35,56 @@ List<Map<String, Object?>> filterAnalysesRows(
   List<Map<String, Object?>> rows, {
   required String query,
   required String mode,
+  String clinic = '',
 }) {
   // تطبيع نص البحث مرة واحدة لتجنب التكرار داخل الحلقة
   final normQ = arNorm(query.trim());
+  final wantClinic = clinic.trim();
 
   return [
     for (final r in rows)
-      // ── فلتر طريقة الدفع ──────────────────────────────────────────────────
-      if (_modeMatch(r, mode))
-        // ── فلتر النص ─────────────────────────────────────────────────────
-        if (normQ.isEmpty || _textMatch(r, normQ)) r,
+      // ── فلتر العيادة (م149) ──────────────────────────────────────────────
+      if (wantClinic.isEmpty || _clinicMatch(r, wantClinic))
+        // ── فلتر طريقة الدفع ───────────────────────────────────────────────
+        if (_modeMatch(r, mode))
+          // ── فلتر النص ────────────────────────────────────────────────────
+          if (normQ.isEmpty || _textMatch(r, normQ)) r,
   ];
+}
+
+/// م149 — هل الصف تابعٌ للعيادة المطلوبة؟ يطابق clinic ثم clinic_id
+/// (الكاتبان يخزّنان الاسم في كليهما — الاحتياط للصفوف القديمة).
+bool _clinicMatch(Map<String, Object?> r, String clinic) {
+  final c = '${r['clinic'] ?? ''}'.trim();
+  if (c.isNotEmpty && c != 'null') return c == clinic;
+  return '${r['clinic_id'] ?? ''}'.trim() == clinic;
+}
+
+/// م149 — صفوف الشهر التقويمي الجاري فقط (بادئة YYYY-MM من [today]).
+/// «التصفير التلقائي» أول كل شهر يتحقق ذاتياً: الاستعلام مقيّدٌ بالشهر
+/// فلا حاجة لأي حذفٍ أو مؤقّت.
+List<Map<String, Object?>> currentMonthRows(
+  List<Map<String, Object?>> rows, {
+  required String today,
+}) {
+  final prefix = today.length >= 7 ? today.substring(0, 7) : today;
+  return [
+    for (final r in rows)
+      if ('${r['date'] ?? ''}'.startsWith(prefix)) r,
+  ];
+}
+
+/// م149 — إجمالي مبالغ صفوف الشهر الجاري (ذيل بطاقة «سجلات التحاليل»).
+num currentMonthTotal(
+  List<Map<String, Object?>> rows, {
+  required String today,
+}) {
+  num sum = 0;
+  for (final r in currentMonthRows(rows, today: today)) {
+    final v = r['amount'];
+    sum += v is num ? v : (num.tryParse('$v') ?? 0);
+  }
+  return sum;
 }
 
 /// يتحقق من تطابق الصف مع وضع الدفع المطلوب.

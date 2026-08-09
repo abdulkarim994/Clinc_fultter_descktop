@@ -18,8 +18,15 @@ import '../../data/repositories/repositories.dart';
 import '../../data/sync/feature_flags.dart';
 import '../patients/archive_store.dart' show PatientArchiveStore;
 import '../staff/staff_session.dart' show staffCreatedBy;
+import '../../core/utils/ar_normalize.dart' show arNorm;
 import '../settings/analyses3.dart'
-    show kTriAnalysesName, triAnalysesEnabled, triAnalysesPrice;
+    show
+        kTriAnalysesName,
+        lastTriAnalysisDate,
+        triAnalysesEnabled,
+        triAnalysesPrice,
+        triRepeatBlockMessage,
+        triRepeatMonths;
 
 
 typedef JMap = Map<String, Object?>;
@@ -95,6 +102,19 @@ bool addAnalysisToVisit(
   if (!triAnalysesEnabled(cfg)) return false;
   final aPrice = quantize(triAnalysesPrice(cfg));
   if (aPrice <= 0) return false;
+  // م149 — حارس قاعدة التكرار في الكاتب نفسه (دفاعٌ في العمق): أي مسارِ
+  // استدعاءٍ مستقبلي لا يفحص مسبقاً يُصَدُّ هنا أيضاً — فلا صف يخالف المدة.
+  final repeatBlocked = triRepeatBlockMessage(
+    lastDate: lastTriAnalysisDate(
+      repos.records.getAll().cast<Map<String, Object?>>(),
+      patientId: patientId,
+      patientName: patientName,
+      normalize: arNorm,
+    ),
+    today: getCurrentDate(),
+    repeatMonths: triRepeatMonths(cfg),
+  );
+  if (repeatBlocked != null) return false;
   final aPay = payment == 'تحويل' ? 'تحويل' : 'كاش';
   final nowMod = jsNow();
   repos.records.upsertLocal({
@@ -482,7 +502,22 @@ SaveRecordResult saveNewRecord(
   final an = f.analysis;
   if (an != null) {
     final aPrice = quantize(an.price);
-    if (aPrice > 0) {
+    // م149 — حارس قاعدة التكرار الأخير: واجهة «زيارة جديدة» توقف الحفظ كله
+    // برسالة الخطأ قبل الوصول هنا؛ هذا صمام أمانٍ إضافي يمنع كتابة صفٍّ
+    // مخالفٍ للمدة لو تجاوز أي مسارٍ مستقبلي فحص الواجهة (تنجو الزيارة
+    // وحدها بلا صف تحليل — لا فقدان بياناتٍ ولا خرق قاعدة).
+    final aRepeatOk = triRepeatBlockMessage(
+          lastDate: lastTriAnalysisDate(
+            repos.records.getAll().cast<Map<String, Object?>>(),
+            patientId: pid,
+            patientName: name,
+            normalize: arNorm,
+          ),
+          today: getCurrentDate(),
+          repeatMonths: triRepeatMonths(config),
+        ) ==
+        null;
+    if (aPrice > 0 && aRepeatOk) {
       final aPay = (an.payment == 'كاش' || an.payment == 'تحويل')
           ? an.payment
           : 'كاش';

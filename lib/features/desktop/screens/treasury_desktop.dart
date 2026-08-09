@@ -26,13 +26,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/js_compat.dart';
-import '../../finance/analyses_filter.dart' show filterAnalysesRows;
+import '../../finance/analyses_filter.dart' show currentMonthTotal;
+import '../../finance/analyses_registry.dart'
+    show AnalysesRegistryCard, analysesRegistryRows;
 import '../../finance/debts_section.dart' show debtsClinicFilterProvider;
 import '../../finance/finance_screen.dart' show financeRevProvider;
 import '../../finance/treasury_logic.dart';
 import '../../print/print_service.dart' show loadPdfBrand, printOrSharePdf;
 import '../../print/reports.dart'
-    show prostheticsReportPdf, simpleTablePdf, treatmentTablesPdf;
+    show prostheticsReportPdf, treatmentTablesPdf;
 import '../../print/treatment_tables.dart'
     show buildTreatmentTables, formatNumber;
 import '../../staff/staff_gate.dart' show staffAllowed;
@@ -56,7 +58,8 @@ class DesktopTreasuryScreen extends ConsumerStatefulWidget {
 
 class _DesktopTreasuryScreenState
     extends ConsumerState<DesktopTreasuryScreen> {
-  /// الفئة المختارة في التفصيل: null = لا تفصيل، 'cash'/'xfer'/'pros'.
+  /// الفئة المختارة في التفصيل: null = لا تفصيل، 'cash'/'xfer'/'pros'،
+  /// أو 'analreg' (م149 — سجل التحاليل الثلاثية المستقل).
   String? _detailView;
 
   /// عيادة التفصيل المختار.
@@ -68,11 +71,6 @@ class _DesktopTreasuryScreenState
   bool _showDateRange = false;
   String _sortMode = 'date-desc';
 
-  // ── حالة بحث/فلتر التحاليل (محلية — تُصفَّر عند تغيير الفئة مقبول) ──
-  final _analSearchCtl = TextEditingController();
-  /// وضع فلتر التحاليل: 'all' | 'cash' | 'transfer'
-  String _analFilterMode = 'all';
-
   /// مجموعات التركيبات الموسّعة في التفصيل.
   final _expandedPros = <String>{};
 
@@ -83,7 +81,6 @@ class _DesktopTreasuryScreenState
   @override
   void dispose() {
     _nameCtl.dispose();
-    _analSearchCtl.dispose();
     super.dispose();
   }
 
@@ -170,9 +167,9 @@ class _DesktopTreasuryScreenState
                   gridDelegate:
                       const SliverGridDelegateWithMaxCrossAxisExtent(
                     maxCrossAxisExtent: 260,
-                    // نظام «التحاليل» — البطاقة صارت بصفّين من الخانات
-                    // (كاش/تحويل ثم تركيبات/تحاليل) فيرتفع الطبيعي إلى ~232؛
-                    // نُثبّته كي لا تُقصّ الخانة الرابعة (RenderFlex overflow).
+                    // البطاقة بصفّين من الخانات (كاش/تحويل ثم تركيبات
+                    // بعرض الصف — خانة «تحاليل» انتقلت م149 لبطاقة السجل
+                    // المستقلة)؛ الامتداد مثبّت كي لا يُقصّ (overflow).
                     mainAxisExtent: 232,
                     crossAxisSpacing: 8,
                     mainAxisSpacing: 8,
@@ -189,22 +186,62 @@ class _DesktopTreasuryScreenState
                       cash: n(clinicCash(s, cli)),
                       xfer: n(clinicXfer(s, cli)),
                       pros: n(clinicProsTotalPaid(s, cli)),
-                      anal: n(clinicAnalyses(s, cli).total),
                       onTapCash: () => _showDetail('cash', cli),
                       onTapXfer: () => _showDetail('xfer', cli),
                       onTapPros: () => _showDetail('pros', cli),
-                      onTapAnal: () => _showDetail('anal', cli),
                     );
                   },
                 ),
+        ),
+        // م149 — بطاقة «سجلات التحاليل الثلاثية» المستقلة: مدخلٌ مضغوط
+        // بإجمالي الشهر الميلادي الجاري، يفتح السجل الكامل في لوح التفصيل.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+          child: Material(
+            color: BrandColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: BrandColors.line),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              key: const Key('tr-desk-anal-registry'),
+              onTap: () => _showDetail('analreg', ''),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                child: Row(children: [
+                  Icon(Icons.biotech_rounded,
+                      size: 17, color: BrandColors.green),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('سجلات التحاليل الثلاثية',
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: BrandColors.brandText)),
+                  ),
+                  Text(det ? '${n(_registryMonthTotal())} $cur' : '—',
+                      key: const Key('tr-desk-anal-reg-total'),
+                      textDirection: TextDirection.ltr,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.green,
+                          fontFeatures: [FontFeature.tabularFigures()])),
+                  const SizedBox(width: 4),
+                  Icon(Icons.chevron_left_rounded,
+                      size: 18, color: BrandColors.mut),
+                ]),
+              ),
+            ),
+          ),
         ),
         // ── شريط الإجماليات السفلي اللاصق القابل للطي — بعرض اللوح ──
         _TotalsBar(
           cur: cur,
           det: det,
           totals: t,
-          // نظام «التحاليل» — إجمالٍ منفصلٌ عن grand (سطرٌ مستقل).
-          analyses: analysesTotals(s),
           expenses: ex,
           expanded: totalsExpanded,
           onToggleExpand: () {
@@ -247,6 +284,37 @@ class _DesktopTreasuryScreenState
 
   Widget _buildDetail(
       TreasurySlice s, String cur, String Function(Object?) n, bool det) {
+    // م149 — سجل التحاليل الثلاثية: البطاقة المستقلة تملأ لوح التفصيل
+    // (مستقلة عن العيادات والفئات — لها رأسها وفلاترها وإجماليها).
+    if (_detailView == 'analreg') {
+      return ListView(
+        key: const Key('tr-desk-anal-reg-detail'),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        children: [
+          Row(children: [
+            Icon(Icons.biotech_rounded,
+                size: 18, color: BrandColors.green),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('سجلات التحاليل الثلاثية',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: BrandColors.brandText)),
+            ),
+            IconButton(
+              key: const Key('tr-desk-anal-reg-close'),
+              icon: const Icon(Icons.close_rounded, size: 18),
+              color: BrandColors.mut,
+              tooltip: 'إغلاق',
+              onPressed: () => setState(() => _detailView = null),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          const AnalysesRegistryCard(dense: false),
+        ],
+      );
+    }
     // نسبة الطبيب من الإعداد كما يمرره الهاتف (لحصص التركيبات).
     final doctorPct =
         jsNumOr0(jsOr(ref.watch(appConfigProvider)['doctorPct'], 50));
@@ -254,7 +322,6 @@ class _DesktopTreasuryScreenState
       'cash': 'كاش',
       'xfer': 'تحويل',
       'pros': 'تركيبات',
-      'anal': 'تحاليل',
     };
     final items = filteredDetailItems(
       s,
@@ -424,13 +491,12 @@ class _DesktopTreasuryScreenState
                 }),
               ]),
               const SizedBox(height: 8),
-              // تبويبات التنقل بين الفئات (+ «تحاليل» — النظام المعزول).
+              // تبويبات التنقل بين الفئات (م149 — «تحاليل» في السجل المستقل).
               Row(children: [
                 for (final cat in const [
                   ('cash', 'كاش'),
                   ('xfer', 'تحويل'),
                   ('pros', 'تركيبات'),
-                  ('anal', 'تحاليل'),
                 ])
                   Expanded(
                     child: Padding(
@@ -514,125 +580,9 @@ class _DesktopTreasuryScreenState
             children: [
               if (_detailView == 'pros')
                 ..._prosCards(s, groups, cur, n)
-              else if (items.isEmpty && _detailView != 'anal')
+              else if (items.isEmpty)
                 _emptyCard('لا عناصر')
-              // نظام «التحاليل» — شريط بحث/فلتر ثم البنود القابلة للتعديل والحذف.
-              else if (_detailView == 'anal') ...[
-                // ── شريط البحث والفلتر الخاص بالتحاليل ───────────────────
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(children: [
-                    // حقل البحث — يحاكي زخرفة tr-desk-search
-                    Expanded(
-                      child: SizedBox(
-                        height: 36,
-                        child: TextField(
-                          key: const Key('tr-desk-anal-search'),
-                          controller: _analSearchCtl,
-                          style: const TextStyle(fontSize: 12),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            hintText: 'بحث في التحاليل…',
-                            hintStyle: TextStyle(
-                                fontSize: 12, color: BrandColors.mut2),
-                            prefixIcon: Icon(Icons.search_rounded,
-                                size: 16, color: BrandColors.mut2),
-                            filled: true,
-                            fillColor: BrandColors.surface2,
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 10),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                  color: BrandColors.line, width: .8),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                  color: BrandColors.line, width: .8),
-                            ),
-                          ),
-                          onChanged: (_) => setState(() {}),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // زر الفلتر مع شارة الوضع غير الافتراضي
-                    Builder(builder: (context) {
-                      final filterActive = _analFilterMode != 'all';
-                      return Stack(clipBehavior: Clip.none, children: [
-                        Material(
-                          color: BrandColors.gold.withValues(
-                              alpha: filterActive ? .18 : .08),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            side: BorderSide(
-                                color: BrandColors.gold
-                                    .withValues(alpha: .3)),
-                          ),
-                          child: PopupMenuButton<String>(
-                            key: const Key('tr-desk-anal-filter'),
-                            tooltip: 'فلتر التحاليل',
-                            onSelected: (v) =>
-                                setState(() => _analFilterMode = v),
-                            itemBuilder: (context) => [
-                              CheckedPopupMenuItem(
-                                key: const Key(
-                                    'tr-desk-anal-filter-all'),
-                                value: 'all',
-                                checked: _analFilterMode == 'all',
-                                child: const Text('جميع التحاليل',
-                                    style: TextStyle(fontSize: 12.5)),
-                              ),
-                              CheckedPopupMenuItem(
-                                key: const Key(
-                                    'tr-desk-anal-filter-cash'),
-                                value: 'cash',
-                                checked: _analFilterMode == 'cash',
-                                child: const Text('تحاليل كاش',
-                                    style: TextStyle(fontSize: 12.5)),
-                              ),
-                              CheckedPopupMenuItem(
-                                key: const Key(
-                                    'tr-desk-anal-filter-transfer'),
-                                value: 'transfer',
-                                checked: _analFilterMode == 'transfer',
-                                child: const Text('تحاليل تحويل',
-                                    style: TextStyle(fontSize: 12.5)),
-                              ),
-                            ],
-                            child: const SizedBox(
-                              width: 38,
-                              height: 36,
-                              child: Icon(Icons.filter_list_rounded,
-                                  size: 16, color: BrandColors.goldDark),
-                            ),
-                          ),
-                        ),
-                        // شارة صغيرة تُظهر الوضع غير الافتراضي
-                        if (filterActive)
-                          Positioned(
-                            top: -4,
-                            left: -4,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                color: BrandColors.goldDark,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                    color: BrandColors.surface,
-                                    width: 1.5),
-                              ),
-                            ),
-                          ),
-                      ]);
-                    }),
-                  ]),
-                ),
-                // ── بنود التحاليل بعد الفلتر ──────────────────────────────
-                ..._buildDeskAnalItems(items, cur),
-              ] else
+              else
                 for (final r in items)
                   _ItemTile(row: r, cur: cur),
             ],
@@ -678,28 +628,6 @@ class _DesktopTreasuryScreenState
                   TextStyle(color: BrandColors.mut2, fontSize: 12.5)),
         ),
       );
-
-  // ── بناء بنود التحاليل بعد تطبيق الفلتر (عرضي — المجاميع لا تتأثر) ─────
-
-  List<Widget> _buildDeskAnalItems(List<_JMap> allItems, String cur) {
-    final filtered = filterAnalysesRows(
-      allItems,
-      query: _analSearchCtl.text,
-      mode: _analFilterMode,
-    );
-    if (filtered.isEmpty) {
-      return [_emptyCard('لا نتائج مطابقة')];
-    }
-    return [
-      for (final r in filtered)
-        _AnalItemTile(
-          row: r,
-          cur: cur,
-          onEdit: () => _editAnalysis(r),
-          onDelete: () => _deleteAnalysis(r),
-        ),
-    ];
-  }
 
   // ── تجميع/فلترة التركيبات (توأم _filteredGroups الهاتفي) ─────────────────
 
@@ -1147,96 +1075,19 @@ class _DesktopTreasuryScreenState
     );
   }
 
-  // ── نظام «التحاليل» — تعديل/حذف بند تحليلٍ (توأم الهاتف حرفياً) ──────────
-
-  /// تعديل قيمة/طريقة تحليلٍ عبر records.updateLocal (يبقى صفاً محروساً).
-  Future<void> _editAnalysis(JMap r) async {
-    final id = '${r['id']}';
-    final priceCtl =
-        TextEditingController(text: jsNumOr0(r['amount']).toStringAsFixed(0));
-    var pay = '${r['payment'] ?? 'كاش'}';
-    if (pay != 'كاش' && pay != 'تحويل') pay = 'كاش';
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => StatefulBuilder(
-        builder: (dctx, setLocal) => AlertDialog(
-          title: Text('تعديل تحليل — ${r['name'] ?? ''}',
-              style: const TextStyle(fontSize: 14)),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-              key: const Key('tr-desk-anal-edit-price'),
-              controller: priceCtl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: 'القيمة', isDense: true),
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              key: const Key('tr-desk-anal-edit-pay'),
-              initialValue: pay,
-              decoration: const InputDecoration(
-                  labelText: 'طريقة الدفع', isDense: true),
-              items: const [
-                DropdownMenuItem(value: 'كاش', child: Text('كاش')),
-                DropdownMenuItem(value: 'تحويل', child: Text('تحويل')),
-              ],
-              onChanged: (v) => setLocal(() => pay = v ?? 'كاش'),
-            ),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dctx, false),
-                child: const Text('إلغاء')),
-            FilledButton(
-                key: const Key('tr-desk-anal-edit-save'),
-                onPressed: () => Navigator.pop(dctx, true),
-                child: const Text('حفظ')),
-          ],
-        ),
+  /// م149 — إجمالي تحاليل الشهر الميلادي الجاري (بتاريخ اليوم — مستقلٌّ
+  /// عن مبدّل شهر الخزينة عمداً، توأم تذييل بطاقة السجل).
+  num _registryMonthTotal() {
+    final today = getCurrentDate();
+    return currentMonthTotal(
+      analysesRegistryRows(
+        ref.read(reposProvider).records.getAll().cast<Map<String, Object?>>(),
+        today: today,
       ),
+      today: today,
     );
-    priceCtl.dispose();
-    if (ok != true) return;
-    final price = jsNumOr0(priceCtl.text);
-    if (price <= 0) return;
-    ref.read(reposProvider).records.updateLocal(id, {
-      'amount': price,
-      'payment': pay,
-    });
-    ref.read(financeRevProvider.notifier).state++;
-    if (mounted) setState(() {});
   }
 
-  /// حذف صف تحليلٍ (records.delete نظيف — لا دين ولا دفعات).
-  Future<void> _deleteAnalysis(JMap r) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        title: const Text('حذف التحليل', style: TextStyle(fontSize: 14)),
-        content: Text(
-            'حذف تحليل «${r['analysisName'] ?? r['name'] ?? ''}» بقيمة '
-            '${jsNumOr0(r['amount']).toStringAsFixed(0)}؟'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dctx, false),
-              child: const Text('إلغاء')),
-          FilledButton(
-              key: const Key('tr-desk-anal-del-confirm'),
-              style: FilledButton.styleFrom(
-                  backgroundColor: BrandColors.red),
-              onPressed: () => Navigator.pop(dctx, true),
-              child: const Text('حذف')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    ref.read(reposProvider).records.delete('${r['id']}');
-    ref.read(financeRevProvider.notifier).state++;
-    if (mounted) setState(() {});
-  }
-
-  /// طباعة الفئة — نقلٌ أمينٌ لـ _printDetail الهاتفي (نفس النداءين حرفياً،
-  /// تخضع لصلاحية print داخل printOrSharePdf تلقائياً).
   Future<void> _printDetail(
       List<JMap> items, List<ProsGroup> groups, String cur) async {
     final fonts = await loadPdfBrand(ref);
@@ -1244,40 +1095,7 @@ class _DesktopTreasuryScreenState
       'cash': 'كاش',
       'xfer': 'تحويل',
       'pros': 'تركيبات',
-      'anal': 'تحاليل',
     };
-    // نظام «التحاليل» — جدولٌ بسيط (توأم الهاتف).
-    if (_detailView == 'anal') {
-      final n = formatNumber;
-      num sum = 0;
-      final tableRows = <List<String>>[];
-      for (final r in items) {
-        final amt = jsNumOr0(r['amount']);
-        sum += amt;
-        tableRows.add([
-          '${r['date'] ?? ''}',
-          '${r['name'] ?? ''}',
-          '${r['analysisName'] ?? r['service'] ?? ''}',
-          '${r['payment'] ?? ''}',
-          '${n(amt)} $cur',
-        ]);
-      }
-      final bytes = await simpleTablePdf(
-        fonts,
-        title: '$_detailCli — تحاليل',
-        subtitle: ref.read(selectedMonthProvider),
-        headers: const ['التاريخ', 'الاسم', 'التحليل', 'الطريقة', 'القيمة'],
-        rows: tableRows,
-        totRow: ['المجموع', '', '', '', '${n(sum)} $cur'],
-      );
-      final msg = await printOrSharePdf(ref.read(dbDirProvider), bytes,
-          'treasury_${_detailCli}_anal.pdf');
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(msg)));
-      }
-      return;
-    }
     final bytes = _detailView == 'pros'
         ? await prostheticsReportPdf(
             fonts,
@@ -1323,11 +1141,9 @@ class _ClinicCard extends StatelessWidget {
     required this.cash,
     required this.xfer,
     required this.pros,
-    required this.anal,
     required this.onTapCash,
     required this.onTapXfer,
     required this.onTapPros,
-    required this.onTapAnal,
   });
 
   final String clinic;
@@ -1339,13 +1155,9 @@ class _ClinicCard extends StatelessWidget {
   final String cash;
   final String xfer;
   final String pros;
-
-  /// نظام «التحاليل» — دخل العيادة المخبري المعزول.
-  final String anal;
   final VoidCallback onTapCash;
   final VoidCallback onTapXfer;
   final VoidCallback onTapPros;
-  final VoidCallback onTapAnal;
 
   @override
   Widget build(BuildContext context) {
@@ -1393,7 +1205,7 @@ class _ClinicCard extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 8),
-          // نظام «التحاليل» — الصف الثاني: تركيبات | تحاليل (خانةٌ رابعة).
+          // الصف الثاني: تركيبات بعرض الصف (خانة «تحاليل» في سجل م149).
           Row(children: [
             _StatCell(
               key: Key('tr-desk-pros-$clinic'),
@@ -1403,16 +1215,6 @@ class _ClinicCard extends StatelessWidget {
               color: BrandColors.goldDark,
               active: activeCat == 'pros',
               onTap: onTapPros,
-            ),
-            const SizedBox(width: 8),
-            _StatCell(
-              key: Key('tr-desk-anal-$clinic'),
-              label: 'تحاليل',
-              value: det ? anal : '—',
-              unit: cur,
-              color: BrandColors.green,
-              active: activeCat == 'anal',
-              onTap: onTapAnal,
             ),
           ]),
         ],
@@ -1496,7 +1298,6 @@ class _TotalsBar extends StatelessWidget {
     required this.cur,
     required this.det,
     required this.totals,
-    required this.analyses,
     required this.expenses,
     required this.expanded,
     required this.onToggleExpand,
@@ -1514,8 +1315,6 @@ class _TotalsBar extends StatelessWidget {
     num debtRem
   }) totals;
 
-  /// نظام «التحاليل» — إجمالٍ منفصلٌ عن grand (لا يُجمَع معه).
-  final ({num total, num cash, num transfer}) analyses;
   final ({double total, double cash, double xfer}) expenses;
 
   /// حالة توسّع الجسم — الرأس المصغّر يبقى دائماً.
@@ -1639,31 +1438,6 @@ class _TotalsBar extends StatelessWidget {
                         fontFeatures: [FontFeature.tabularFigures()])),
               ]),
             ),
-          // نظام «التحاليل» — سطرٌ مستقلٌّ (منفصلٌ عن grand): إجمالي/كاش/
-          // تحويل الدخل المخبري، خلف الصلاحية ومتى وُجد.
-          if (det && analyses.total != 0) ...[
-            const SizedBox(height: 10),
-            _rowLabel('التحاليل (دخل مخبري معزول)'),
-            Row(children: [
-              _GridCell(
-                  label: 'الإجمالي',
-                  value: n(analyses.total),
-                  keyName: 'tr-desk-anal-total',
-                  color: BrandColors.green),
-              const SizedBox(width: 6),
-              _GridCell(
-                  label: 'كاش',
-                  value: n(analyses.cash),
-                  keyName: 'tr-desk-anal-cash',
-                  color: BrandColors.green),
-              const SizedBox(width: 6),
-              _GridCell(
-                  label: 'تحويل',
-                  value: n(analyses.transfer),
-                  keyName: 'tr-desk-anal-xfer',
-                  color: BrandColors.green),
-            ]),
-          ],
           // (ب) صف المصروفات — للجميع متى total ≠ 0.
           if (ex.total != 0) ...[
             const SizedBox(height: 10),
@@ -1892,69 +1666,6 @@ class _ItemTile extends StatelessWidget {
   }
 }
 
-// ── نظام «التحاليل» — بند تفصيلٍ قابل للتعديل والحذف (خلف الصلاحيات) ─────────
-
-class _AnalItemTile extends StatelessWidget {
-  const _AnalItemTile({
-    required this.row,
-    required this.cur,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  final _JMap row;
-  final String cur;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final n = formatNumber;
-    final canEdit = staffAllowed('records.edit');
-    final canDel = staffAllowed('records.delete');
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 3),
-      child: ListTile(
-        dense: true,
-        title: Text('${row['name'] ?? ''}',
-            style: const TextStyle(
-                fontSize: 12.5, fontWeight: FontWeight.w700)),
-        subtitle: Text(
-            '${row['date'] ?? ''} · '
-            '${row['analysisName'] ?? row['service'] ?? ''} · '
-            '${row['payment'] ?? ''}',
-            style: const TextStyle(fontSize: 11)),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text('${n(jsNumOr0(row['amount']))} $cur',
-              textDirection: TextDirection.ltr,
-              style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: BrandColors.green,
-                  fontFeatures: [FontFeature.tabularFigures()])),
-          if (canEdit)
-            IconButton(
-              key: Key('tr-desk-anal-edit-${row['id']}'),
-              visualDensity: VisualDensity.compact,
-              tooltip: 'تعديل',
-              icon: Icon(Icons.edit_rounded,
-                  size: 15, color: BrandColors.brandIcon),
-              onPressed: onEdit,
-            ),
-          if (canDel)
-            IconButton(
-              key: Key('tr-desk-anal-del-${row['id']}'),
-              visualDensity: VisualDensity.compact,
-              tooltip: 'حذف',
-              icon: const Icon(Icons.delete_rounded,
-                  size: 15, color: BrandColors.red),
-              onPressed: onDelete,
-            ),
-        ]),
-      ),
-    );
-  }
-}
 
 // ── حقل تاريخٍ للتفصيل (توأم _DateField الهاتفي) ─────────────────────────────
 

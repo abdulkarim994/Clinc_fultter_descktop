@@ -11,8 +11,58 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
-import '../settings/analyses3.dart' show triAnalysesEnabled, triAnalysesPrice;
+import '../../core/utils/ar_normalize.dart' show arNorm;
+import '../../core/utils/js_compat.dart' show getCurrentDate;
+import '../settings/analyses3.dart'
+    show
+        lastTriAnalysisDate,
+        triAnalysesEnabled,
+        triAnalysesPrice,
+        triRepeatBlockMessage,
+        triRepeatMonths;
 import 'record_saver.dart' show addAnalysisToVisit;
+
+/// م149 — فحص قاعدة تكرار التحليل لمريضٍ ما اليوم: تعيد رسالة الحجب
+/// النصية أو null إن كان مسموحاً. مصدرٌ واحد لكل مسارات الإضافة.
+String? triRepeatCheck(
+  WidgetRef ref, {
+  String? patientId,
+  required String patientName,
+}) {
+  final cfg = ref.read(appConfigProvider);
+  final records =
+      ref.read(reposProvider).records.getAll().cast<Map<String, Object?>>();
+  return triRepeatBlockMessage(
+    lastDate: lastTriAnalysisDate(
+      records,
+      patientId: patientId,
+      patientName: patientName,
+      normalize: arNorm,
+    ),
+    today: getCurrentDate(),
+    repeatMonths: triRepeatMonths(cfg),
+  );
+}
+
+/// حوار خطأ الحجب — رسالة المواصفة النصية بزرّ إغلاقٍ واحد.
+Future<void> showTriRepeatBlockedDialog(
+  BuildContext context,
+  String message,
+) {
+  return showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('التحاليل الثلاثية'),
+      content: Text(message, key: const Key('tri-repeat-blocked-msg')),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('حسناً'),
+        ),
+      ],
+    ),
+  );
+}
 
 /// نافذة اختيار طريقة الدفع للتحاليل — تعيد 'كاش' أو 'تحويل' أو null (إلغاء).
 Future<String?> pickAnalysisPayment(BuildContext context) {
@@ -98,6 +148,16 @@ Future<bool> promptAddAnalysisToVisit(
         ),
       );
     }
+    return false;
+  }
+  // م149 — قاعدة تكرار التحليل: حجبٌ برسالة المواصفة قبل سؤال الطريقة.
+  final blocked = triRepeatCheck(
+    ref,
+    patientId: patientId,
+    patientName: patientName,
+  );
+  if (blocked != null) {
+    if (context.mounted) await showTriRepeatBlockedDialog(context, blocked);
     return false;
   }
   final pay = context.mounted ? await pickAnalysisPayment(context) : null;

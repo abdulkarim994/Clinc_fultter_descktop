@@ -404,10 +404,10 @@ void main() {
     expect(find.byKey(const Key('tr-desk-cash-ع1')), findsOneWidget);
     expect(find.byKey(const Key('tr-desk-xfer-ع1')), findsOneWidget);
     expect(find.byKey(const Key('tr-desk-pros-ع1')), findsOneWidget);
-    // نظام «التحاليل» — خانةٌ رابعة (تحاليل) على البطاقة.
-    expect(find.byKey(const Key('tr-desk-anal-ع1')), findsOneWidget);
+    // م149 — مدخل «سجلات التحاليل الثلاثية» المستقل بدل الخانة الرابعة.
+    expect(find.byKey(const Key('tr-desk-anal-registry')), findsOneWidget);
 
-    // الأرقام «—» بدلاً من القيم (أربع خانات: كاش/تحويل/تركيبات/تحاليل).
+    // الأرقام «—» بدلاً من القيم (ثلاث خانات + إجمالي مدخل السجل).
     expect(find.text('—'), findsNWidgets(4));
 
     // بطاقة المحصّل والصوافي والديون محجوبة (خلف الصلاحية).

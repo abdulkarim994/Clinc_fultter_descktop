@@ -56,7 +56,8 @@ import 'analyses3.dart'
         kTriAnalysesCfgKey,
         kTriAnalysesName,
         triAnalysesEnabled,
-        triAnalysesPrice;
+        triAnalysesPrice,
+        triRepeatMonths;
 
 typedef JMap = Map<String, Object?>;
 
@@ -184,6 +185,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // «التحاليل الثلاثية» — متحكم سعر التحليل الثابت وعقدة تركيزه.
   final triAnalPriceCtl = TextEditingController();
   final triAnalPriceFocus = FocusNode(debugLabel: 'tri-anal-price');
+  // م149 — متحكم «المدة المسموح بها لإعادة التحليل (بالأشهر)» وعقدته.
+  final triAnalRepeatCtl = TextEditingController();
+  final triAnalRepeatFocus = FocusNode(debugLabel: 'tri-anal-repeat');
 
   int? editingClinicIdx;
   final renameClinicCtl = TextEditingController();
@@ -242,8 +246,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     for (final n in svcPriceFocusNodes.values) {
       n.dispose();
     }
-    // «التحاليل الثلاثية» — تفكيك عقدة تركيز السعر الثابت.
+    // «التحاليل الثلاثية» — تفكيك عقدتَي تركيز السعر والمدة.
     triAnalPriceFocus.dispose();
+    triAnalRepeatFocus.dispose();
     for (final c in [
       centerCtl,
       currencyCtl,
@@ -261,6 +266,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       newLabTypeNameCtl,
       newLabTypePriceCtl,
       triAnalPriceCtl,
+      triAnalRepeatCtl,
       renameClinicCtl,
     ]) {
       c.dispose();
@@ -1589,7 +1595,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // ── نظام «التحاليل الثلاثية» — بطاقة الإعدادات ────────────────────────────
 
-  /// يُبذر متحكم سعر التحليل الثابت من المخزون ويتحدّث بالمزامنة إلا أثناء
+  /// يُبذر متحكمَي السعر والمدة من المخزون ويتحدّثان بالمزامنة إلا أثناء
   /// الكتابة (بنمط _svcPriceCtl تماماً).
   void _seedTriAnalPrice(JMap cfg) {
     final nn = triAnalysesPrice(cfg);
@@ -1597,28 +1603,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!triAnalPriceFocus.hasFocus && triAnalPriceCtl.text.trim() != want) {
       triAnalPriceCtl.text = want;
     }
+    // م149 — المدة بالأشهر (الافتراضي 6؛ 0 = القاعدة معطّلة).
+    final wantR = triRepeatMonths(cfg).toInt().toString();
+    if (!triAnalRepeatFocus.hasFocus &&
+        triAnalRepeatCtl.text.trim() != wantR) {
+      triAnalRepeatCtl.text = wantR;
+    }
   }
 
-  /// يُسجّل مستمع تركيز «التحاليل الثلاثية» مرةً واحدةً في الجلسة —
-  /// يُستدعى من build أول مرة يُبنى فيها الحقل (لا توجد putIfAbsent هنا
-  /// فالعقدة ثابتة لا خريطة).
+  /// يُسجّل مستمعَي تركيز «التحاليل الثلاثية» مرةً واحدةً في الجلسة —
+  /// يُستدعى من build أول مرة تُبنى فيها الحقول (لا putIfAbsent هنا
+  /// فالعقد ثابتة لا خريطة).
   bool _triAnalFocusListened = false;
   void _ensureTriAnalFocusListener() {
     if (_triAnalFocusListened) return;
     _triAnalFocusListened = true;
-    // مغادرة الحقل = التزام السعر تلقائياً (توأم svc-price).
+    // مغادرة الحقل = التزام القيمة تلقائياً (توأم svc-price).
     triAnalPriceFocus.addListener(() {
       if (!triAnalPriceFocus.hasFocus) _commitTriAnalPrice();
     });
+    triAnalRepeatFocus.addListener(() {
+      if (!triAnalRepeatFocus.hasFocus) _commitTriAnalRepeat();
+    });
   }
 
-  /// يكتب خريطة التحاليل الثلاثية {'price', 'enabled'} تحت kTriAnalysesCfgKey
-  /// عبر آلية _update نفسها المستخدمة لمفاتيح config البسيطة.
-  void _writeTriAnal({required num price, required bool enabled}) {
+  /// يكتب خريطة التحاليل الثلاثية {'price','enabled','repeatMonths'} تحت
+  /// kTriAnalysesCfgKey عبر آلية _update نفسها لمفاتيح config البسيطة —
+  /// الحقول الثلاثة تُكتب معاً دوماً فلا يُسقط كاتبٌ حقلَ الآخر.
+  void _writeTriAnal({
+    required num price,
+    required bool enabled,
+    required num repeatMonths,
+  }) {
     _update(
       (c) => {
         ...c,
-        kTriAnalysesCfgKey: {'price': price, 'enabled': enabled},
+        kTriAnalysesCfgKey: {
+          'price': price,
+          'enabled': enabled,
+          'repeatMonths': repeatMonths,
+        },
       },
     );
   }
@@ -1629,18 +1653,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final stored = triAnalysesPrice(cfg);
     final now = jsNumOr0(triAnalPriceCtl.text);
     if (now == stored) return;
-    final enabled = triAnalysesEnabled(cfg);
     final repos = _repos;
     if (repos == null) return;
     repos.settings.set(
       'app.config',
-      {...cfg, kTriAnalysesCfgKey: {'price': now, 'enabled': enabled}},
+      {
+        ...cfg,
+        kTriAnalysesCfgKey: {
+          'price': now,
+          'enabled': triAnalysesEnabled(cfg),
+          'repeatMonths': triRepeatMonths(cfg),
+        },
+      },
       configBase: cfg,
     );
     _configRev?.state++;
     if (!ui || !mounted) return;
     setState(() {});
     _snack('حُفظ سعر «$kTriAnalysesName»');
+  }
+
+  /// م149 — يلتزم بمدة إعادة التحليل (بالأشهر) عند تغيّرٍ حقيقي فقط.
+  /// السالب يُقصّ إلى صفر (صفر = القاعدة معطّلة صراحةً).
+  void _commitTriAnalRepeat({bool ui = true}) {
+    final cfg = _readConfig();
+    final stored = triRepeatMonths(cfg).toInt();
+    var now = jsNumOr0(triAnalRepeatCtl.text).toInt();
+    if (now < 0) now = 0;
+    if (now == stored) return;
+    final repos = _repos;
+    if (repos == null) return;
+    repos.settings.set(
+      'app.config',
+      {
+        ...cfg,
+        kTriAnalysesCfgKey: {
+          'price': triAnalysesPrice(cfg),
+          'enabled': triAnalysesEnabled(cfg),
+          'repeatMonths': now,
+        },
+      },
+      configBase: cfg,
+    );
+    _configRev?.state++;
+    if (!ui || !mounted) return;
+    setState(() {});
+    _snack(
+      now > 0
+          ? 'حُفظت مدة إعادة التحليل: $now أشهر'
+          : 'أُلغيت قاعدة مدة إعادة التحليل',
+    );
   }
 
   /// بطاقة «التحاليل الثلاثية» — تحليلٌ واحدٌ ثابتُ الاسم بسعرٍ ومفتاح تفعيل.
@@ -1694,13 +1756,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ),
-              // مفتاح التفعيل — يكتب {'price', 'enabled'} عبر _writeTriAnal.
+              // مفتاح التفعيل — يكتب الحقول الثلاثة معاً عبر _writeTriAnal.
               Switch(
                 key: const Key('tri-anal-enabled'),
                 value: enabled,
                 activeTrackColor: BrandColors.brand600,
-                onChanged: (v) =>
-                    _writeTriAnal(price: storedPrice, enabled: v),
+                onChanged: (v) => _writeTriAnal(
+                  price: storedPrice,
+                  enabled: v,
+                  repeatMonths: triRepeatMonths(cfg),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // م149 — سطر مدة إعادة التحليل (بالأشهر) — الافتراضي 6، 0 يعطّل.
+          Row(
+            children: [
+              SizedBox(
+                width: 110,
+                child: TextField(
+                  key: const Key('tri-anal-repeat'),
+                  controller: triAnalRepeatCtl,
+                  focusNode: triAnalRepeatFocus,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    hintText: 'أشهر',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                  ),
+                  onTapOutside: (_) => triAnalRepeatFocus.unfocus(),
+                  onSubmitted: (_) => _commitTriAnalRepeat(),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'المدة المسموح بها لإعادة التحليل (بالأشهر)',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
               ),
             ],
           ),
@@ -1709,7 +1808,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Text(
             'دخلٌ مخبري خاص بالعيادة — معزولٌ مالياً عن الأرباح والخزينة. '
             'تفعيلُ الزر يُظهر خيار التحاليل الثلاثية في شاشة الإضافة وملف '
-            'المريض، وإيقافه يخفيه.',
+            'المريض، وإيقافه يخفيه. المدة بالأشهر تمنع تكرار التحليل لنفس '
+            'المريض قبل انقضائها (الافتراضي 6 — والقيمة 0 تُلغي القاعدة).',
             style: TextStyle(fontSize: 11, color: BrandColors.mut2),
           ),
         ],
