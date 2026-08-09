@@ -219,10 +219,11 @@ class DesktopShell extends ConsumerWidget {
                             ),
                           ),
                           if (dock != null)
+                            // م146/و: بطاقة عائمة بهوامش — لا تمدد رأسياً؛
+                            // ارتفاعها يعانق محتواها بحد أقصى مساحة العمل.
                             PositionedDirectional(
-                              start: 0,
-                              top: 0,
-                              bottom: 0,
+                              start: 10,
+                              top: 10,
                               child: AddRecordSidePanel(request: dock),
                             ),
                         ],
