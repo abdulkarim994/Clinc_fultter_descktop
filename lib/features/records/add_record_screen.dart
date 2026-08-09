@@ -2143,9 +2143,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       for (final p in payments)
         if (p != 'دين') p,
     ];
-    final paySelected = isDebt
-        ? 'دين'
-        : (segPays.contains(payment) ? payment : segPays.first);
+    final paySelected = segPays.contains(payment) ? payment : segPays.first;
     final segStyle = SegmentedButton.styleFrom(
       visualDensity: VisualDensity.compact,
       backgroundColor: BrandColors.surface2,
@@ -2157,6 +2155,29 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       // يطمس عائلة الخط فتُرسم التسميات بخطٍ غريب).
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
     );
+    // م146/هـ (ملاحظة المالك): «كاش/تحويل تُختار مرةً واحدة» — الشريط
+    // المقسّم يحمل طريقة الدفع وحدها وتبقى محددةً دائماً، و«دين» زرُّ
+    // تبديلٍ مستقل بجانبه (بهوية الدين الذهبية) لا يزاحمها ولا يكررها:
+    // تفعيله يفتح حقل الدفعة الأولى فقط، ومسمّى الحقل يُظهر الطريقة
+    // المختارة تلقائياً — لا مصدرين لحقيقةٍ واحدة.
+    final debtToggle = SegmentedButton<String>(
+      key: const Key('rec-debt-toggle'),
+      style: SegmentedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        backgroundColor: BrandColors.surface2,
+        foregroundColor: BrandColors.goldDark,
+        selectedBackgroundColor: BrandColors.goldDark,
+        selectedForegroundColor: Colors.white,
+        side: BorderSide(color: BrandColors.gold.withValues(alpha: .45)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      ),
+      showSelectedIcon: false,
+      emptySelectionAllowed: true,
+      segments: const [ButtonSegment(value: 'دين', label: Text('دين'))],
+      selected: {if (isDebt) 'دين'},
+      onSelectionChanged: (s) => setState(() => isDebt = s.contains('دين')),
+    );
+
     final paySegmented = Row(
       children: [
         Text(
@@ -2174,30 +2195,20 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           showSelectedIcon: false,
           segments: [
             for (final p in segPays) ButtonSegment(value: p, label: Text(p)),
-            const ButtonSegment(value: 'دين', label: Text('دين')),
           ],
           selected: {paySelected},
-          onSelectionChanged: (s) => setState(() {
-            final v = s.first;
-            if (v == 'دين') {
-              isDebt = true;
-              // payment يبقى بمعناه: طريقة الدفعة الأولى.
-              if (payment != 'كاش' && payment != 'تحويل') payment = 'كاش';
-            } else {
-              isDebt = false;
-              payment = v;
-            }
-          }),
+          onSelectionChanged: (s) => setState(() => payment = s.first),
         ),
+        const SizedBox(width: 10),
+        debtToggle,
         const Spacer(),
         followChip,
       ],
     );
 
-    // صفّ الدين — يظهر داخل مساحةٍ متحركة حين يُختار «دين»: الدفعة الأولى
-    // وطريقتها جنباً إلى جنب (لا فقدان لتركيبة «دينٌ بدفعةٍ أولى تحويلاً»).
+    // صفّ الدين — حقل الدفعة الأولى وحده: مسمّاه يحمل الطريقة المختارة
+    // (لا شريط كاش/تحويل مكرر)، وعرضه موزون لا يبتلع السطر.
     final debtRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: TextField(
@@ -2205,20 +2216,13 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             controller: firstPayCtl,
             style: const TextStyle(fontSize: 14),
             keyboardType: TextInputType.number,
-            decoration: ddec('الدفعة الأولى', hint: '0'),
+            decoration: ddec(
+              'الدفعة الأولى (${segPays.contains(payment) ? payment : segPays.first})',
+              hint: '0',
+            ),
           ),
         ),
-        const SizedBox(width: 10),
-        SegmentedButton<String>(
-          key: const Key('rec-debtpay-seg'),
-          style: segStyle,
-          showSelectedIcon: false,
-          segments: [
-            for (final p in segPays) ButtonSegment(value: p, label: Text(p)),
-          ],
-          selected: {segPays.contains(payment) ? payment : segPays.first},
-          onSelectionChanged: (s) => setState(() => payment = s.first),
-        ),
+        const Spacer(),
       ],
     );
 
@@ -2476,7 +2480,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         // ── 3) الدفع ──
         paySegmented,
         smooth(isDebt, debtRow),
-        // التحاليل الثلاثية — الصح وقائمة دفعها في صفٍّ واحدٍ مدمج.
+        // التحاليل الثلاثية — الصح وشريط دفعها المصغّر في صفٍّ واحد
+        // (م146/هـ: كان قائمةً في صندوقٍ عريضٍ يبتلع السطر — ملاحظة المالك).
         if (widget.editEntry == null && triAnalysesEnabled(config))
           AnimatedSize(
             duration: const Duration(milliseconds: 180),
@@ -2488,9 +2493,31 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 children: [
                   _analToggle(config),
                   if (hasAnalysis) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _analysisSection(keyPrefix: 'rec', dense: true),
+                    const SizedBox(width: 12),
+                    SegmentedButton<String>(
+                      key: const Key('rec-analysis-pay'),
+                      style: SegmentedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        backgroundColor: BrandColors.surface2,
+                        foregroundColor: BrandColors.mut,
+                        selectedBackgroundColor: BrandColors.green,
+                        selectedForegroundColor: Colors.white,
+                        side: BorderSide(
+                          color: BrandColors.green.withValues(alpha: .40),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 5,
+                        ),
+                      ),
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(value: 'كاش', label: Text('كاش')),
+                        ButtonSegment(value: 'تحويل', label: Text('تحويل')),
+                      ],
+                      selected: {analysisPay},
+                      onSelectionChanged: (s) =>
+                          setState(() => analysisPay = s.first),
                     ),
                   ],
                 ],
