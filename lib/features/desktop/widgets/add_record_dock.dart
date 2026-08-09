@@ -69,8 +69,7 @@ class AddRecordSidePanel extends ConsumerStatefulWidget {
   final AddRecordDockRequest request;
 
   @override
-  ConsumerState<AddRecordSidePanel> createState() =>
-      _AddRecordSidePanelState();
+  ConsumerState<AddRecordSidePanel> createState() => _AddRecordSidePanelState();
 }
 
 class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
@@ -90,74 +89,85 @@ class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
   @override
   Widget build(BuildContext context) {
     final req = widget.request;
-    final screenW = MediaQuery.sizeOf(context).width;
-    // م146/ب — نفس عتبة التباعد التكيفي في النموذج (فسيح ≥960).
-    final airy = MediaQuery.sizeOf(context).height >= 960;
+    final screen = MediaQuery.sizeOf(context);
     // عرضٌ مريح لصفوف الحقول الثنائية؛ ينكمش على الشاشات الضيقة كي يبقى
     // جزءٌ من مساحة العمل مرئياً دائماً.
-    final width = (screenW * .44).clamp(560.0, 660.0);
+    final width = (screen.width * .44).clamp(560.0, 660.0);
+    // سقفُ ارتفاعٍ تعانق البطاقة المحتوى دونه: صافي مساحة العمل (تقديرٌ
+    // متحفّظ ‎128 للهيدر/الشريط/الهوامش) — التمرير يعمل فوق هذا السقف فقط.
+    final maxH = (screen.height - 128).clamp(360.0, 1000.0);
 
     return AnimatedSlide(
       // في RTL: Offset(-1,0) خارج حافة البداية (اليمين) — فينزلق منها.
       offset: _in ? Offset.zero : const Offset(-1, 0),
       duration: const Duration(milliseconds: 220),
       curve: Curves.easeOutCubic,
-      child: Container(
-        width: width,
-        decoration: const BoxDecoration(
-          // ظلٌّ نحو مساحة العمل — لوحٌ مرفوع فوق المحتوى بلا حاجز.
-          boxShadow: [
-            BoxShadow(
-              color: Color.fromRGBO(10, 48, 36, .22),
-              blurRadius: 24,
-              spreadRadius: 2,
-              offset: Offset(-10, 0),
+      // م146/و (قرار المالك «معانقة متحركة»): بطاقةٌ عائمة تعانق محتواها —
+      // لا شريط بارتفاعٍ كامل ولا فراغٌ ميت أسفله. التوسعات تنمي قاعها
+      // بانتقالٍ ناعمٍ واحد (AnimatedSize)، وConstrainedBox يسقُف الارتفاع
+      // بصافي مساحة العمل فيعمل التمرير فوق ذلك السقف فقط.
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxH),
+          child: Container(
+            width: width,
+            decoration: const BoxDecoration(
+              // ظلٌّ نحو مساحة العمل — بطاقةٌ مرفوعة فوق المحتوى بلا حاجز.
+              boxShadow: [
+                BoxShadow(
+                  color: Color.fromRGBO(10, 48, 36, .22),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                  offset: Offset(-8, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Material(
-          color: BrandColors.surface,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: const BorderRadiusDirectional.only(
-              topEnd: Radius.circular(16),
-              bottomEnd: Radius.circular(16),
-            ),
-            side: BorderSide(color: BrandColors.gold.withValues(alpha: .30)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _PanelHeader(
-                title: req.isEdit ? 'تعديل السجل' : 'زيارة جديدة',
-                subtitle: req.isEdit
-                    ? 'عدّل ما تشاء ثم احفظ — يستبدل السجل الأصلي'
-                    : 'كل خيارات الإدخال — تُحفظ فوراً',
-                onClose: _close,
-              ),
-              // المحتوى: النموذج المقسّم (م146). التمريرة حارسُ طوارئ
-              // للشاشات الأقصر من ميزانية اللاتمرير فحسب.
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: airy
-                      ? const EdgeInsets.fromLTRB(18, 16, 18, 18)
-                      : const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                  child: AddRecordScreen(
-                    // مفتاحٌ مقترن بهوية الطلب: تبديل «جديد↔تعديل» أو سجلٍ
-                    // لآخر يعيد إنشاء حالة النموذج بلا تسرّب حقول.
-                    key: ValueKey(
-                      'panel-${req.isEdit ? '${req.editKind}-${req.editEntry!['id']}' : 'new'}',
-                    ),
-                    compact: true,
-                    horizontal: true,
-                    editEntry: req.editEntry,
-                    editKind: req.editKind,
-                    editDebt: req.editDebt,
-                    onSaved: _close,
-                  ),
+            child: Material(
+              color: BrandColors.surface,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: BrandColors.gold.withValues(alpha: .30),
                 ),
               ),
-            ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _PanelHeader(
+                    title: req.isEdit ? 'تعديل السجل' : 'زيارة جديدة',
+                    subtitle: req.isEdit
+                        ? 'عدّل ما تشاء ثم احفظ — يستبدل السجل الأصلي'
+                        : 'كل خيارات الإدخال — تُحفظ فوراً',
+                    onClose: _close,
+                  ),
+                  // المحتوى يعانَق بارتفاعه الطبيعي؛ Flexible يسمح بالتمرير
+                  // فقط حين يبلغ المحتوى سقف ConstrainedBox أعلاه.
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                      child: AddRecordScreen(
+                        // مفتاحٌ مقترن بهوية الطلب: تبديل «جديد↔تعديل» أو
+                        // سجلٍ لآخر يعيد إنشاء حالة النموذج بلا تسرّب حقول.
+                        key: ValueKey(
+                          'panel-${req.isEdit ? '${req.editKind}-${req.editEntry!['id']}' : 'new'}',
+                        ),
+                        compact: true,
+                        horizontal: true,
+                        editEntry: req.editEntry,
+                        editKind: req.editKind,
+                        editDebt: req.editDebt,
+                        onSaved: _close,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

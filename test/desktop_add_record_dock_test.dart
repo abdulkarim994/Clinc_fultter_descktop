@@ -150,31 +150,42 @@ void main() {
   });
 
   testWidgets(
-      'زر «دين» المستقل يكشف حقل الدفعة الأولى وحده — وإطار اللوح لا يتغير',
+      'زر «دين» يكشف الدفعة الأولى وحدها — والبطاقة تنمو معانقةً بلا تشوه',
       (tester) async {
     await boot(tester);
+    // شاشةٌ طويلة كي تظهر المعانقة (بعد boot لأنها تضبط 1000؛ على 1000
+    // تبلغ البطاقة الحدَّ الأقصى أصلاً فلا يظهر النمو).
+    tester.view.physicalSize = const Size(1600, 1300);
+    await tester.pump();
     await sendCtrlN(tester);
     expect(find.byKey(const Key('rec-firstpay')), findsNothing);
-    final frameBefore = tester.getRect(find.byType(AddRecordSidePanel));
-    // فعّل زر «دين» المستقل (م146/هـ — لا يزاحم كاش/تحويل).
+    // عقد م146/و (المعانقة المتحركة): العرض والقمة لا يتحركان أبداً،
+    // والقاع وحده ينمو بانتقالٍ ناعم ويبقى داخل حدود الشاشة.
+    final before = tester.getRect(find.byType(AddRecordSidePanel));
+    // تعانق فعلاً لا تملأ: قاعها الافتراضي أعلى من قاع مساحة العمل بكثير.
+    expect(before.bottom, lessThan(1000),
+        reason: 'البطاقة تعانق محتواها لا تملأ الشاشة (لا فراغ ميت)');
     await tester.tap(find.byKey(const Key('rec-debt-toggle')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 260));
-    // حقل الدفعة الأولى وحده ظهر — بلا شريط كاش/تحويل مكرر (م146/هـ)،
-    // ومسمّاه يحمل الطريقة المختارة.
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('rec-firstpay')), findsOneWidget);
     expect(find.byKey(const Key('rec-debtpay-seg')), findsNothing);
     expect(find.text('الدفعة الأولى (كاش)'), findsOneWidget);
-    // اختيار كاش/تحويل بقي كما هو محدداً (لم يُلغَ باختيار الدين).
-    // الإطار ثابت: لا قفز أبعادٍ بعد اليوم (جوهر عقد «د»).
-    final frameAfter = tester.getRect(find.byType(AddRecordSidePanel));
-    expect(frameAfter, equals(frameBefore),
-        reason: 'توسعة الدين يجب أن تتحرك داخل اللوح لا أن تغيّر إطاره');
-    // إلغاء «دين» بنقرةٍ ثانية يخفي الحقل.
+    final after = tester.getRect(find.byType(AddRecordSidePanel));
+    expect(after.width, equals(before.width),
+        reason: 'عرض البطاقة ثابت لا يتأثر بالتوسعات');
+    expect(after.top, equals(before.top),
+        reason: 'قمة البطاقة مرساة لا تتحرك');
+    expect(after.bottom, greaterThan(before.bottom),
+        reason: 'القاع ينمو معانقاً المحتوى الجديد');
+    expect(after.bottom, lessThanOrEqualTo(1300),
+        reason: 'النمو محصور بحدود الشاشة');
+    // إلغاء «دين» يعيد البطاقة لقياسها الأول (معانقة في الاتجاهين).
     await tester.tap(find.byKey(const Key('rec-debt-toggle')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 260));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('rec-firstpay')), findsNothing);
+    final collapsed = tester.getRect(find.byType(AddRecordSidePanel));
+    expect(collapsed.bottom, equals(before.bottom),
+        reason: 'الانكماش يعيد القاع لموضعه الأول');
   });
 
   testWidgets('اللوح يطفو فوق مساحة العمل ولا يحجب الشِل ولا الشريط الجانبي',

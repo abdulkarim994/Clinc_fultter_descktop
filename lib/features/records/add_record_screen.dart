@@ -1737,11 +1737,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       label: const Text('اليوم', style: TextStyle(fontSize: 11)),
     );
 
-    // م146/ب — تباعدٌ تكيفي (ملاحظة المالك: «ملتصقات ببعض»): فسيحٌ على
-    // الشاشات المعتادة (‎≥960 ارتفاعاً — أغلبية أجهزة المكاتب)، ويتكثف
-    // تلقائياً على الأقصر وحدها حفاظاً على ميزانية اللاتمرير في 768.
-    final airy = MediaQuery.sizeOf(context).height >= 960;
-    final rowGap = airy ? 14.0 : 8.0;
+    // م146/و — نظام قياسٍ واحدٌ موحد (طلب المالك: Compact + Balanced):
+    // ألغي الازدواج التكيفي؛ حقول 42، مزراب 10، فجوات قسمٍ 8، فواصل 14.
+    const rowGap = 10.0;
 
     // م146 — زخرفة «كثيفة»: المسمى يعوم داخل إطار الحقل بدل سطرٍ مستقل
     // فوقه (نمط النماذج المكتبية الحديث) — يوفّر ~25 نقطة لكل صف، وهو
@@ -1756,9 +1754,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             color: BrandColors.brandText,
           ),
           isDense: true,
-          contentPadding: EdgeInsets.symmetric(
+          contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
-            vertical: airy ? 14 : 11,
+            vertical: 9,
           ),
         );
 
@@ -2031,7 +2029,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           key: key,
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 6, 6),
+            padding: const EdgeInsetsDirectional.fromSTEB(10, 5, 6, 5),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -2153,7 +2151,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       side: BorderSide(color: BrandColors.line),
       // لا textStyle هنا: يرث خط العلامة من الثيم (تحديده يدوياً كان
       // يطمس عائلة الخط فتُرسم التسميات بخطٍ غريب).
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
     );
     // م146/هـ (ملاحظة المالك): «كاش/تحويل تُختار مرةً واحدة» — الشريط
     // المقسّم يحمل طريقة الدفع وحدها وتبقى محددةً دائماً، و«دين» زرُّ
@@ -2169,7 +2167,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         selectedBackgroundColor: BrandColors.goldDark,
         selectedForegroundColor: Colors.white,
         side: BorderSide(color: BrandColors.gold.withValues(alpha: .45)),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
       ),
       showSelectedIcon: false,
       emptySelectionAllowed: true,
@@ -2180,15 +2178,19 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
 
     final paySegmented = Row(
       children: [
-        Text(
-          'طريقة الدفع',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: BrandColors.brandText,
+        // عمود مسمياتٍ ثابت (م146/و): يحاذي شريط الدفع مع شريط التحاليل
+        // تحته على خطٍّ رأسيٍّ واحد — شبكة لا سطوراً متناثرة.
+        SizedBox(
+          width: 118,
+          child: Text(
+            'طريقة الدفع',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color: BrandColors.brandText,
+            ),
           ),
         ),
-        const SizedBox(width: 10),
         SegmentedButton<String>(
           key: const Key('rec-payment-seg'),
           style: segStyle,
@@ -2227,12 +2229,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     );
 
     // قسم التركيبات — صفّا إدخالٍ كثيفان + سطرُ معاينةٍ واحد.
+    // م146/و — بلا إطار: تظليلٌ خفيف يجمّع الحقول بصرياً (تقليل الصناديق).
     final prosSection = Container(
-      padding: const EdgeInsets.all(9),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: BrandColors.surface2,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: BrandColors.line),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
         children: [
@@ -2273,7 +2275,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(
             children: [
               Expanded(
@@ -2361,8 +2363,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       style: FilledButton.styleFrom(
         backgroundColor: BrandColors.brand600,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       ),
       icon: const Icon(Icons.check_rounded, size: 19),
       label: Text(
@@ -2373,7 +2375,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
 
     // ── عنوان قسمٍ صغير موحد ──
     Widget colTitle(IconData icon, String text, {bool pad = true}) => Padding(
-      padding: EdgeInsets.only(bottom: pad ? (airy ? 12 : 8) : 0),
+      padding: EdgeInsets.only(bottom: pad ? 8 : 0),
       child: Row(
         children: [
           Icon(icon, size: 15, color: BrandColors.brandIcon),
@@ -2396,10 +2398,10 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
 
     // فاصل قسمٍ رقيق — إيقاعٌ بصري موحد بين الأقسام.
     Widget sectionGap() => Padding(
-      padding: EdgeInsets.symmetric(vertical: airy ? 13 : 4),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Container(
         height: 1,
-        color: BrandColors.line.withValues(alpha: .6),
+        color: BrandColors.line.withValues(alpha: .45),
       ),
     );
 
@@ -2411,7 +2413,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       alignment: Alignment.topCenter,
       child: show
           ? Padding(
-              padding: EdgeInsets.only(top: airy ? 12 : 8),
+              padding: const EdgeInsets.only(top: 8),
               child: child,
             )
           : const SizedBox(width: double.infinity),
@@ -2440,7 +2442,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             Expanded(child: clinicField),
           ],
         ),
-        SizedBox(height: rowGap),
+        const SizedBox(height: rowGap),
         phoneNameRow,
         if (showPhone2) ...[const SizedBox(height: 8), phone2Row],
         if (suggestions.isNotEmpty) suggestionsPanel,
@@ -2449,7 +2451,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         // ── 2) المعالجة والقيمة — الرقاقات مدمجة في سطر العنوان،
         // والفسحة أسفل الصف كاملاً كي لا تلتصق الرقاقات بالحقول تحتها ──
         Padding(
-          padding: EdgeInsets.only(bottom: airy ? 12 : 8),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -2488,12 +2490,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
             child: Padding(
-              padding: EdgeInsets.only(top: airy ? 12 : 8),
+              padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  _analToggle(config),
+                  SizedBox(width: 118, child: _analToggle(config)),
                   if (hasAnalysis) ...[
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 0),
                     SegmentedButton<String>(
                       key: const Key('rec-analysis-pay'),
                       style: SegmentedButton.styleFrom(
@@ -2532,7 +2534,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           children: [
             Expanded(child: notesField),
             const SizedBox(width: 10),
-            SizedBox(width: 172, child: saveBtn),
+            SizedBox(width: 150, child: saveBtn),
           ],
         ),
       ],
