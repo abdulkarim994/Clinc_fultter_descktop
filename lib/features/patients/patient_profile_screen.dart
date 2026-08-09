@@ -37,6 +37,7 @@ import 'audit_log.dart' show appendAudit, hasAudit;
 import 'audit_trail.dart' show AuditAction, recordAudit;
 import '../xrays/xray_section.dart';
 import '../xrays/xray_store.dart' show xrayKeysFor;
+import '../records/analysis_actions.dart' show promptAddAnalysisToVisit;
 import '../records/day_close_store.dart' show confirmClosedDayWrite;
 import '../records/income_day_dialog.dart' show askIncomeDay;
 import '../records/medical_info_dialog.dart';
@@ -58,6 +59,7 @@ import 'profile_actions.dart'
     show deleteEntryCascade, deletePatientData, updateRecAmount;
 import 'quick_info_dialog.dart' show showQuickInfoDialog;
 import 'quick_visit_sheet.dart' show showQuickVisitSheet;
+import '../settings/analyses3.dart' show triAnalysesEnabled;
 import '../staff/staff_gate.dart' show gateStaff, staffAllowed;
 
 typedef JMap = Map<String, Object?>;
@@ -2199,6 +2201,17 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
             'تعديل بيانات المريض',
             _editPatientData,
           ),
+          // م147 — «إضافة التحاليل الثلاثية»: يظهر فقط عند تفعيل الميزة
+          // في الإعدادات (triAnalysesEnabled) وللمستخدم صلاحية records.add.
+          // يضيف تحليلاً لآخر زيارة قائمة للمريض (لا زيارة جديدة).
+          if (triAnalysesEnabled(ref.read(appConfigProvider)) &&
+              staffAllowed('records.add'))
+            action(
+              const Key('pp-act-add-analysis'),
+              Icons.science_outlined,
+              'إضافة التحاليل الثلاثية',
+              _addTriAnalysisToLastVisit,
+            ),
           action(
             const Key('pp-act-del'),
             Icons.delete_outline_rounded,
@@ -2225,6 +2238,44 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
       ),
       builder: body,
     );
+  }
+
+  /// م147 — آخر زيارة قائمة للمريض: توأم بناء allEntries في build حرفياً
+  /// (سجلات + تركيبات، باستبعاد أصل الدين والتحليل)، مُرتّبةٌ بالأحدث أولاً
+  /// — فعنصرها الأول هو آخر زيارة. تُستدعى مستقلةً عن build كي تعمل من
+  /// ورقة الإجراءات (خارج شجرة البناء).
+  JMap? _lastVisitEntry() {
+    final entries = [
+      ..._records.map((r) => ({...r, '_kind': 'r'})),
+      ..._pros.map((p) => ({...p, '_kind': 'p'})),
+    ].where((r) => !jsTruthy(r['isDebt']) && !jsTruthy(r['isAnalysis'])).toList()
+      ..sort(byDateNewestFirst);
+    return entries.isEmpty ? null : entries.first;
+  }
+
+  /// إضافة تحليلٍ ثلاثيٍّ لآخر زيارة قائمة للمريض — من ثلاث نقاط بطاقة
+  /// المريض. لا زيارة جديدة تُنشأ؛ التحليل يُلحق بآخر صفٍّ موجود عبر
+  /// النافذة المشتركة (كاش/تحويل بسعر الإعدادات).
+  Future<void> _addTriAnalysisToLastVisit() async {
+    final visit = _lastVisitEntry();
+    if (visit == null) {
+      _snackMsg('لا توجد زيارة لإضافة تحليل إليها');
+      return;
+    }
+    final added = await promptAddAnalysisToVisit(
+      context,
+      ref,
+      analysisOf: '${visit['id'] ?? ''}',
+      patientName: name,
+      patientId: visit['patient_id'] as String?,
+      clinic: '${visit['clinic'] ?? clinic}',
+      date: '${visit['date'] ?? getCurrentDate()}',
+      incomeDate: visit['incomeDate'] as String?,
+    );
+    if (added && mounted) {
+      bumpDataRevision(ref);
+      setState(() {});
+    }
   }
 
   /// تعديل بيانات المريض — نفس نافذة قائمة العيادة (اكتساح 4 جداول).
