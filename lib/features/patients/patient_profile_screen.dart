@@ -2133,7 +2133,13 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
 
   /// لوحة إجراءات الهيدر — Actions Bottom Sheet حرفياً.
   void _openActionsSheet() {
+    // م150 — إغلاق الورقة/الحوار بسياق **الورقة نفسها** لا بسياق الشاشة:
+    // على الكمبيوتر الملف داخل ملاّح DetailHost المتداخل والحوار على الملاّح
+    // الجذري — Navigator.pop(context) بسياق الشاشة كان يُسقط شاشة الملف من
+    // اللوح (لا الحوار)، فتبقى القائمة معلقة ويرتدّ الفعل التالي على حارس
+    // !mounted بصمت (حذف المريض «لا يعمل أبداً» — بلاغ المالك 2026-08-09).
     Widget action(
+      BuildContext sheetCtx,
       Key key,
       IconData icon,
       String label,
@@ -2152,12 +2158,12 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
         ),
       ),
       onTap: () {
-        Navigator.pop(context);
+        Navigator.pop(sheetCtx);
         onTap();
       },
     );
 
-    Widget body(BuildContext context) => SafeArea(
+    Widget body(BuildContext sheetCtx) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2176,13 +2182,14 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(sheetCtx),
                   icon: const Icon(Icons.close_rounded, size: 18),
                 ),
               ],
             ),
           ),
           action(
+            sheetCtx,
             const Key('pp-act-wa'),
             Icons.chat_rounded,
             'واتساب',
@@ -2190,12 +2197,14 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
             color: const Color(0xFF25D366),
           ),
           action(
+            sheetCtx,
             const Key('pp-act-print'),
             Icons.print_rounded,
             'طباعة PDF',
             _printPatientSummary,
           ),
           action(
+            sheetCtx,
             const Key('pp-act-edit'),
             Icons.edit_rounded,
             'تعديل بيانات المريض',
@@ -2207,12 +2216,14 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
           if (triAnalysesEnabled(ref.read(appConfigProvider)) &&
               staffAllowed('records.add'))
             action(
+              sheetCtx,
               const Key('pp-act-add-analysis'),
               Icons.science_outlined,
               'إضافة التحاليل الثلاثية',
               _addTriAnalysisToLastVisit,
             ),
           action(
+            sheetCtx,
             const Key('pp-act-del'),
             Icons.delete_outline_rounded,
             'حذف المريض',

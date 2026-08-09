@@ -41,7 +41,8 @@ import 'medical_info_dialog.dart';
 import 'mini_calculator.dart' show showMiniCalculator;
 import 'record_saver.dart';
 import 'tooth_report_dialog.dart' show showToothReportDialog, teethKeysOf;
-import '../settings/analyses3.dart' show triAnalysesEnabled;
+import '../settings/analyses3.dart' show triAnalysesEnabled, triAnalysesPrice;
+import 'analysis_actions.dart' show showTriRepeatBlockedDialog, triRepeatCheck;
 import '../staff/staff_gate.dart' show gateStaff;
 
 /// config.labs — كما في labsList computed.
@@ -643,6 +644,24 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
   }
 
   Future<void> _save() async {
+    // م149 — قاعدة تكرار التحليل: إن كانت علامة «التحاليل الثلاثية» مؤشَّرة
+    // والمريض ممنوعاً (لم تمضِ المدة المضبوطة منذ آخر تحليل) يتوقف الحفظ
+    // **كله** برسالة الخطأ حتى يزيل المستخدم العلامة — قرار المالك الصريح.
+    {
+      final cfg = ref.read(appConfigProvider);
+      final wouldWriteAnalysis = widget.editEntry == null &&
+          hasAnalysis &&
+          triAnalysesEnabled(cfg) &&
+          triAnalysesPrice(cfg) > 0;
+      if (wouldWriteAnalysis) {
+        final blocked = triRepeatCheck(ref, patientName: nameCtl.text.trim());
+        if (blocked != null) {
+          await showTriRepeatBlockedDialog(context, blocked);
+          return;
+        }
+      }
+    }
+    if (!mounted) return;
     // م90 — حارس السميّين قبل أي كتابة.
     if (!await _confirmTwinIdentity()) return;
     if (!mounted) return;

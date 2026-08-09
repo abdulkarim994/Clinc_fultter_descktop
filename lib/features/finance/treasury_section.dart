@@ -16,10 +16,10 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/js_compat.dart';
 import '../print/print_service.dart';
 import '../print/reports.dart'
-    show prostheticsReportPdf, simpleTablePdf, treatmentTablesPdf;
+    show prostheticsReportPdf, treatmentTablesPdf;
 import '../print/treatment_tables.dart'
     show buildTreatmentTables, formatNumber;
-import 'analyses_filter.dart' show filterAnalysesRows;
+import 'analyses_registry.dart' show AnalysesRegistryCard;
 import 'debts_section.dart' show debtsClinicFilterProvider;
 import 'finance_screen.dart' hide JMap;
 import 'treasury_logic.dart';
@@ -33,7 +33,7 @@ class TreasurySection extends ConsumerStatefulWidget {
 }
 
 class _TreasurySectionState extends ConsumerState<TreasurySection> {
-  String? detailView; // cash | xfer | pros | anal
+  String? detailView; // cash | xfer | pros
   String detailCli = '';
   final nameCtl = TextEditingController();
   String filterFrom = '';
@@ -42,15 +42,9 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
   String sortMode = 'date-desc';
   final expandedPros = <String>{};
 
-  // ── حالة بحث/فلتر التحاليل (محلية — تُصفَّر عند تغيير الفئة مقبول) ──
-  final _analSearchCtl = TextEditingController();
-  /// وضع فلتر التحاليل: 'all' | 'cash' | 'transfer'
-  String _analFilterMode = 'all';
-
   @override
   void dispose() {
     nameCtl.dispose();
-    _analSearchCtl.dispose();
     super.dispose();
   }
 
@@ -105,8 +99,9 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
                     fontSize: 13,
                     color: BrandColors.brand900)),
             const SizedBox(height: 6),
-            // نظام «التحاليل» — أربع بطاقات الآن؛ لُفّت بـ Wrap لتفادي
-            // الضيق على الشاشات الصغيرة (كاش/تحويل صفٌّ، تركيبات/تحاليل صفٌّ).
+            // م149 — عادت ثلاث بطاقات (خانة «تحاليل» انتقلت إلى بطاقة
+            // «سجلات التحاليل الثلاثية» المستقلة أسفل الشاشة). Wrap باقٍ
+            // لتفادي الضيق على الشاشات الصغيرة.
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -136,15 +131,6 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
                   unit: cur,
                   color: BrandColors.goldDark,
                   onTap: () => _showDetail('pros', cli),
-                ),
-                // نظام «التحاليل» — بطاقة الدخل المخبري المعزول للعيادة.
-                _WrapStatCard(
-                  key: Key('tr-anal-$cli'),
-                  label: 'تحاليل',
-                  value: det ? n(clinicAnalyses(s, cli).total) : '—',
-                  unit: cur,
-                  color: BrandColors.green,
-                  onTap: () => _showDetail('anal', cli),
                 ),
               ],
             ),
@@ -330,6 +316,11 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
               ),
             ),
           ),
+
+          // م149 — بطاقة «سجلات التحاليل الثلاثية» المستقلة (قائمة بذاتها،
+          // لا تجاور بطاقات العيادات): الشهر الميلادي الجاري بفلاتره.
+          const SizedBox(height: 14),
+          const AnalysesRegistryCard(dense: true),
         ],
       );
     }
@@ -341,7 +332,6 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
       'cash': 'كاش',
       'xfer': 'تحويل',
       'pros': 'تركيبات',
-      'anal': 'تحاليل',
     };
     final items = filteredDetailItems(
       s,
@@ -504,13 +494,12 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
         ]),
         const SizedBox(height: 8),
 
-        // تبويبات الفئات (+ «تحاليل» — نظام التحاليل المعزول)
+        // تبويبات الفئات (م149 — تبويب «تحاليل» انتقل للبطاقة المستقلة).
         Row(children: [
           for (final cat in const [
             ('cash', 'كاش'),
             ('xfer', 'تحويل'),
             ('pros', 'تركيبات'),
-            ('anal', 'تحاليل'),
           ])
             Expanded(
               child: Padding(
@@ -588,119 +577,7 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
         // المحتوى
         if (detailView == 'pros')
           ..._prosCards(s, groups, cur, n)
-        // نظام «التحاليل» — شريط البحث/الفلتر ثم البنود القابلة للتعديل والحذف.
-        // يسبق شرط الفراغ لأن الفلتر قد يُظهر «لا نتائج مطابقة» بدلاً من «لا عناصر».
-        else if (detailView == 'anal') ...[
-          // ── شريط البحث والفلتر الخاص بالتحاليل ──────────────────────────
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(children: [
-              // حقل البحث — يحاكي زخرفة tr-search
-              Expanded(
-                child: SizedBox(
-                  height: 36,
-                  child: TextField(
-                    key: const Key('tr-anal-search'),
-                    controller: _analSearchCtl,
-                    style: const TextStyle(fontSize: 12),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      hintText: 'بحث في التحاليل…',
-                      hintStyle:
-                          TextStyle(fontSize: 12, color: BrandColors.mut2),
-                      prefixIcon: Icon(Icons.search_rounded,
-                          size: 16, color: BrandColors.mut2),
-                      filled: true,
-                      fillColor: BrandColors.surface,
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: BrandColors.line, width: .8),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            BorderSide(color: BrandColors.line, width: .8),
-                      ),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              // زر الفلتر مع شارة الوضع غير الافتراضي
-              Builder(builder: (context) {
-                final filterActive = _analFilterMode != 'all';
-                return Stack(clipBehavior: Clip.none, children: [
-                  Material(
-                    color: BrandColors.gold
-                        .withValues(alpha: filterActive ? .18 : .08),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                          color: BrandColors.gold.withValues(alpha: .3)),
-                    ),
-                    child: PopupMenuButton<String>(
-                      key: const Key('tr-anal-filter'),
-                      tooltip: 'فلتر التحاليل',
-                      onSelected: (v) =>
-                          setState(() => _analFilterMode = v),
-                      itemBuilder: (context) => [
-                        CheckedPopupMenuItem(
-                          key: const Key('tr-anal-filter-all'),
-                          value: 'all',
-                          checked: _analFilterMode == 'all',
-                          child: const Text('جميع التحاليل',
-                              style: TextStyle(fontSize: 12.5)),
-                        ),
-                        CheckedPopupMenuItem(
-                          key: const Key('tr-anal-filter-cash'),
-                          value: 'cash',
-                          checked: _analFilterMode == 'cash',
-                          child: const Text('تحاليل كاش',
-                              style: TextStyle(fontSize: 12.5)),
-                        ),
-                        CheckedPopupMenuItem(
-                          key: const Key('tr-anal-filter-transfer'),
-                          value: 'transfer',
-                          checked: _analFilterMode == 'transfer',
-                          child: const Text('تحاليل تحويل',
-                              style: TextStyle(fontSize: 12.5)),
-                        ),
-                      ],
-                      child: const SizedBox(
-                        width: 38,
-                        height: 36,
-                        child: Icon(Icons.filter_list_rounded,
-                            size: 16, color: BrandColors.goldDark),
-                      ),
-                    ),
-                  ),
-                  // شارة صغيرة تُظهر الوضع غير الافتراضي
-                  if (filterActive)
-                    Positioned(
-                      top: -4,
-                      left: -4,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: BrandColors.goldDark,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                              color: BrandColors.surface, width: 1.5),
-                        ),
-                      ),
-                    ),
-                ]);
-              }),
-            ]),
-          ),
-          // ── بنود التحاليل بعد تطبيق الفلتر ──────────────────────────────
-          ..._buildAnalItems(items, cur, n),
-        ] else if (items.isEmpty)
+        else if (items.isEmpty)
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -753,29 +630,6 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
         ),
       ],
     );
-  }
-
-  /// بناء بنود التحاليل بعد تطبيق فلتر البحث والوضع (عرضي — المجاميع لا تتأثر).
-  List<Widget> _buildAnalItems(
-      List<JMap> allItems, String cur, String Function(Object?) n) {
-    final filtered = filterAnalysesRows(
-      allItems,
-      query: _analSearchCtl.text,
-      mode: _analFilterMode,
-    );
-    if (filtered.isEmpty) {
-      return [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Text('لا نتائج مطابقة',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: BrandColors.mut2, fontSize: 12.5)),
-          ),
-        ),
-      ];
-    }
-    return [for (final r in filtered) _analDetailTile(r, cur, n)];
   }
 
   List<ProsGroup> _filteredGroups(TreasurySlice s, num doctorPct) {
@@ -1195,139 +1049,6 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
     );
   }
 
-  // ── نظام «التحاليل» — بند تفصيلٍ قابل للتعديل والحذف ─────────────────────
-
-  /// بطاقة بند تحليلٍ: الاسم/التاريخ + القيمة والطريقة، مع زرّي تعديل وحذف
-  /// خاضعين لصلاحيات records.edit/records.delete (والعرض خلف treasury.details).
-  Widget _analDetailTile(JMap r, String cur, String Function(Object?) n) {
-    final canEdit = staffAllowed('records.edit');
-    final canDel = staffAllowed('records.delete');
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 3),
-      child: ListTile(
-        dense: true,
-        title: Text('${r['name'] ?? ''}',
-            style: const TextStyle(
-                fontSize: 12.5, fontWeight: FontWeight.w700)),
-        subtitle: Text(
-            '${r['date'] ?? ''} · ${r['analysisName'] ?? r['service'] ?? ''}'
-            ' · ${r['payment'] ?? ''}',
-            style: const TextStyle(fontSize: 11)),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          Text('${n(jsNumOr0(r['amount']))} $cur',
-              style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: BrandColors.green)),
-          if (canEdit)
-            IconButton(
-              key: Key('tr-anal-edit-${r['id']}'),
-              visualDensity: VisualDensity.compact,
-              tooltip: 'تعديل',
-              icon: Icon(Icons.edit_rounded,
-                  size: 15, color: BrandColors.brandIcon),
-              onPressed: () => _editAnalysis(r),
-            ),
-          if (canDel)
-            IconButton(
-              key: Key('tr-anal-del-${r['id']}'),
-              visualDensity: VisualDensity.compact,
-              tooltip: 'حذف',
-              icon: const Icon(Icons.delete_rounded,
-                  size: 15, color: BrandColors.red),
-              onPressed: () => _deleteAnalysis(r),
-            ),
-        ]),
-      ),
-    );
-  }
-
-  /// تعديل قيمة/طريقة تحليلٍ عبر records.update (يبقى صفاً محروساً isAnalysis).
-  Future<void> _editAnalysis(JMap r) async {
-    final id = '${r['id']}';
-    final priceCtl =
-        TextEditingController(text: jsNumOr0(r['amount']).toStringAsFixed(0));
-    var pay = '${r['payment'] ?? 'كاش'}';
-    if (pay != 'كاش' && pay != 'تحويل') pay = 'كاش';
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => StatefulBuilder(
-        builder: (dctx, setLocal) => AlertDialog(
-          title: Text('تعديل تحليل — ${r['name'] ?? ''}',
-              style: const TextStyle(fontSize: 14)),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(
-              key: const Key('tr-anal-edit-price'),
-              controller: priceCtl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: 'القيمة', isDense: true),
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              key: const Key('tr-anal-edit-pay'),
-              initialValue: pay,
-              decoration: const InputDecoration(
-                  labelText: 'طريقة الدفع', isDense: true),
-              items: const [
-                DropdownMenuItem(value: 'كاش', child: Text('كاش')),
-                DropdownMenuItem(value: 'تحويل', child: Text('تحويل')),
-              ],
-              onChanged: (v) => setLocal(() => pay = v ?? 'كاش'),
-            ),
-          ]),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(dctx, false),
-                child: const Text('إلغاء')),
-            FilledButton(
-                key: const Key('tr-anal-edit-save'),
-                onPressed: () => Navigator.pop(dctx, true),
-                child: const Text('حفظ')),
-          ],
-        ),
-      ),
-    );
-    priceCtl.dispose();
-    if (ok != true) return;
-    final price = jsNumOr0(priceCtl.text);
-    if (price <= 0) return;
-    ref.read(reposProvider).records.updateLocal(id, {
-      'amount': price,
-      'payment': pay,
-    });
-    ref.read(financeRevProvider.notifier).state++;
-    if (mounted) setState(() {});
-  }
-
-  /// حذف صف تحليلٍ (records.delete نظيف — لا دين ولا دفعات متسلسلة).
-  Future<void> _deleteAnalysis(JMap r) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dctx) => AlertDialog(
-        title: const Text('حذف التحليل', style: TextStyle(fontSize: 14)),
-        content: Text(
-            'حذف تحليل «${r['analysisName'] ?? r['name'] ?? ''}» بقيمة '
-            '${jsNumOr0(r['amount']).toStringAsFixed(0)}؟'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(dctx, false),
-              child: const Text('إلغاء')),
-          FilledButton(
-              key: const Key('tr-anal-del-confirm'),
-              style: FilledButton.styleFrom(
-                  backgroundColor: BrandColors.red),
-              onPressed: () => Navigator.pop(dctx, true),
-              child: const Text('حذف')),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    ref.read(reposProvider).records.delete('${r['id']}');
-    ref.read(financeRevProvider.notifier).state++;
-    if (mounted) setState(() {});
-  }
-
   void _showCrossMonth(ProsGroup g, List<JMap> records, List<JMap> debts,
       String month, String cur, String Function(Object?) n) {
     final items = crossMonthPayments(g, records, debts, month);
@@ -1368,40 +1089,7 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
       'cash': 'كاش',
       'xfer': 'تحويل',
       'pros': 'تركيبات',
-      'anal': 'تحاليل',
     };
-    // نظام «التحاليل» — طباعة جدولٍ بسيط (التاريخ/التحليل/الطريقة/القيمة).
-    if (detailView == 'anal') {
-      final n = formatNumber;
-      num sum = 0;
-      final tableRows = <List<String>>[];
-      for (final r in items) {
-        final amt = jsNumOr0(r['amount']);
-        sum += amt;
-        tableRows.add([
-          '${r['date'] ?? ''}',
-          '${r['name'] ?? ''}',
-          '${r['analysisName'] ?? r['service'] ?? ''}',
-          '${r['payment'] ?? ''}',
-          '${n(amt)} $cur',
-        ]);
-      }
-      final bytes = await simpleTablePdf(
-        fonts,
-        title: '$detailCli — تحاليل',
-        subtitle: ref.read(selectedMonthProvider),
-        headers: const ['التاريخ', 'الاسم', 'التحليل', 'الطريقة', 'القيمة'],
-        rows: tableRows,
-        totRow: ['المجموع', '', '', '', '${n(sum)} $cur'],
-      );
-      final msg = await printOrSharePdf(ref.read(dbDirProvider), bytes,
-          'treasury_${detailCli}_anal.pdf');
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(msg)));
-      }
-      return;
-    }
     // v51 — طباعة التركيبات بالتصميم الجديد (هوية الكاش والتحويل):
     // نفس المجموعات المعروضة على الشاشة ونفس نسبة الطبيب — تطابق تام
     // بين أرقام الورقة وأرقام التطبيق.
