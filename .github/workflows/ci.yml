@@ -133,16 +133,22 @@ jobs:
 
       - run: flutter pub get
 
-      # أسرار وهمية عمداً: الهدف إثبات أن Gradle وخط البناء يترجمان.
-      # لا يُرفع الناتج ولا يُوزَّع.
-      - name: بناء تجريبي
+      # (قرار المالك 2026-08-09) «البناء دائماً بالمفاتيح والأسرار الحقيقية»:
+      # مفاتيح السحابة الحقيقية تُحقن من Secrets حتى في بناء الفحص — فلا
+      # تخرج من الخط أي نسخة بوضع محلي مضلِّل. كلمتا مخزن التطوير تبقيان
+      # وهميتين (المخزن نفسه خارج المستودع بالتصميم — التوقيع debug فقط).
+      - name: بناء تجريبي (موصول بالسحابة)
         env:
           DENTAL_DEV_STORE_PASSWORD: ci-not-a-real-password
           DENTAL_DEV_KEY_PASSWORD: ci-not-a-real-password
         run: |
           flutter build apk --debug \
-            --dart-define=SUPABASE_URL=https://example.supabase.co \
-            --dart-define=SUPABASE_ANON_KEY=ci-placeholder
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=R2_WORKER="${{ secrets.R2_WORKER }}" \
+            --dart-define=PHONE_IDENTITY="${{ secrets.PHONE_IDENTITY }}" \
+            --dart-define=COLD_FETCH="${{ secrets.COLD_FETCH }}" \
+            --dart-define=GOOGLE_WEB_CLIENT_ID="${{ secrets.GOOGLE_WEB_CLIENT_ID }}"
 
   # ==========================================================================
   #  بناء ويندوز (إثبات ترجمة + حزمة MSIX)
@@ -190,11 +196,19 @@ jobs:
         timeout-minutes: 10
         run: flutter test --reporter=expanded
 
-      # بلا dart-define أسرار: الوضع المحلي كافٍ لإثبات أن سطح المكتب
-      # يترجم. تُحقن أسرار Supabase/R2 عند البناء الرسمي عبر
-      # tool\build_windows.bat (يقرأها من البيئة) — لا في هذا الفحص.
-      - name: بناء ويندوز release
-        run: flutter build windows --release
+      # (قرار المالك 2026-08-09) «البناء دائماً بالمفاتيح والأسرار الحقيقية»:
+      # حتى نسخة الفحص هذه تخرج موصولةً بالسحابة — فأي artifact يُحمَّل من
+      # أي جولة يعمل كاملاً، ولا التباس نسخٍ محلية بعد اليوم.
+      - name: بناء ويندوز release (موصول بالسحابة)
+        shell: bash
+        run: |
+          flutter build windows --release \
+            --dart-define=SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+            --dart-define=SUPABASE_ANON_KEY="${{ secrets.SUPABASE_ANON_KEY }}" \
+            --dart-define=R2_WORKER="${{ secrets.R2_WORKER }}" \
+            --dart-define=PHONE_IDENTITY="${{ secrets.PHONE_IDENTITY }}" \
+            --dart-define=COLD_FETCH="${{ secrets.COLD_FETCH }}" \
+            --dart-define=GOOGLE_WEB_CLIENT_ID="${{ secrets.GOOGLE_WEB_CLIENT_ID }}"
 
       # لفّ الناتج حزمةَ MSIX من msix_config. الحزمة غير موقَّعة هنا
       # (install_certificate=false) فتصلح للفحص لا للتوزيع.
