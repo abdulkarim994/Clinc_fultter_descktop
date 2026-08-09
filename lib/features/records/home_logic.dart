@@ -1103,6 +1103,160 @@ AnalysisIndex buildAnalysisIndex(List<JMap> records) {
   return AnalysisIndex(byRecord, byPatDay);
 }
 
+// ── م151 — عرض التحاليل وحسابها في «إدخال اليوم» ────────────────────────────
+//
+//  القاعدة الحاكمة (مواصفة المالك النصية): علامة ✓ **للعرض فقط** وتظهر مرةً
+//  واحدة لكل تحليل — على الصف المرتبط به (analysisOf) حصراً، والتحليل القديم
+//  بلا ربطٍ يُعلَّم على أول صفوف مريضه في اليوم لا كلِّها. أما **الحساب
+//  المالي** فمن صفوف التحاليل المستقلة في القاعدة حصراً بمنع تكرارٍ
+//  بالمعرّف الفريد — لا من علامات ✓ ولا من عدد الصفوف أو الزيارات.
+
+/// خريطة «الصف الحامل للعلامة» → تحاليله: كل تحليلٍ يُنسب لصفٍّ واحدٍ
+/// بالضبط من [rows]. المرتبط بمعرّف زيارةٍ ظاهرة يُعلَّم عليها؛ والقديم
+/// بلا ربطٍ (أو برابطٍ لا يطابق صفاً ظاهراً) يُعلَّم على **أقدم** صفوف
+/// مريضه زمناً. تُبنى من صفوف اليوم كلها (قبل الفلاتر) فلا تقفز العلامة
+/// بين الصفوف عند تبديل الفلاتر.
+Map<String, List<AnalysisLink>> analysisRowMarks(
+  List<LedgerRow> rows,
+  AnalysisIndex index,
+  String day,
+) {
+  final marks = <String, List<AnalysisLink>>{};
+  // التغطية بهوية الكائن: النسخة نفسها من الرابط تسكن الخريطتين
+  // (byRecord/byPatDay) في الفهرس، فالمجموعة تميّز المرتبطَ عن اليتيم.
+  final covered = <AnalysisLink>{};
+  for (final r in rows) {
+    if (r.isExpense) continue;
+    final links = index.byRecord[r.id];
+    if (links != null && links.isNotEmpty) {
+      marks[r.id] = List<AnalysisLink>.from(links);
+      covered.addAll(links);
+    }
+  }
+  // القديم بلا ربطٍ مطابق: أول صف (الأقدم زمناً) لكل مريض.
+  final firstRow = <String, LedgerRow>{};
+  for (final r in rows) {
+    if (r.isExpense) continue;
+    final cur = firstRow[r.name];
+    if (cur == null || r.timeMs < cur.timeMs) firstRow[r.name] = r;
+  }
+  firstRow.forEach((name, row) {
+    final legacy = [
+      for (final l in index.byPatDay['$name|$day'] ?? const <AnalysisLink>[])
+        if (!covered.contains(l)) l,
+    ];
+    if (legacy.isEmpty) return;
+    marks[row.id] = [...(marks[row.id] ?? const <AnalysisLink>[]), ...legacy];
+  });
+  return marks;
+}
+
+/// إجماليات تحاليل اليوم (كاش/تحويل) من صفوفها المالية المستقلة **حصراً**،
+/// بمنع تكرارٍ بالمعرّف الفريد (صفٌّ مكرر بالمزامنة يُحتسب مرة). تحترم
+/// نفس مقاييس «إدخال اليوم»: يوم الاحتساب (incomeDate يتقدم على date —
+/// وقيمة [kNoIncomeDay] لا تطابق يوماً فتبقى خارج الجدول)، والفترة
+/// (صباحية/مسائية بوقت التسجيل)، والعيادة، وطريقة الدفع، والموظف [by]
+/// لتقرير الوردية (فارغ = الكل).
+({num cash, num transfer}) dayAnalysesTotals(
+  List<JMap> records, {
+  String? day,
+  String nameQuery = '',
+  Set<String> clinics = const {},
+  Set<String> payments = const {},
+  LedgerPeriod? period,
+  int cutoffHour = 12,
+  String by = '',
+}) {
+  final today = day ?? getCurrentDate();
+  final q = nameQuery.trim();
+  num cash = 0, transfer = 0;
+  final seen = <String>{};
+  for (final r in records) {
+    if (!jsTruthy(r['isAnalysis'])) continue;
+    final id = '${r['id'] ?? ''}';
+    // منع التكرار: المعرّف الفريد يُحتسب مرة واحدة مهما تكرر الصف.
+    if (id.isEmpty || id == 'null' || !seen.add(id)) continue;
+    final effDay = jsTruthy(r['incomeDate'])
+        ? '${r['incomeDate']}'
+        : '${r['date'] ?? ''}';
+    if (effDay != today) continue;
+    // البحث بالاسم — نفس اصطلاح filterLedgerRows (احتواء خام).
+    if (q.isNotEmpty &&
+        !'${r['name'] ?? r['patient_name'] ?? ''}'.contains(q)) {
+      continue;
+    }
+    if (clinics.isNotEmpty && !clinics.contains('${r['clinic'] ?? ''}')) {
+      continue;
+    }
+    final pay = '${r['payment'] ?? ''}'.trim();
+    if (payments.isNotEmpty && !payments.contains(pay)) continue;
+    if (period != null) {
+      final ms =
+          jsNumOr0(jsOr(r['createdAt'], jsOr(r['_activityAt'], r['_mod'])));
+      if (ledgerPeriodOf(ms, cutoffHour: cutoffHour) != period) continue;
+    }
+    if (by.isNotEmpty && '${r['createdBy'] ?? ''}' != by) continue;
+    final amt = jsNumOr0(r['amount']);
+    if (pay == 'كاش') {
+      cash += amt;
+    } else {
+      transfer += amt;
+    }
+  }
+  return (cash: cash, transfer: transfer);
+}
+
+/// وضع «الكل»: يضيف قيم التحاليل **مرةً واحدة** فوق إجماليات اليوم —
+/// كاش التحاليل على الكاش وتحويلها على التحويل، فيرتفع المدفوع والصافي
+/// بمقدارها. [ledgerTotals] النقية لا تُمسّ — هذه طبقة تركيبٍ فوقها
+/// تُستعمل في ملخص الشاشة وتقرير الوردية وتقفيل اليوم (قرار المالك).
+LedgerTotals totalsWithAnalyses(
+  LedgerTotals t,
+  ({num cash, num transfer}) a,
+) {
+  final sum = a.cash + a.transfer;
+  if (sum == 0) return t;
+  final paidBy = Map<String, num>.from(t.paidBy);
+  if (a.cash != 0) paidBy['كاش'] = (paidBy['كاش'] ?? 0) + a.cash;
+  if (a.transfer != 0) {
+    paidBy['تحويل'] = (paidBy['تحويل'] ?? 0) + a.transfer;
+  }
+  return LedgerTotals(
+    count: t.count,
+    value: t.value + sum,
+    paid: t.paid + sum,
+    remaining: t.remaining,
+    expense: t.expense,
+    net: t.net + sum,
+    paidBy: paidBy,
+    expenseBy: t.expenseBy,
+  );
+}
+
+/// أوضاع فلاتر التحاليل (تحاليل كاش/تحويل/إجمالي التحاليل): خانات المال
+/// الثلاث تعرض قيم التحاليل **وحدها** — لا أي إيرادٍ عادي. عدد الحالات
+/// والمتبقي يبقيان من الصفوف الظاهرة، والمصروفات كما هي (الصافي بصيغته:
+/// المدفوع − المصروف).
+LedgerTotals analysesOnlyTotals(
+  LedgerTotals t,
+  ({num cash, num transfer}) a,
+) {
+  final sum = a.cash + a.transfer;
+  return LedgerTotals(
+    count: t.count,
+    value: sum,
+    paid: sum,
+    remaining: t.remaining,
+    expense: t.expense,
+    net: sum - t.expense,
+    paidBy: {
+      if (a.cash != 0) 'كاش': a.cash,
+      if (a.transfer != 0) 'تحويل': a.transfer,
+    },
+    expenseBy: t.expenseBy,
+  );
+}
+
 /// أنماط فرز جدول الدخل.
 enum LedgerSort { timeAsc, timeDesc, nameAsc, nameDesc, valueDesc, valueAsc }
 
