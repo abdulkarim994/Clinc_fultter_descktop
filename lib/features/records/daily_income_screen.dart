@@ -107,7 +107,20 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
         ? _todayExpenseRows(_period, _query)
         : const <LedgerRow>[];
     final rows = [...income, ...expenseRows];
-    final tot = ledgerTotals(rows);
+    // م151 — قيم التحاليل تدخل ملخص اليوم مرةً واحدة (من صفوفها المالية
+    // المستقلة حصراً بمنع تكرارٍ بالمعرّف)، بنفس فلاتر الشاشة — فيتطابق
+    // الإجمالي مع الكمبيوتر (قرار المالك: الجهازان معاً).
+    final tot = totalsWithAnalyses(
+      ledgerTotals(rows),
+      dayAnalysesTotals(
+        repos.records.getAll().cast<Map<String, Object?>>(),
+        nameQuery: _query,
+        clinics: _clinics,
+        payments: _payments,
+        period: _period,
+        cutoffHour: kPeriodCutoffHour,
+      ),
+    );
 
     return Column(
       children: [
@@ -204,12 +217,19 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
 
   Future<void> _openRowMenu(LedgerRow row) async {
     final n = formatNumber;
-    // نظام «التحاليل» — تحاليل هذا الصف (إن وُجدت): الربط بالمعرّف ثم
-    // بالاسم+اليوم (نفس منطق العرض). صفوف التحاليل محروسةٌ خارج الجدول.
-    final analIndex =
-        buildAnalysisIndex(ref.read(reposProvider).records.getAll());
+    // نظام «التحاليل» — تحاليل هذا الصف (إن وُجدت). م151: بالتعليم الموحد
+    // (كل تحليلٍ على صفٍّ واحد بالضبط) — فخيار الحذف يظهر على الصف الحامل
+    // للعلامة وحده وخيار الإضافة على البقية، كالكمبيوتر تماماً.
+    final repos = ref.read(reposProvider);
+    final analIndex = buildAnalysisIndex(repos.records.getAll());
+    final dayRows = todayLedgerRows(
+      repos.records.getAll(),
+      repos.prosthetics.getAll(),
+      repos.debts.getAll(),
+    );
     final rowAnalyses =
-        analIndex.forRow(row.id, row.name, getCurrentDate());
+        analysisRowMarks(dayRows, analIndex, getCurrentDate())[row.id] ??
+            const <AnalysisLink>[];
     Widget item({
       required IconData icon,
       required String label,
@@ -985,7 +1005,15 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
     final orphan = username.isEmpty
         ? 0
         : rowsAll.where((r) => r.by.isEmpty).length;
-    final tot = ledgerTotals(rows);
+    // م151 — قيم التحاليل تدخل إجماليات التقرير مرةً واحدة (من صفوفها
+    // المستقلة، منسوبةً للموظف عند تقرير موظفٍ بعينه — قرار المالك).
+    final tot = totalsWithAnalyses(
+      ledgerTotals(rows),
+      dayAnalysesTotals(
+        repos.records.getAll().cast<Map<String, Object?>>(),
+        by: username,
+      ),
+    );
     final n = formatNumber;
     final cfg = ref.read(appConfigProvider);
     final now = DateTime.now();
@@ -1165,7 +1193,14 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
       repos.debts.getAll().cast<Map<String, Object?>>(),
     ).reversed.toList();
     final rows = [...all, ..._todayExpenseRows(null, '').reversed];
-    final tot = ledgerTotals(rows);
+    // م151 — قيم التحاليل تدخل إجماليات التقفيل ولقطته مرةً واحدة
+    // (من صفوفها المستقلة حصراً — قرار المالك).
+    final tot = totalsWithAnalyses(
+      ledgerTotals(rows),
+      dayAnalysesTotals(
+        repos.records.getAll().cast<Map<String, Object?>>(),
+      ),
+    );
     final n = formatNumber;
     final cfg = ref.read(appConfigProvider);
     final cur = '${cfg['currency'] ?? 'د.ل'}';

@@ -65,12 +65,14 @@ class DesktopHomeScreen extends ConsumerStatefulWidget {
 }
 
 /// نظام «التحاليل» — فلتر ما-بعد على صفوف الجدول حسب حالة تحليلها.
-enum _AnalFilter { all, cash, transfer, none }
+/// م151 — [totals] «إجمالي التحاليل»: كل أصحاب التحاليل بأي طريقة.
+enum _AnalFilter { all, cash, transfer, totals, none }
 
 const _analFilterLabels = <_AnalFilter, String>{
   _AnalFilter.all: 'الكل',
   _AnalFilter.cash: 'تحاليل كاش',
   _AnalFilter.transfer: 'تحاليل تحويل',
+  _AnalFilter.totals: 'إجمالي التحاليل',
   _AnalFilter.none: 'بلا تحاليل',
 };
 
@@ -176,9 +178,12 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     // التحاليل محروسةٌ خارج الجدول والمالية). يُبنى من كل السجلات مباشرة.
     final analIndex = buildAnalysisIndex(records);
     final today = getCurrentDate();
-    // تحاليل صفٍّ: بالربط (analysisOf) أولاً ثم بالاسم+اليوم (كما بالعرض).
+    // م151 — كل تحليلٍ يُنسب لصفٍّ **واحد** بالضبط (المرتبط بمعرّفه، والقديم
+    // بلا ربطٍ على أقدم صفوف مريضه): ✓ واحدة لكل مريضٍ أجرى التحليل لا لكل
+    // صفوفه. تُبنى من صفوف اليوم كلها فلا تقفز العلامة مع تبديل الفلاتر.
+    final analMarks = analysisRowMarks(all, analIndex, today);
     List<AnalysisLink> analOf(LedgerRow r) =>
-        analIndex.forRow(r.id, r.name, today);
+        analMarks[r.id] ?? const <AnalysisLink>[];
 
     final filtered = filterLedgerRows(
       all,
@@ -200,6 +205,8 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
           return links.any((a) => a.isCash);
         case _AnalFilter.transfer:
           return links.any((a) => !a.isCash);
+        case _AnalFilter.totals:
+          return links.isNotEmpty;
         case _AnalFilter.all:
           return true;
       }
@@ -213,7 +220,29 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         ? _todayExpenseRows(_period)
         : const <LedgerRow>[];
     final rows = [...income, ...expenseRows];
-    final tot = ledgerTotals(rows);
+    // م151 — الحساب المالي للتحاليل من صفوفها المستقلة حصراً (منع تكرار
+    // بالمعرّف)، بنفس فلاتر الشاشة: العيادة/طريقة الدفع/الفترة — فيُعاد
+    // الحساب فوراً مع كل تغيير. علامات ✓ وعدد الصفوف ليسا مصدراً أبداً.
+    final anal = dayAnalysesTotals(
+      records,
+      clinics: _clinics,
+      payments: _payments,
+      period: _period,
+      cutoffHour: kPeriodCutoffHour,
+    );
+    final tot0 = ledgerTotals(rows);
+    // خانات المال حسب وضع فلتر التحاليل (مواصفة المالك م151):
+    //  «الكل» = الإيراد + التحاليل مرةً واحدة؛ «تحاليل كاش/تحويل/إجمالي
+    //  التحاليل» = قيم التحاليل وحدها؛ «بلا تحاليل» = الإيراد العادي فقط.
+    final tot = switch (_analFilter) {
+      _AnalFilter.all => totalsWithAnalyses(tot0, anal),
+      _AnalFilter.none => tot0,
+      _AnalFilter.cash =>
+        analysesOnlyTotals(tot0, (cash: anal.cash, transfer: 0)),
+      _AnalFilter.transfer =>
+        analysesOnlyTotals(tot0, (cash: 0, transfer: anal.transfer)),
+      _AnalFilter.totals => analysesOnlyTotals(tot0, anal),
+    };
 
     // «ملاحظات مختصرة» — حقل notes الموجود على السجل/التركيبة/المصروف.
     final notes = <String, String>{};
@@ -1084,7 +1113,15 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     final orphan = username.isEmpty
         ? 0
         : rowsAll.where((r) => r.by.isEmpty).length;
-    final tot = ledgerTotals(rows);
+    // م151 — قيم التحاليل تدخل إجماليات التقرير مرةً واحدة (من صفوفها
+    // المستقلة، منسوبةً للموظف عند تقرير موظفٍ بعينه — قرار المالك).
+    final tot = totalsWithAnalyses(
+      ledgerTotals(rows),
+      dayAnalysesTotals(
+        repos.records.getAll().cast<Map<String, Object?>>(),
+        by: username,
+      ),
+    );
     final n = formatNumber;
     final cfg = ref.read(appConfigProvider);
     final now = DateTime.now();
@@ -1255,7 +1292,14 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       repos.debts.getAll().cast<Map<String, Object?>>(),
     ).reversed.toList();
     final rows = [...all, ..._todayExpenseRows(null).reversed];
-    final tot = ledgerTotals(rows);
+    // م151 — قيم التحاليل تدخل إجماليات التقفيل ولقطته مرةً واحدة
+    // (من صفوفها المستقلة حصراً — قرار المالك).
+    final tot = totalsWithAnalyses(
+      ledgerTotals(rows),
+      dayAnalysesTotals(
+        repos.records.getAll().cast<Map<String, Object?>>(),
+      ),
+    );
     final n = formatNumber;
     final cfg = ref.read(appConfigProvider);
     final cur = '${cfg['currency'] ?? 'د.ل'}';
