@@ -266,6 +266,18 @@ class _TreasuryDetailScreenState
           if (isClinic && _prosTab)
             TreasuryProsTable(
               groups: prosGrouped(s, clinic, doctorPct),
+              // م157 — صفوف الجدول الجديد: حالات الشهر + دفعات ديون
+              // الشهور السابقة صفوفاً مستقلة موسومة.
+              cases: prosCaseRows(
+                s,
+                clinic,
+                allDebts:
+                    repos.debts.getAll().cast<Map<String, Object?>>(),
+                allPros: repos.prosthetics
+                    .getAll()
+                    .cast<Map<String, Object?>>(),
+                doctorPct: doctorPct,
+              ),
               doctorPct: doctorPct,
               month: widget.month,
               clinic: clinic,

@@ -28,6 +28,7 @@ import '../print/treatment_tables.dart' show formatNumber;
 import 'reports_bridge.dart';
 import 'treasury_logic.dart'
     show
+        ProsCaseRow,
         ProsGroup,
         TreasurySlice,
         detailItems,
@@ -639,6 +640,11 @@ List<Map<String, Object?>> prosGroupPayments(ProsGroup g, num doctorPct) => [
           },
     ];
 
+/// م157/ب — اسم المعمل مختصراً للعرض: تُحذف كلمة «معمل» الاستهلالية
+/// («معمل النور» ⇒ «النور») — عرضٌ فقط، البيانات المخزنة كما هي.
+String shortLabName(String v) =>
+    v.replaceFirst(RegExp(r'^\s*معمل\s+'), '').trim();
+
 /// نوع تركيب المجموعة — أول نوعٍ غير فارغ من صفوف التركيبات.
 String prosGroupType(ProsGroup g) {
   for (final it in g.items) {
@@ -660,6 +666,7 @@ class TreasuryProsTable extends ConsumerStatefulWidget {
   const TreasuryProsTable({
     super.key,
     required this.groups,
+    required this.cases,
     required this.doctorPct,
     required this.month,
     required this.clinic,
@@ -667,6 +674,10 @@ class TreasuryProsTable extends ConsumerStatefulWidget {
   });
 
   final List<ProsGroup> groups;
+
+  /// م157 — صفوف الجدول الجديد (حالات الشهر + دفعات ديون الشهور
+  /// السابقة صفوفاً مستقلة) من prosCaseRows النقية.
+  final List<ProsCaseRow> cases;
   final num doctorPct;
   final String month;
   final String clinic;
@@ -682,6 +693,12 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
   String _sort = 'recent';
   String? _open;
   String _pay = 'all';
+
+  // م157 — أعرُض أعمدة الجدول القابلة للسحب (سطح المكتب غير المكثف).
+  double _cwDate = 84;
+  double _cwLab = 76;
+  double _cwWork = 76;
+  double _cwMoney = 70;
 
   @override
   void dispose() {
@@ -915,21 +932,13 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
       );
     }
 
-    // ── المستوى الأول: قائمة مرضى التركيبات ─────────────────────────────
+    // ── المستوى الأول (م157): جدول الحالات الثمانيّ الأعمدة ─────────────
     final q = _searchCtl.text.trim();
     final list = [
-      for (final g in widget.groups)
-        if (q.isEmpty || g.name.contains(q)) g,
+      for (final c in widget.cases)
+        if (q.isEmpty || c.name.contains(q)) c,
     ];
     if (_sort == 'name') list.sort((a, b) => a.name.compareTo(b.name));
-
-    num paidOf(ProsGroup g) {
-      num s0 = 0;
-      for (final r in prosGroupPayments(g, widget.doctorPct)) {
-        s0 += jsNumOr0(r['amount']);
-      }
-      return s0;
-    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1009,61 +1018,373 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
             ),
           )
         else
-          for (final g in list) ...[
-            Material(
-              color: BrandColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: BrandColors.line, width: .8),
+          _casesTable(list, cur, n, fs),
+      ],
+    );
+  }
+
+  // ── م157 — جدول الحالات: 8 أعمدة + صف إجمالي شامل ─────────────────────
+
+  /// مقبض سحبٍ لتغيير عرض عمود (سطح المكتب) — توأم مقبض جدول الحركات.
+  Widget _pGrip(void Function(double dx) apply, {required Key key}) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        key: key,
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (d) => setState(() => apply(d.delta.dx)),
+        child: SizedBox(
+          width: 10,
+          height: 20,
+          child: Center(
+            child: Container(
+              width: 2.5,
+              height: 14,
+              decoration: BoxDecoration(
+                color: BrandColors.line,
+                borderRadius: BorderRadius.circular(2),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                key: Key('tr2-pros-g-${g.name}'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pGap(void Function(double dx)? apply, {Key? key}) =>
+      (!widget.dense && apply != null)
+          ? _pGrip(apply, key: key!)
+          : SizedBox(width: widget.dense ? 3 : 8);
+
+  /// حوار تواريخ الدفعات خارج الشهر (للمس حيث لا تحويم بالفأرة).
+  void _showOtherPays(ProsCaseRow c) {
+    final n = formatNumber;
+    showDialog<void>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: Text('دفعات خارج شهر ${widget.month} — ${c.name}',
+            style: const TextStyle(fontSize: 13.5)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final p in c.otherMonthPays)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  Icon(Icons.event_rounded,
+                      size: 14, color: BrandColors.mut),
+                  const SizedBox(width: 6),
+                  Text(p.date,
+                      style: const TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  Text(n(p.amount),
+                      style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: BrandColors.green)),
+                ]),
+              ),
+            const SizedBox(height: 6),
+            Text('كل دفعة تُحتسب في خزينة شهر دفعها.',
+                style: TextStyle(fontSize: 10.5, color: BrandColors.mut2)),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dctx),
+              child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
+  Widget _casesTable(List<ProsCaseRow> list, String cur,
+      String Function(Object?) n, double fs) {
+    final dense = widget.dense;
+    final double wDate = dense ? 54 : _cwDate;
+    final double wLab = dense ? 42 : _cwLab;
+    final double wWork = dense ? 42 : _cwWork;
+    final double wUnits = dense ? 22 : 44;
+    final double wMoney = dense ? 45 : _cwMoney;
+
+    TextStyle head() => TextStyle(
+        fontSize: dense ? 9.5 : 10.5,
+        fontWeight: FontWeight.w800,
+        color: BrandColors.mut2);
+
+    Widget numCell(num v, double w,
+            {Color? color, bool bold = false, Widget? trailing}) =>
+        SizedBox(
+          width: w,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(n(v),
+                      style: TextStyle(
+                          fontSize: dense ? fs - 1.5 : fs - .5,
+                          fontWeight:
+                              bold ? FontWeight.w900 : FontWeight.w700,
+                          color: color,
+                          fontFeatures: const [
+                            FontFeature.tabularFigures()
+                          ])),
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+        );
+
+    Widget txtCell(String v, double w, {bool center = true}) => SizedBox(
+          width: w,
+          child: Text(v.isEmpty ? '—' : v,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: center ? TextAlign.center : TextAlign.start,
+              style: TextStyle(
+                  fontSize: dense ? fs - 2 : fs - 1,
+                  fontWeight: FontWeight.w700,
+                  color: BrandColors.strong)),
+        );
+
+    // مجاميع صف الإجمالي.
+    num tUnits = 0, tTotal = 0, tPaid = 0, tRem = 0, tLab = 0;
+    for (final c in list) {
+      tUnits += c.units;
+      tTotal += c.total;
+      tPaid += c.paid;
+      tRem += c.remaining;
+      tLab += c.labShare;
+    }
+
+    // مفاتيح الصفوف: أول صفٍّ لكل اسمٍ يحمل مفتاح tr2-pros-g-<الاسم>
+    // (توافق الاختبارات والسلوك المعتاد)، والبقية بمفاتيح فهرسية.
+    final seen = <String>{};
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: BrandColors.line, width: .8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── رأس الجدول ─────────────────────────────────────────────────
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(children: [
+              SizedBox(
+                  width: wDate, child: Text('التاريخ', style: head())),
+              _pGap((dx) => _cwDate = (_cwDate - dx).clamp(62, 150),
+                  key: const Key('tr2-pros-grip-date')),
+              Expanded(child: Text('الاسم', style: head())),
+              _pGap((dx) => _cwLab = (_cwLab - dx).clamp(46, 150),
+                  key: const Key('tr2-pros-grip-lab')),
+              SizedBox(
+                  width: wLab,
+                  child: Text('المعمل',
+                      style: head(), textAlign: TextAlign.center)),
+              _pGap((dx) => _cwWork = (_cwWork - dx).clamp(46, 150),
+                  key: const Key('tr2-pros-grip-work')),
+              SizedBox(
+                  width: wWork,
+                  child: Text('نوع العمل',
+                      style: head(), textAlign: TextAlign.center)),
+              _pGap(null),
+              SizedBox(
+                  width: wUnits,
+                  child: Text('وحدات',
+                      style: head(), textAlign: TextAlign.center)),
+              _pGap((dx) => _cwMoney = (_cwMoney - dx).clamp(50, 120),
+                  key: const Key('tr2-pros-grip-money')),
+              SizedBox(
+                  width: wMoney,
+                  child: Text('الإجمالي',
+                      style: head(), textAlign: TextAlign.center)),
+              _pGap(null),
+              SizedBox(
+                  width: wMoney,
+                  child: Text('المدفوع',
+                      style: head(), textAlign: TextAlign.center)),
+              _pGap(null),
+              SizedBox(
+                  width: wMoney,
+                  child: Text('المتبقي',
+                      style: head(), textAlign: TextAlign.center)),
+            ]),
+          ),
+          Divider(height: 1, color: BrandColors.line),
+          // ── الصفوف ─────────────────────────────────────────────────────
+          for (var i = 0; i < list.length; i++) ...[
+            Builder(builder: (context) {
+              final c = list[i];
+              final firstOfName = seen.add(c.name);
+              return InkWell(
+                key: firstOfName
+                    ? Key('tr2-pros-g-${c.name}')
+                    : Key('tr2-pros-row-$i'),
                 onTap: () => setState(() {
-                  _open = g.name;
+                  _open = c.name;
                   _pay = 'all';
                 }),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
+                      horizontal: 4, vertical: 6),
                   child: Row(children: [
-                    Icon(Icons.person_rounded,
-                        size: 17, color: BrandColors.goldDark),
-                    const SizedBox(width: 9),
+                    SizedBox(
+                      width: wDate,
+                      child: Text(c.date,
+                          style: TextStyle(
+                              fontSize: dense ? fs - 2 : fs - 1.5,
+                              fontWeight: FontWeight.w700,
+                              color: BrandColors.ink,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ])),
+                    ),
+                    SizedBox(width: dense ? 3 : 10),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(g.name,
+                      child: Row(children: [
+                        Flexible(
+                          child: Text(c.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                  fontSize: fs,
+                                  fontSize: dense ? fs - 1 : fs,
                                   fontWeight: FontWeight.w800,
                                   color: BrandColors.brandText)),
-                          const SizedBox(height: 2),
-                          Text(
-                              'نوع التركيب: ${prosGroupType(g)}'
-                              ' • الإجمالي: ${n(g.total)}'
-                              ' • المدفوع: ${n(paidOf(g))} $cur',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontSize: fs - 2,
-                                  fontWeight: FontWeight.w700,
-                                  color: BrandColors.strong)),
-                        ],
-                      ),
+                        ),
+                        // شارة «دفعة دين» بجانب الاسم (قرار المالك).
+                        if (c.isDebtPay)
+                          Container(
+                            key: Key('tr2-pros-debtpay-$i'),
+                            margin: const EdgeInsetsDirectional.only(
+                                start: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: BrandColors.goldDark
+                                  .withValues(alpha: .12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text('دفعة دين',
+                                style: TextStyle(
+                                    fontSize: dense ? 8.5 : 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: BrandColors.goldDark)),
+                          ),
+                      ]),
                     ),
-                    Icon(Icons.chevron_left_rounded,
-                        size: 17, color: BrandColors.mut),
+                    SizedBox(width: dense ? 3 : 10),
+                    // المعمل مختصراً بلا كلمة «معمل» (قرار المالك).
+                    txtCell(shortLabName(c.lab), wLab),
+                    SizedBox(width: dense ? 3 : 10),
+                    txtCell(c.work, wWork),
+                    SizedBox(width: dense ? 3 : 10),
+                    txtCell(c.units > 0 ? formatNumber(c.units) : '—', wUnits),
+                    SizedBox(width: dense ? 3 : 10),
+                    numCell(c.total, wMoney, color: BrandColors.ink),
+                    SizedBox(width: dense ? 3 : 10),
+                    numCell(c.paid, wMoney, color: BrandColors.green),
+                    SizedBox(width: dense ? 3 : 10),
+                    numCell(
+                      c.remaining,
+                      wMoney,
+                      color: c.remaining > 0
+                          ? BrandColors.red
+                          : BrandColors.mut2,
+                      // إشارة التعجب: دفعات خارج هذا الشهر — تلميح
+                      // بالفأرة وحوار باللمس بتواريخ وقيم كل دفعة.
+                      trailing: c.otherMonthPays.isEmpty
+                          ? null
+                          : Tooltip(
+                              richMessage: TextSpan(
+                                text: [
+                                  'دفعات خارج هذا الشهر:',
+                                  for (final p in c.otherMonthPays)
+                                    '${p.date} — ${n(p.amount)}',
+                                ].join('\n'),
+                                style: const TextStyle(fontSize: 11.5),
+                              ),
+                              child: InkWell(
+                                key: Key('tr2-pros-otherpays-$i'),
+                                onTap: () => _showOtherPays(c),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 2),
+                                  child: Icon(Icons.error_outline_rounded,
+                                      size: dense ? 12 : 14,
+                                      color: BrandColors.goldDark),
+                                ),
+                              ),
+                            ),
+                    ),
                   ]),
                 ),
-              ),
-            ),
-            const SizedBox(height: 8),
+              );
+            }),
+            Divider(height: 1, color: BrandColors.line),
           ],
-      ],
+          // ── صف الإجمالي الشامل (م157) ──────────────────────────────────
+          Container(
+            key: const Key('tr2-pros-grand'),
+            margin: const EdgeInsets.only(top: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color.fromRGBO(201, 162, 75, .10),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: const Color.fromRGBO(201, 162, 75, .30)),
+            ),
+            child: Row(children: [
+              SizedBox(
+                  width: wDate,
+                  child: Text('الإجمالي',
+                      style: TextStyle(
+                          fontSize: dense ? fs - 1.5 : fs - 1,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.strong))),
+              SizedBox(width: dense ? 3 : 10),
+              // قيم المعامل — تحت خانة الاسم (لا عمود لها بالجدول).
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('قيم المعامل: ${n(tLab)} $cur',
+                      key: const Key('tr2-pros-grand-lab'),
+                      style: TextStyle(
+                          fontSize: dense ? fs - 2 : fs - 1,
+                          fontWeight: FontWeight.w800,
+                          color: BrandColors.ink)),
+                ),
+              ),
+              SizedBox(width: dense ? 3 : 10),
+              SizedBox(width: wLab),
+              SizedBox(width: dense ? 3 : 10),
+              SizedBox(width: wWork),
+              SizedBox(width: dense ? 3 : 10),
+              txtCell(tUnits > 0 ? formatNumber(tUnits) : '—', wUnits),
+              SizedBox(width: dense ? 3 : 10),
+              numCell(tTotal, wMoney, color: BrandColors.ink, bold: true),
+              SizedBox(width: dense ? 3 : 10),
+              numCell(tPaid, wMoney, color: BrandColors.green, bold: true),
+              SizedBox(width: dense ? 3 : 10),
+              numCell(tRem, wMoney,
+                  color: tRem > 0 ? BrandColors.red : BrandColors.mut2,
+                  bold: true),
+            ]),
+          ),
+        ],
+      ),
     );
   }
 }

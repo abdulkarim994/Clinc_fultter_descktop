@@ -315,6 +315,23 @@ class _DesktopTreasuryScreenState
         if (isClinic && _prosTab)
           TreasuryProsTable(
             groups: prosGrouped(s, clinic, doctorPct),
+            // م157 — صفوف الجدول الجديد: حالات الشهر + دفعات ديون
+            // الشهور السابقة صفوفاً مستقلة موسومة.
+            cases: prosCaseRows(
+              s,
+              clinic,
+              allDebts: ref
+                  .watch(reposProvider)
+                  .debts
+                  .getAll()
+                  .cast<Map<String, Object?>>(),
+              allPros: ref
+                  .watch(reposProvider)
+                  .prosthetics
+                  .getAll()
+                  .cast<Map<String, Object?>>(),
+              doctorPct: doctorPct,
+            ),
             doctorPct: doctorPct,
             month: s.month,
             clinic: clinic,
