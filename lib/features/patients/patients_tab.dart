@@ -22,6 +22,9 @@ import 'archive_store.dart' show PatientArchiveStore;
 import 'clinic_scope.dart' show clinicScopedKey;
 import 'patient_profile_screen.dart' hide JMap;
 import 'patients_logic.dart';
+import '../finance/analyses_registry.dart'
+    show AnalysesRegistryEntry, AnalysesRegistryScreen;
+import '../settings/analyses3.dart' show triAnalysesEnabled;
 import 'quick_visit_sheet.dart' show showQuickVisitSheet;
 import '../staff/staff_gate.dart' show gateStaff, staffAllowed;
 
@@ -300,6 +303,17 @@ class _ClinicsLandingState extends ConsumerState<_ClinicsLanding> {
               ),
         ],
         const SizedBox(height: 12),
+        // م154 — مدخل «إيراد التحاليل الثلاثية»: السجل الدائم انتقل من
+        // الخزينة إلى السجلات (قرار المالك) — يظهر حين الميزة مفعّلة.
+        if (triAnalysesEnabled(ref.watch(appConfigProvider))) ...[
+          AnalysesRegistryEntry(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (_) => const AnalysesRegistryScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         // ── شبكة بطاقات العيادات — تبقى ظاهرة حتى أثناء البحث. ──
         if (cards.isEmpty)
           Padding(

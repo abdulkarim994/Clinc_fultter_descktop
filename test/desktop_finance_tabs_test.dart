@@ -96,7 +96,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     // نص الحالة الفارغة (القسم الأيسر عند عدم الاختيار).
-    expect(find.text('اختر عملية لعرض التفاصيل'), findsOneWidget);
+    expect(find.text('اختر بنداً لعرض جدوله'), findsOneWidget);
   });
 
   // ── تبويب الديون ───────────────────────────────────────────────────────────
