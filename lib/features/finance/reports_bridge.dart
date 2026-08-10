@@ -2,4 +2,4 @@
 /// (يبقي treasury_tables نظيفة الاستيرادات).
 library;
 
-export '../print/reports.dart' show prostheticsReportPdf;
+export '../print/reports.dart' show prosCasesReportPdf, prostheticsReportPdf;

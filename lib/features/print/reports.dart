@@ -17,7 +17,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../../core/utils/js_compat.dart';
 import '../archive/month_stats.dart' show MonthData;
 import '../finance/treasury_logic.dart'
-    show ProsGroup, prosPayLab, prosPayDoc, prosPayClin;
+    show ProsCaseRow, ProsGroup, prosPayLab, prosPayDoc, prosPayClin;
 import '../labs/labs_logic.dart';
 import '../records/tooth_notation.dart'
     show NotationSystem, toothLabelFromTooth;
@@ -736,6 +736,100 @@ Future<Uint8List> prostheticsReportPdf(
         '${_n(clinAll)} $c',
       ],
     ),
+  ]);
+}
+
+/// م159 — تقرير التركيبات الجديد: مرآة الجدول الثماني حرفياً من نفس
+/// مصدر بيانات الشاشة (prosCaseRows) — كل حالةٍ معالجة مستقلة بقسمها
+/// وقيمها، فتتطابق الطباعة مع القائمة رقماً برقم بالبناء.
+Future<Uint8List> prosCasesReportPdf(
+  PdfFonts fonts, {
+  required String title,
+  required String subtitle,
+  required String currency,
+  required List<ProsCaseRow> cases,
+  required List<List<JMap>> caseDetails,
+}) {
+  final c = currency;
+  num tUnits = 0, tTotal = 0, tPaid = 0, tRem = 0, tLab = 0;
+  for (final k in cases) {
+    tUnits += k.units;
+    tTotal += k.total;
+    tPaid += k.paid;
+    tRem += k.remaining;
+    tLab += k.labShare;
+  }
+
+  String caseTitle(ProsCaseRow k) =>
+      '${k.name} — ${k.work} · ${k.date}${k.isDebtPay ? ' · دفعة دين' : ''}';
+
+  return _doc(fonts, [
+    _h1(title),
+    _sub(subtitle),
+    pw.SizedBox(height: 8),
+    // صناديق الإحصاء — نفس أرقام صف إجمالي الجدول في الشاشة.
+    pw.Row(children: [
+      _pfTotalBox('الإجمالي', _n(tTotal), c),
+      _pfTotalBox('المدفوع', _n(tPaid), c),
+      _pfTotalBox('المتبقي', _n(tRem), c),
+      _pfTotalBox('قيم المعامل', _n(tLab), c),
+    ]),
+    // ── الجدول الرئيسي — مرآة جدول الشاشة الثماني ──
+    _secTitle('جدول الحالات'),
+    _table(
+      const [
+        'التاريخ', 'الاسم', 'المعمل', 'نوع العمل', 'وحدات',
+        'الإجمالي', 'المدفوع', 'المتبقي',
+      ],
+      [
+        for (final k in cases)
+          [
+            k.date,
+            '${k.name}${k.isDebtPay ? ' (دفعة دين)' : ''}',
+            k.lab.isEmpty ? '—' : k.lab,
+            k.work,
+            k.units > 0 ? _n(k.units) : '—',
+            '${_n(k.total)} $c',
+            '${_n(k.paid)} $c',
+            '${_n(k.remaining)} $c',
+          ],
+      ],
+      totRow: [
+        'الإجمالي',
+        'قيم المعامل: ${_n(tLab)} $c',
+        '', '',
+        tUnits > 0 ? _n(tUnits) : '—',
+        '${_n(tTotal)} $c',
+        '${_n(tPaid)} $c',
+        '${_n(tRem)} $c',
+      ],
+    ),
+    // ── قسمٌ مستقل لكل حالة (لا تجميع بالاسم — م158) ──
+    for (var i = 0; i < cases.length; i++) ...[
+      _secTitle(caseTitle(cases[i])),
+      _table(
+        const ['التاريخ', 'الدفعة', 'الدفع', 'المخبر', 'الطبيب', 'العيادة'],
+        [
+          for (final r in caseDetails[i])
+            [
+              '${r['date'] ?? ''}',
+              '${_n(r['amount'])} $c',
+              '${r['payment'] ?? ''}',
+              '${_n(r['lab'])} $c',
+              '${_n(r['doc'])} $c',
+              '${_n(r['clin'])} $c',
+            ],
+        ],
+        totRow: [
+          'المجموع',
+          '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['amount'])))} $c',
+          '',
+          '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['lab'])))} $c',
+          '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['doc'])))} $c',
+          '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['clin'])))} $c',
+        ],
+      ),
+    ],
   ]);
 }
 
