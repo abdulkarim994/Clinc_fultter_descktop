@@ -116,10 +116,25 @@ class AnalysesRegistryEntry extends StatelessWidget {
 
 /// بطاقة سجلات التحاليل الثلاثية — نموذجا سطح المكتب والهاتف من مصدرٍ واحد.
 class AnalysesRegistryCard extends ConsumerStatefulWidget {
-  const AnalysesRegistryCard({super.key, this.dense = false});
+  const AnalysesRegistryCard({
+    super.key,
+    this.dense = false,
+    this.showIndex = false,
+    this.showDate = false,
+    this.inlineTotal = false,
+  });
 
   /// true = قائمة الهاتف المكثفة؛ false = جدول سطح المكتب الكامل.
   final bool dense;
+
+  /// م155 — عمود «#» التسلسلي في جدول سطح المكتب (لوح السجلات).
+  final bool showIndex;
+
+  /// م155 — عمود «التاريخ» في جدول سطح المكتب (لوح السجلات).
+  final bool showDate;
+
+  /// م155 — صف «الإجمالي» ختاماً داخل الجدول (مجموع الظاهر بعد الفلاتر).
+  final bool inlineTotal;
 
   @override
   ConsumerState<AnalysesRegistryCard> createState() =>
@@ -360,11 +375,25 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
   Widget _table(List<_JMap> rows, String cur, String Function(Object?) n) {
     final canEdit = staffAllowed('records.edit');
     final canDel = staffAllowed('records.delete');
+    // م155 — إجمالي الظاهر بعد الفلاتر لصفّ الختام داخل الجدول.
+    num visibleSum = 0;
+    for (final r in rows) {
+      visibleSum += jsNumOr0(r['amount']);
+    }
+    final det = staffAllowed('treasury.details');
     return Column(children: [
-      // رأس الجدول — الأعمدة الأربعة بمواصفة المالك + عمود الإجراءات.
+      // رأس الجدول — الأعمدة الأربعة بمواصفة المالك + عمود الإجراءات
+      // (+ م155: «#» والتاريخ اختيارياً في لوح السجلات المكتبي).
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(children: [
+          if (widget.showIndex)
+            SizedBox(
+                width: 26,
+                child: Text('#',
+                    style: _headStyle, textAlign: TextAlign.center)),
+          if (widget.showDate)
+            SizedBox(width: 78, child: Text('التاريخ', style: _headStyle)),
           Expanded(flex: 3, child: Text('اسم المريض', style: _headStyle)),
           Expanded(flex: 2, child: Text('العيادة', style: _headStyle)),
           SizedBox(
@@ -379,10 +408,72 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
         ]),
       ),
       Divider(height: 1, color: BrandColors.line),
-      for (final r in rows) ...[
+      for (var i = 0; i < rows.length; i++) ...[
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          child: _rowCells(rows[i], i, cur, n, canEdit, canDel),
+        ),
+        Divider(height: 1, color: BrandColors.line),
+      ],
+      // م155 — صف الإجمالي ختاماً داخل الجدول (مواصفة المالك).
+      if (widget.inlineTotal)
+        Container(
+          key: const Key('anal-reg-inline-total'),
+          margin: const EdgeInsets.only(top: 2),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color.fromRGBO(46, 125, 90, .06),
+            borderRadius: BorderRadius.circular(8),
+          ),
           child: Row(children: [
+            Expanded(
+              child: Text('الإجمالي (${rows.length} بند)',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: BrandColors.strong)),
+            ),
+            SizedBox(
+              width: 90,
+              child: Text(det ? '${n(visibleSum)} $cur' : '—',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: BrandColors.green,
+                      fontFeatures: [FontFeature.tabularFigures()])),
+            ),
+            const SizedBox(width: 84),
+          ]),
+        ),
+    ]);
+  }
+
+  /// خلايا صف الجدول المكتبي — فُصلت لتُبنى بفهرس التسلسل (م155).
+  Widget _rowCells(_JMap r, int i, String cur, String Function(Object?) n,
+      bool canEdit, bool canDel) {
+    return Row(children: [
+            if (widget.showIndex)
+              SizedBox(
+                  width: 26,
+                  child: Text('${i + 1}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: BrandColors.mut2))),
+            if (widget.showDate)
+              SizedBox(
+                  width: 78,
+                  child: Text('${r['date'] ?? ''}',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          color: BrandColors.mut,
+                          fontFeatures: const [
+                            FontFeature.tabularFigures()
+                          ]))),
             Expanded(
               flex: 3,
               child: Text('${r['name'] ?? r['patient_name'] ?? ''}',
@@ -436,11 +527,7 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
                   ),
               ]),
             ),
-          ]),
-        ),
-        Divider(height: 1, color: BrandColors.line),
-      ],
-    ]);
+          ]);
   }
 
   // ── قائمة الهاتف المكثفة ─────────────────────────────────────────────────
