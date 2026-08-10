@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../staff/staff_session.dart' show kCurrentStaff, staffCan, staffIsAdmin;
 import '../desktop_shell.dart' show desktopTabProvider;
+import '../../labs/lab_logo.dart';
 import 'labs_desktop.dart';
 
 /// حالة عرض شاشة التركيبات داخل التبويب.
@@ -112,6 +113,7 @@ class _DesktopAdditionalScreenState
           if (_labAllowed)
             _ToolCard(
               key: const Key('extra-labs'),
+              isLab: true,
               icon: Icons.biotech_rounded,
               iconColor: BrandColors.brand700,
               iconBg: BrandColors.brand600.withValues(alpha: .1),
@@ -159,6 +161,7 @@ class _ToolCard extends StatefulWidget {
     this.badge,
     this.badgeColor,
     this.actionIcon,
+    this.isLab = false,
   });
 
   final IconData icon;
@@ -170,6 +173,7 @@ class _ToolCard extends StatefulWidget {
   final String? badge;
   final Color? badgeColor;
   final IconData? actionIcon;
+  final bool isLab;
 
   @override
   State<_ToolCard> createState() => _ToolCardState();
@@ -220,7 +224,9 @@ class _ToolCardState extends State<_ToolCard> {
                   border: Border.all(
                       color: widget.iconColor.withValues(alpha: .2)),
                 ),
-                child: Icon(widget.icon, color: widget.iconColor, size: 26),
+                child: widget.isLab
+                    ? LabLogo(size: 26, color: widget.iconColor)
+                    : Icon(widget.icon, color: widget.iconColor, size: 26),
               ),
               const SizedBox(width: 14),
               Expanded(
