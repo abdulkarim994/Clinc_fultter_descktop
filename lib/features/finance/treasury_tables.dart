@@ -206,6 +206,45 @@ class _TreasuryMovesTableState extends ConsumerState<TreasuryMovesTable> {
   /// م154/د — الفرز: 'date' (الأحدث أولاً — الافتراضي) أو 'name'.
   String _sort = 'date';
 
+  // ── م156 — أعمدة قابلة لتغيير العرض (سطح المكتب غير المكثف):
+  // مقابض سحبٍ عمودية في الرأس تعدّل هذه القيم بحدود آمنة.
+  double _wDate = 96;
+  double _wPay = 58;
+  double _wVal = 96;
+
+  /// مقبض سحب بين عمودين — يظهر شرطة رفيعة ويغيّر العرض بالسحب.
+  /// [apply] تستقبل إزاحة السحب الأفقية (dx) وتعدّل عرض عمودها.
+  Widget _grip(void Function(double dx) apply, {required Key key}) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeColumn,
+      child: GestureDetector(
+        key: key,
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragUpdate: (d) => setState(() => apply(d.delta.dx)),
+        child: SizedBox(
+          width: 10,
+          height: 20,
+          child: Center(
+            child: Container(
+              width: 2.5,
+              height: 14,
+              decoration: BoxDecoration(
+                color: BrandColors.line,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// فاصل الأعمدة: مقبض سحب على سطح المكتب، وفجوة ثابتة في المكثف.
+  Widget _colGap(void Function(double dx)? apply, {Key? key}) =>
+      (!widget.dense && apply != null)
+          ? _grip(apply, key: key!)
+          : const SizedBox(width: 8);
+
   @override
   void dispose() {
     _searchCtl.dispose();
@@ -400,22 +439,29 @@ class _TreasuryMovesTableState extends ConsumerState<TreasuryMovesTable> {
           ),
         ),
         const SizedBox(height: 8),
-        // ── رأس الجدول ───────────────────────────────────────────────────
+        // ── رأس الجدول — م156: فواصل واضحة بين الأعمدة، ومقابض سحبٍ
+        // على سطح المكتب تغيّر عرض التاريخ/الدفع/القيمة بحدود آمنة. ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(children: [
             SizedBox(
-                width: widget.dense ? 74 : 90,
+                width: widget.dense ? 74 : _wDate,
                 child: Text('التاريخ', style: _head())),
+            _colGap((dx) => _wDate = (_wDate - dx).clamp(70, 170),
+                key: const Key('tr2-grip-date')),
             Expanded(child: Text('الاسم', style: _head())),
             if (widget.showService)
               Expanded(child: Text('نوع العلاج', style: _head())),
+            _colGap((dx) => _wPay = (_wPay - dx).clamp(46, 110),
+                key: const Key('tr2-grip-pay')),
             SizedBox(
-                width: 58,
+                width: widget.dense ? 58 : _wPay,
                 child: Text('الدفع',
                     style: _head(), textAlign: TextAlign.center)),
+            _colGap((dx) => _wVal = (_wVal - dx).clamp(70, 180),
+                key: const Key('tr2-grip-val')),
             SizedBox(
-                width: widget.dense ? 76 : 96,
+                width: widget.dense ? 76 : _wVal,
                 child: Text('القيمة',
                     style: _head(), textAlign: TextAlign.center)),
           ]),
@@ -437,13 +483,16 @@ class _TreasuryMovesTableState extends ConsumerState<TreasuryMovesTable> {
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
               child: Row(children: [
                 SizedBox(
-                  width: widget.dense ? 74 : 90,
+                  width: widget.dense ? 74 : _wDate,
                   child: Text('${r['date'] ?? ''}',
                       style: TextStyle(
                           fontSize: fs - 1,
                           fontWeight: FontWeight.w700,
                           color: BrandColors.ink)),
                 ),
+                // م156 — فاصل بين التاريخ والاسم (كانا ملتصقين) —
+                // بعرض مقبض الرأس نفسه كي تتحاذى الأعمدة.
+                SizedBox(width: widget.dense ? 8 : 10),
                 Expanded(
                   child: Text(
                       '${r['name'] ?? r['patient_name'] ?? r['title'] ?? ''}',
@@ -462,9 +511,13 @@ class _TreasuryMovesTableState extends ConsumerState<TreasuryMovesTable> {
                             fontWeight: FontWeight.w700,
                             color: BrandColors.strong)),
                   ),
-                SizedBox(width: 58, child: Center(child: _chip(_payOf(r)))),
+                SizedBox(width: widget.dense ? 8 : 10),
                 SizedBox(
-                  width: widget.dense ? 76 : 96,
+                    width: widget.dense ? 58 : _wPay,
+                    child: Center(child: _chip(_payOf(r)))),
+                SizedBox(width: widget.dense ? 8 : 10),
+                SizedBox(
+                  width: widget.dense ? 76 : _wVal,
                   child: Text(n(jsNumOr0(r['amount'])),
                       textAlign: TextAlign.center,
                       style: TextStyle(
@@ -1023,7 +1076,8 @@ class TreasuryTotalsTable extends ConsumerWidget {
     required this.month,
     required this.clinicsCash,
     required this.clinicsXfer,
-    required this.clinicsGrand,
+    required this.prosCash,
+    required this.prosXfer,
     required this.analCash,
     required this.analXfer,
     required this.expCash,
@@ -1037,8 +1091,12 @@ class TreasuryTotalsTable extends ConsumerWidget {
   final num clinicsCash;
   final num clinicsXfer;
 
-  /// المحصّل الشامل للعيادات (يتضمن التركيبات المدفوعة).
-  final num clinicsGrand;
+  /// م156 — «المدفوع للتركيبات» موزعاً كاش/تحويل في صفٍّ مستقل (قرار
+  /// المالك): كان مدموجاً في عمود إجمالي العيادات وحده فلا يطابق
+  /// العمودان أمامه (بلاغ 90,715 ≠ 23,200 + 40,215) — الآن كل صفٍّ
+  /// يجمع عمودَيه حرفياً، وقيمة الصافي الكلية كما هي (م111 محفوظ).
+  final num prosCash;
+  final num prosXfer;
   final num analCash;
   final num analXfer;
   final num expCash;
@@ -1124,8 +1182,15 @@ class TreasuryTotalsTable extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Divider(height: 1, color: BrandColors.line),
-            row('إيراد العيادات', clinicsCash, clinicsXfer, clinicsGrand,
+            // م156 — صف العيادات للحركات وحدها: كاش + تحويل = الإجمالي.
+            row('إيراد العيادات', clinicsCash, clinicsXfer,
+                clinicsCash + clinicsXfer,
                 color: BrandColors.brand700, key: const Key('tr2-tot-clinics')),
+            Divider(height: 1, color: BrandColors.line),
+            // م156 — التركيبات المدفوعة صفٌّ مستقل موزعاً كاش/تحويل.
+            row('التركيبات (المدفوع)', prosCash, prosXfer,
+                prosCash + prosXfer,
+                color: BrandColors.goldDark, key: const Key('tr2-tot-pros')),
             Divider(height: 1, color: BrandColors.line),
             row('إيراد التحاليل الثلاثية', analCash, analXfer,
                 analCash + analXfer,
@@ -1134,11 +1199,15 @@ class TreasuryTotalsTable extends ConsumerWidget {
             row('المصروفات', expCash, expXfer, expTotal,
                 color: BrandColors.red, key: const Key('tr2-tot-exp')),
             const SizedBox(height: 10),
+            // م156 — الصافي متسق عمودياً: كل عمود يجمع أعمدته فوقه،
+            // وقيمته الإجمالية = العيادات + التركيبات + التحاليل −
+            // المصروفات (نفس قيمة م111 السابقة حرفياً).
             row(
               'صافي الخزينة (بعد الخصم)',
-              clinicsCash + analCash - expCash,
-              clinicsXfer + analXfer - expXfer,
-              clinicsGrand + analCash + analXfer - expTotal,
+              clinicsCash + prosCash + analCash - expCash,
+              clinicsXfer + prosXfer + analXfer - expXfer,
+              (clinicsCash + prosCash + analCash - expCash) +
+                  (clinicsXfer + prosXfer + analXfer - expXfer),
               color: BrandColors.brand900,
               key: const Key('tr2-tot-net'),
               emphasize: true,
