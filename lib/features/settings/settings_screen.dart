@@ -205,6 +205,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   List<Map<String, TextEditingController>> waTpls = [];
   List<TextEditingController> labCtls = [];
   List<(TextEditingController, TextEditingController)> labTypeCtls = [];
+
+  /// م162 — المختبر الذي تُحرَّر أنواعه حالياً (لكل مختبر أنواعه وأسعاره).
+  String labTypesEditLab = '';
   bool _seeded = false;
   // م87 — تفضيلات القفل محليّة (sync_meta) لا من app.config المُزامَن.
   bool _lockOnStart = true;
@@ -327,6 +330,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ];
     labTypeCtls = [
       for (final t in (cfg['labTypes'] as List? ?? const []))
+        if (t is Map)
+          (
+            TextEditingController(text: '${t['name'] ?? ''}'),
+            TextEditingController(
+              text: jsNumOr0(t['defaultPrice']).toStringAsFixed(0),
+            ),
+          ),
+    ];
+  }
+
+  /// م162 — تحميل أنواع المختبر المحدد إلى المحرر (بالتراجع للقائمة
+  /// العامة القديمة حين لا قائمة خاصة له — توافق خلفي كامل).
+  void _loadLabTypeCtls(JMap cfg, String lab) {
+    for (final (a, b) in labTypeCtls) {
+      a.dispose();
+      b.dispose();
+    }
+    List src = const [];
+    final byLab = cfg['labTypesByLab'];
+    if (lab.isNotEmpty && byLab is Map && byLab[lab] is List &&
+        (byLab[lab] as List).isNotEmpty) {
+      src = byLab[lab] as List;
+    } else if (cfg['labTypes'] is List) {
+      src = cfg['labTypes'] as List;
+    }
+    labTypeCtls = [
+      for (final t in src)
         if (t is Map)
           (
             TextEditingController(text: '${t['name'] ?? ''}'),
@@ -3793,7 +3823,96 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _secH('أنواع التركيبات'),
+              _secH('أنواع التركيبات وأسعارها — لكل مختبر'),
+              // م162 — اختيار المختبر الذي تُحرَّر أنواعه + نسخ من آخر.
+              Builder(builder: (context) {
+                final labNames = [
+                  for (final c in labCtls)
+                    if (c.text.trim().isNotEmpty) c.text.trim(),
+                ];
+                if (labNames.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text('أضف مختبراً أولاً من القائمة أعلاه',
+                        style: TextStyle(
+                            fontSize: 11.5, color: BrandColors.mut2)),
+                  );
+                }
+                if (labTypesEditLab.isEmpty ||
+                    !labNames.contains(labTypesEditLab)) {
+                  labTypesEditLab = labNames.first;
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        key: const Key('labtypes-lab'),
+                        isExpanded: true,
+                        initialValue: labTypesEditLab,
+                        decoration: const InputDecoration(
+                            isDense: true, labelText: 'المختبر'),
+                        items: [
+                          for (final l in labNames)
+                            DropdownMenuItem(
+                                value: l,
+                                child: Text(l,
+                                    style:
+                                        const TextStyle(fontSize: 12))),
+                        ],
+                        onChanged: (v) => setState(() {
+                          labTypesEditLab = v ?? labNames.first;
+                          _loadLabTypeCtls(
+                              ref.read(appConfigProvider),
+                              labTypesEditLab);
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // م162 — اقتراح المساعد: نسخ أنواع مختبرٍ آخر.
+                    PopupMenuButton<String>(
+                      key: const Key('labtypes-copy'),
+                      tooltip: 'نسخ الأنواع من مختبر آخر',
+                      icon: const Icon(Icons.copy_all_rounded,
+                          size: 17, color: BrandColors.goldDark),
+                      onSelected: (from) => setState(() {
+                        final cfg0 = ref.read(appConfigProvider);
+                        final byLab = cfg0['labTypesByLab'];
+                        List src = const [];
+                        if (byLab is Map && byLab[from] is List) {
+                          src = byLab[from] as List;
+                        } else if (cfg0['labTypes'] is List) {
+                          src = cfg0['labTypes'] as List;
+                        }
+                        for (final (a, b) in labTypeCtls) {
+                          a.dispose();
+                          b.dispose();
+                        }
+                        labTypeCtls = [
+                          for (final t in src)
+                            if (t is Map)
+                              (
+                                TextEditingController(
+                                    text: '${t['name'] ?? ''}'),
+                                TextEditingController(
+                                    text: jsNumOr0(t['defaultPrice'])
+                                        .toStringAsFixed(0)),
+                              ),
+                        ];
+                      }),
+                      itemBuilder: (context) => [
+                        for (final l in labNames)
+                          if (l != labTypesEditLab)
+                            PopupMenuItem(
+                                value: l,
+                                child: Text('نسخ من: $l',
+                                    style: const TextStyle(
+                                        fontSize: 12))),
+                      ],
+                    ),
+                  ]),
+                );
+              }),
               for (var i = 0; i < labTypeCtls.length; i++)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
@@ -3903,20 +4022,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     visualDensity: VisualDensity.compact,
                   ),
                   onPressed: () {
+                    // م162 — الحفظ لقائمة المختبر المحدد وحده
+                    // (labTypesByLab) — يتزامن عبر app.config كالمعتاد.
+                    if (labTypesEditLab.isEmpty) {
+                      _snack('اختر مختبراً أولاً');
+                      return;
+                    }
                     _update(
                       (c) => {
                         ...c,
-                        'labTypes': [
-                          for (final (nameCtl, priceCtl) in labTypeCtls)
-                            if (nameCtl.text.trim().isNotEmpty)
-                              {
-                                'name': nameCtl.text.trim(),
-                                'defaultPrice': jsNumOr0(priceCtl.text),
-                              },
-                        ],
+                        'labTypesByLab': {
+                          ...(c['labTypesByLab'] is Map
+                              ? Map<String, Object?>.from(
+                                  c['labTypesByLab'] as Map)
+                              : <String, Object?>{}),
+                          labTypesEditLab: [
+                            for (final (nameCtl, priceCtl) in labTypeCtls)
+                              if (nameCtl.text.trim().isNotEmpty)
+                                {
+                                  'name': nameCtl.text.trim(),
+                                  'defaultPrice': jsNumOr0(priceCtl.text),
+                                },
+                          ],
+                        },
                       },
                     );
-                    _snack('تم حفظ الأنواع');
+                    _snack('تم حفظ أنواع $labTypesEditLab');
                   },
                   child: const Text(
                     'حفظ الأنواع',

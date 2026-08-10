@@ -1043,7 +1043,11 @@ void main() {
       final cfg = Map<String, Object?>.from(
         chk.read(reposProvider).settings.get('app.config') as Map,
       );
-      final types = cfg['labTypes'] as List;
+      // م162 — الحفظ صار لقائمة المختبر المحدد (labTypesByLab):
+      // المحرر حُمِّل بالتراجع من القائمة العامة (زيركون) ثم أُضيف
+      // بورسلين ⇒ قائمة «مخبر النور» الخاصة بها النوعان.
+      final byLab = cfg['labTypesByLab'] as Map;
+      final types = byLab['مخبر النور'] as List;
       expect(types, hasLength(2));
       expect(
         types.any(
@@ -1080,6 +1084,14 @@ void main() {
         scrollable: vScrollable(),
       );
       await tester.pump();
+      // م162 — الأنواع صارت لكل مختبر: نختار المختبر أولاً فتظهر أنواعه.
+      await tester.tap(
+        find.byKey(const Key('rec-labname')),
+        warnIfMissed: false,
+      );
+      await settle(tester);
+      await tester.tap(find.text('مخبر النور').last, warnIfMissed: false);
+      await settle(tester);
       await tester.tap(
         find.byKey(const Key('rec-prostype')),
         warnIfMissed: false,

@@ -22,13 +22,21 @@ class LabLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.memory(
-      _labLogoBytes,
+    // م162 — هامش داخلي تلقائي (~18%): أيقونات الخط تحمل هوامش مدمجة
+    // بينما الصورة تملأ إطارها، فكانت تبدو أضخم من أخواتها (بلاغ المالك).
+    return SizedBox(
       width: size,
       height: size,
-      color: color,
-      filterQuality: FilterQuality.medium,
-      gaplessPlayback: true,
+      child: Center(
+        child: Image.memory(
+          _labLogoBytes,
+          width: size * .82,
+          height: size * .82,
+          color: color,
+          filterQuality: FilterQuality.medium,
+          gaplessPlayback: true,
+        ),
+      ),
     );
   }
 }
