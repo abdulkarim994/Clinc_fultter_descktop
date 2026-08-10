@@ -89,7 +89,7 @@ void main() {
       ];
 
   /// يبذر: زيارتين بتحليلين هذا الشهر (أحمد|الصفوة|كاش، سارة|النخبة|تحويل)
-  /// + تحليلاً قديماً (قبل شهرين — خارج نطاق البطاقة) لخالد.
+  /// + تحليلاً قديماً (قبل شهرين — يظهر في الأرشيف خارج إجمالي الشهر).
   void seed() {
     final c = ProviderContainer(overrides: overrides());
     final repos = c.read(reposProvider);
@@ -184,7 +184,8 @@ void main() {
       // صفّا الشهر الجاري ظاهران والقديم غائب.
       expect(find.text('أحمد'), findsOneWidget);
       expect(find.text('سارة'), findsOneWidget);
-      expect(find.text('خالد'), findsNothing);
+      // م154 — السجل أرشيف كامل: القديم يظهر أيضاً، والتذييل شهري فقط.
+      expect(find.text('خالد'), findsOneWidget);
       // التذييل: 50 + 50 = 100.
       final total = t.widget<Text>(find.byKey(const Key('anal-reg-total')));
       expect(total.data, contains('100'));

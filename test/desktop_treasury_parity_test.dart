@@ -202,226 +202,89 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  // ── (1) بطاقات العيادات بالخانات الثلاث ──────────────────────────────────
+  // ═══ م154 — اختبارات الخزينة المكتبية الجديدة (جداول بوضعين) ═══
 
-  testWidgets('بطاقة مستقلة لكل عيادة بخاناتها الثلاث بالأرقام الصحيحة',
+  testWidgets('صفوف القائمة الرئيسية بإجمالياتها الشهرية', (tester) async {
+    await boot(tester, seedFn: seed);
+    expect(find.byKey(const Key('tr2-row-ع1')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-row-anal')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-row-exp')), findsOneWidget);
+    // إجمالي ع1 = كاش 300 + تحويل 300 + تركيبات مدفوعة 3,000 = 3,600.
+    expect(find.textContaining('3,600'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('تفصيل العيادة: جدول الحركات وفلترة كاش والمجموع الظاهر',
       (tester) async {
     await boot(tester, seedFn: seed);
-
-    // بطاقة العيادة موجودة.
-    expect(find.byKey(const Key('tr-desk-clinic-ع1')), findsOneWidget);
-    // الخانات الثلاث.
-    expect(find.byKey(const Key('tr-desk-cash-ع1')), findsOneWidget);
-    expect(find.byKey(const Key('tr-desk-xfer-ع1')), findsOneWidget);
-    expect(find.byKey(const Key('tr-desk-pros-ع1')), findsOneWidget);
-
-    // كاش = 120 + 80 + 100(دفعة دين ليلى الأولى كاش) = 300 (توأم
-    // clinicCash الذي يضم regDebtPays)، تحويل = 300، التركيبات المدفوعة
-    // = 3,000 (كامل الدين المسدّد بدفعتين).
-    Text cellValue(String k) {
-      final cell = find.descendant(
-        of: find.byKey(Key(k)),
-        matching: find.byWidgetPredicate(
-            (w) => w is Text && (w.data ?? '').isNotEmpty),
-      );
-      return tester.widgetList<Text>(cell).firstWhere(
-          (t) => t.data != 'كاش' && t.data != 'تحويل' &&
-              t.data != 'تركيبات' && t.data != 'د.ل');
-    }
-
-    expect(cellValue('tr-desk-cash-ع1').data, '300');
-    expect(cellValue('tr-desk-xfer-ع1').data, '300');
-    expect(cellValue('tr-desk-pros-ع1').data, '3,000');
+    await tester.tap(find.byKey(const Key('tr2-row-ع1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tr2-detail-pane')), findsOneWidget);
+    // المجموع الظاهر (الكل) = كاش 300 + تحويل 300 = 600.
+    expect(
+        tester
+            .widget<Text>(find.byKey(const Key('tr2-visible-total')))
+            .data,
+        '600');
+    // فلترة كاش ⇒ 300.
+    await tester.tap(find.descendant(
+        of: find.byKey(const Key('tr2-pay-filter')),
+        matching: find.text('كاش')));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<Text>(find.byKey(const Key('tr2-visible-total')))
+            .data,
+        '300');
     expect(tester.takeException(), isNull);
   });
 
-  // ── (2) النقر يفتح التفصيل بقائمة البنود + البحث يقلّص + إجمالي الفئة ──────
-
-  testWidgets('نقر كاش يفتح التفصيل بقائمة البنود وإجمالي الفئة الصحيح',
+  testWidgets('التركيبات بمستويين: قائمة المرضى ثم جدول الدفعات بإجماليه',
       (tester) async {
     await boot(tester, seedFn: seed);
-
-    // الحالة الفارغة أولاً (لا تفصيل).
-    expect(find.text('اختر عملية لعرض التفاصيل'), findsOneWidget);
-
-    // نقر خانة الكاش يفتح لوح التفصيل.
-    await tester.tap(find.byKey(const Key('tr-desk-cash-ع1')));
-    await tester.pump(const Duration(milliseconds: 300));
-
-    expect(find.byKey(const Key('tr-desk-detail-list')), findsOneWidget);
-    // العيادة والفئة في ترويسة التفصيل.
-    expect(find.byKey(const Key('tr-desk-detail-clinic')), findsOneWidget);
-    // بنود الكاش: أحمد + بدر (والدفعة الأولى من دين ليلى 100 كاش).
-    expect(find.text('أحمد'), findsOneWidget);
-    expect(find.text('بدر'), findsOneWidget);
-    // إجمالي الفئة (كاش) = 120 + 80 + 100(دفعة دين ليلى) = 300.
-    final total = tester.widget<Text>(
-        find.byKey(const Key('tr-desk-detail-total')));
-    expect(total.data, '300 د.ل');
-
-    // البحث بالاسم «أحمد» يقلّص القائمة لعنصرٍ واحد. (نطاق البحث داخل
-    // قائمة التفصيل فقط — النص يظهر أيضاً في حقل البحث نفسه بعد الكتابة.)
-    await tester.enterText(
-        find.byKey(const Key('tr-desk-search')), 'أحمد');
-    await tester.pump(const Duration(milliseconds: 300));
-    final inList = find.descendant(
-      of: find.byKey(const Key('tr-desk-detail-list')),
-      matching: find.text('أحمد'),
-    );
-    expect(inList, findsOneWidget);
-    expect(find.text('بدر'), findsNothing);
-    // إجمالي الفئة بعد التصفية = 120.
-    final total2 = tester.widget<Text>(
-        find.byKey(const Key('tr-desk-detail-total')));
-    expect(total2.data, '120 د.ل');
+    await tester.tap(find.byKey(const Key('tr2-row-ع1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('التركيبات'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tr2-pros-g-خالد')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('tr2-pros-g-خالد')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tr2-pros-footer')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-pros-pay')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-pros-back')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  // ── (3) شريط الإجماليات السفلي: قبل/مصروفات/بعد بالأرقام الصحيحة ──────────
-
-  testWidgets('شريط الإجماليات يعرض المحصّل والمصروفات والصوافي والديون',
+  testWidgets('وضع «الإجمالي»: الجدول بصفوفه الأربعة وصافي الخزينة',
       (tester) async {
     await boot(tester, seedFn: seed);
-
-    // (أ) الدخل الفعلي المحصّل (قبل المصروفات) = كاش 300 + تحويل 300 +
-    //     كامل التركيبة المدفوعة 3,000 = 3,600.
-    final grand =
-        tester.widget<Text>(find.byKey(const Key('tr-desk-grand')));
-    expect(grand.data, '3,600 د.ل');
-
-    // (ب) صف المصروفات: كاش 50، تحويل 0، الإجمالي 50.
-    expect(
-        tester
-            .widget<Text>(find.byKey(const Key('tr-desk-exp-cash')))
-            .data,
-        '50');
-    expect(
-        tester
-            .widget<Text>(find.byKey(const Key('tr-desk-exp-total')))
-            .data,
-        '50');
-
-    // (ج) الصوافي: صافي الكاش = 300 − 50 = 250، صافي الخزينة = 3,600 − 50
-    //     = 3,550.
-    expect(
-        tester
-            .widget<Text>(find.byKey(const Key('tr-desk-cash-net')))
-            .data,
-        '250');
-    expect(
-        tester
-            .widget<Text>(find.byKey(const Key('tr-desk-grand-net')))
-            .data,
-        '3,550 د.ل');
-
-    // (د) ذيل الديون المعلقة = 400 (دين ليلى المتبقي).
-    expect(find.byKey(const Key('tr-desk-open-debts')), findsOneWidget);
-    expect(
-        tester
-            .widget<Text>(find.byKey(const Key('tr-desk-debt-rem')))
-            .data,
-        '400');
+    await tester.tap(find.text('الإجمالي'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('tr2-totals-table')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-tot-clinics')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-tot-anal')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-tot-exp')), findsOneWidget);
+    expect(find.byKey(const Key('tr2-tot-net')), findsOneWidget);
+    // الصافي الشامل = المحصّل 3,600 + تحاليل 0 − مصروفات 50 = 3,550.
+    expect(find.textContaining('3,550'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  // ── (3ب) ذيل الديون ينقل لتبويب الديون المكتبي ───────────────────────────
-
-  testWidgets('نقر ذيل الديون المعلقة ينقل لتبويب الديون', (tester) async {
-    await boot(tester, seedFn: seed);
-    await tester.tap(find.byKey(const Key('tr-desk-open-debts')));
-    await tester.pump(const Duration(milliseconds: 300));
-    // انتقلنا لشاشة الديون المكتبية (تبويب الديون نشط).
-    expect(find.byKey(const Key('desk-tab-debts')), findsWidgets);
-    expect(tester.takeException(), isNull);
-  });
-
-  // ── (4) زر الطباعة موجود في قمع الأدوات ──────────────────────────────────
-
-  testWidgets('زر الطباعة موجود في قمع أدوات التفصيل', (tester) async {
-    await boot(tester, seedFn: seed);
-    await tester.tap(find.byKey(const Key('tr-desk-cash-ع1')));
-    await tester.pump(const Duration(milliseconds: 300));
-
-    // فتح قمع الأدوات.
-    await tester.tap(find.byKey(const Key('tr-desk-tools')));
-    await tester.pump(const Duration(milliseconds: 300));
-    // عنصر الطباعة ظاهر.
-    expect(find.byKey(const Key('tr-desk-print')), findsOneWidget);
-    // وأنماط الفرز الأربعة موجودة.
-    expect(find.byKey(const Key('tr-desk-sort-date-desc')), findsOneWidget);
-    expect(find.byKey(const Key('tr-desk-sort-name-asc')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
-  // ── (5) تفصيل التركيبات: المسار المجمّع الكامل كالهاتف ────────────────────
-
-  testWidgets('تفصيل التركيبات: مجموعة المريض والحالة والدفعات المرقمة',
-      (tester) async {
-    await boot(tester, seedFn: seed);
-    await tester.tap(find.byKey(const Key('tr-desk-pros-ع1')));
-    await tester.pump(const Duration(milliseconds: 300));
-
-    // تبويب التركيبات نشط.
-    expect(find.byKey(const Key('tr-desk-cat-pros')), findsOneWidget);
-    // بطاقة مجموعة المريض.
-    expect(find.byKey(const Key('tr-desk-prosgroup-خالد')), findsOneWidget);
-
-    // توسيع المجموعة يكشف الحالة والدفعتين المرقمتين.
-    await tester.tap(find.byKey(const Key('tr-desk-prosgroup-خالد')));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('دفعة 1'), findsOneWidget);
-    expect(find.text('دفعة 2'), findsOneWidget);
-    // مجاميع المجموعة: معمل 1,500 وطبيب 600 وعيادة 900 (أرقام اللقطة 40%).
-    expect(find.text('1,500'), findsWidgets);
-    expect(find.text('600'), findsWidgets);
-    expect(find.text('900'), findsWidgets);
-    // إجمالي الفئة (تركيبات) = مجموع حصص الطبيب = 600.
-    final total = tester.widget<Text>(
-        find.byKey(const Key('tr-desk-detail-total')));
-    expect(total.data, '600 د.ل');
-    expect(tester.takeException(), isNull);
-  });
-
-  // ── (6) بلا صلاحية treasury.details: «—» والبطاقات باقية ──────────────────
-
-  testWidgets('بلا صلاحية treasury.details: الأرقام «—» والبطاقات تبقى',
+  testWidgets('بلا صلاحية treasury.details: الشرطات بدل الأرقام',
       (tester) async {
     await boot(
       tester,
       seedFn: seed,
-      // موظفٌ بلا treasury.details ⇒ الأرقام تُحجب لكن البطاقات تظهر.
-      staff: <String, Object?>{
-        'id': 'u1',
+      staff: {
         'username': 'staff',
         'name': 'موظف مقيّد',
         'role': 'staff',
         'perms': <String, Object?>{'treasury.view': true},
       },
     );
-
-    // البطاقة والخانات باقية.
-    expect(find.byKey(const Key('tr-desk-clinic-ع1')), findsOneWidget);
-    expect(find.byKey(const Key('tr-desk-cash-ع1')), findsOneWidget);
-    expect(find.byKey(const Key('tr-desk-xfer-ع1')), findsOneWidget);
-    expect(find.byKey(const Key('tr-desk-pros-ع1')), findsOneWidget);
-    // م149 — مدخل «سجلات التحاليل الثلاثية» المستقل بدل الخانة الرابعة.
-    expect(find.byKey(const Key('tr-desk-anal-registry')), findsOneWidget);
-
-    // الأرقام «—» بدلاً من القيم (ثلاث خانات + إجمالي مدخل السجل).
-    expect(find.text('—'), findsNWidgets(4));
-
-    // بطاقة المحصّل والصوافي والديون محجوبة (خلف الصلاحية).
-    expect(find.byKey(const Key('tr-desk-grand')), findsNothing);
-    expect(find.byKey(const Key('tr-desk-cash-net')), findsNothing);
-    expect(find.byKey(const Key('tr-desk-open-debts')), findsNothing);
-
-    // صف المصروفات يظهر للجميع (مصروف كاش 50 مزروع).
-    expect(find.byKey(const Key('tr-desk-exp-total')), findsOneWidget);
-
-    // النقر لا يزال يفتح التفصيل (تفصيل متاح كالهاتف).
-    await tester.tap(find.byKey(const Key('tr-desk-cash-ع1')));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byKey(const Key('tr-desk-detail-list')), findsOneWidget);
+    // ثلاثة صفوف رئيسية كلها «—» (عيادة + تحاليل + مصروفات).
+    expect(find.byKey(const Key('tr2-row-ع1')), findsOneWidget);
+    expect(find.text('—'), findsNWidgets(3));
     expect(tester.takeException(), isNull);
   });
 }

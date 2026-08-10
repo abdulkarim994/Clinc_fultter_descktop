@@ -27,25 +27,91 @@ import '../print/treatment_tables.dart' show formatNumber;
 import '../settings/analyses3.dart' show kTriAnalysesName;
 import '../staff/staff_gate.dart' show staffAllowed;
 import 'analyses_filter.dart'
-    show currentMonthRows, currentMonthTotal, filterAnalysesRows;
+    show currentMonthTotal, filterAnalysesRows;
 import 'finance_screen.dart' show financeRevProvider;
 
 typedef _JMap = Map<String, Object?>;
 
-/// صفوف السجل النقية: تحاليل الشهر الجاري مرتبةً الأحدث أولاً.
+/// صفوف السجل النقية — م154: **الأرشيف الكامل** (كل الشهور) مرتباً الأحدث
+/// أولاً بمنع تكرارٍ بالمعرّف — السجل الدائم في «السجلات» لا يصفر أبداً؛
+/// التصفير الشهري صار شأن الخزينة الجديدة وحدها.
 List<Map<String, Object?>> analysesRegistryRows(
-  List<Map<String, Object?>> records, {
-  required String today,
-}) {
-  final month = currentMonthRows(
-    [
-      for (final r in records)
-        if (jsTruthy(r['isAnalysis'])) r,
-    ],
-    today: today,
-  );
-  month.sort((a, b) => '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'));
-  return month;
+  List<Map<String, Object?>> records) {
+  final seen = <String>{};
+  final out = <Map<String, Object?>>[
+    for (final r in records)
+      if (jsTruthy(r['isAnalysis']) &&
+          '${r['id'] ?? ''}'.isNotEmpty &&
+          seen.add('${r['id']}'))
+        r,
+  ];
+  out.sort((a, b) => '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'));
+  return out;
+}
+
+/// م154 — شاشة «إيراد التحاليل الثلاثية» داخل السجلات (الهاتف): السجل
+/// الدائم الكامل بفلاتره — انتقل من الخزينة بقرار المالك، فالخزينة صارت
+/// شهريةً تصفر وهذا أرشيفٌ تاريخي لا يصفر.
+class AnalysesRegistryScreen extends StatelessWidget {
+  const AnalysesRegistryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('إيراد التحاليل الثلاثية',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+        centerTitle: true,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+        children: const [AnalysesRegistryCard(dense: true)],
+      ),
+    );
+  }
+}
+
+/// م154 — مدخل السجل المثبّت (بطاقة/صفّ مضغوط): يظهر أعلى قائمة المرضى
+/// على الجهازين ويفتح السجل الكامل — لا يظهر إلا حين الميزة مفعّلة.
+class AnalysesRegistryEntry extends StatelessWidget {
+  const AnalysesRegistryEntry({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: BrandColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: BrandColors.green.withValues(alpha: .35)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const Key('anal-registry-entry'),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(children: [
+            Icon(Icons.biotech_rounded, size: 18, color: BrandColors.green),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('إيراد التحاليل الثلاثية',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: BrandColors.brandText)),
+            ),
+            Text('السجل الكامل',
+                style: TextStyle(fontSize: 11, color: BrandColors.mut2)),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_left_rounded,
+                size: 18, color: BrandColors.mut),
+          ]),
+        ),
+      ),
+    );
+  }
 }
 
 /// بطاقة سجلات التحاليل الثلاثية — نموذجا سطح المكتب والهاتف من مصدرٍ واحد.
@@ -92,12 +158,11 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
     final today = getCurrentDate();
     final month = today.length >= 7 ? today.substring(0, 7) : today;
 
-    final monthRows = analysesRegistryRows(
+    final allRows = analysesRegistryRows(
       repos.records.getAll().cast<Map<String, Object?>>(),
-      today: today,
     );
     final visible = filterAnalysesRows(
-      monthRows,
+      allRows,
       query: _searchCtl.text,
       mode: _mode,
       clinic: _clinic,
@@ -107,6 +172,8 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
 
     return Card(
       key: const Key('anal-reg-card'),
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         child: Column(
@@ -143,8 +210,8 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Center(
                   child: Text(
-                    monthRows.isEmpty
-                        ? 'لا تحاليل مسجلة هذا الشهر'
+                    allRows.isEmpty
+                        ? 'لا تحاليل مسجلة بعد'
                         : 'لا نتائج مطابقة للفلاتر',
                     key: const Key('anal-reg-empty'),
                     style: TextStyle(fontSize: 12, color: BrandColors.mut),

@@ -157,46 +157,29 @@ void main() {
       );
       await settle(tester);
 
-      // بطاقات ع1: كاش = 100 + دفعة أولى 100 = 200 ؛ تحويل = 200 ؛
-      // التركيبات المدفوعة = 500.
+      // م154 — الخزينة الجديدة: صف العيادة بإجماليها الشهري
+      // (كاش 200 + تحويل 200 + تركيبات مدفوعة 500 = 900).
       expect(find.byKey(const Key('treasury-main')), findsOneWidget);
-      // كاش وتحويل: بطاقتا العيادة + سطرا الإجمالي = 4 ظهورات.
-      expect(find.text('200'), findsNWidgets(4));
-      // التركيبات المدفوعة: بطاقة العيادة + سطر الإجمالي.
-      expect(find.text('500'), findsNWidgets(2));
-      // م133 — م111 غيّر معادلة «المحصّل»: كاش + تحويل + **كامل** المدفوع
-      // للتركيبات (لا حصة الطبيب فقط) حتى يطابق صفّ الدخل المعروض فوقه
-      // حرفياً؛ فالدخل الفعلي = كاش 200 + تحويل 200 + كامل التركيبة
-      // المدفوعة 500 = 900 (لا 490 بحصة الطبيب 90 وحدها كما كان قبل م111).
-      expect(find.text('900 د.ل'), findsOneWidget);
-      // م133 — v52 أزالت بطاقة «ديون معلقة» وكتلة «رصيد الديون المعلقة»؛
-      // م125 حذفت ميزة الشارة الدائرية نهائياً (لا مفتاح fin-debt-badge
-      // بعدها إطلاقاً، انظر finance_screen.dart). إجمالي الديون (150) في
-      // شبكة بطاقة الإجمالي بالأحمر تحت عنوان «إجمالي الديون (غير
-      // المحصّلة)»، والخلية تقفز لقسم الديون.
-      expect(find.textContaining('ديون معلقة'), findsNothing);
-      expect(find.textContaining('رصيد الديون المعلقة'), findsNothing);
-      expect(find.textContaining('إجمالي الديون'), findsOneWidget);
-      expect(find.text('150'), findsWidgets);
-      expect(find.byKey(const Key('fin-debt-badge')), findsNothing);
-      expect(find.byKey(const Key('tr-open-debts')), findsOneWidget);
+      expect(find.byKey(const Key('tr2-row-ع1')), findsOneWidget);
+      expect(find.textContaining('900'), findsOneWidget);
+      expect(find.byKey(const Key('tr2-row-anal')), findsOneWidget);
+      expect(find.byKey(const Key('tr2-row-exp')), findsOneWidget);
 
-      // تفصيل الكاش: عنصران ومجموع 200.
+      // تفصيل العيادة: جدول الحركات — المجموع الظاهر (الكل) = 400.
       await tester.tap(
-        find.byKey(const Key('tr-cash-ع1')),
+        find.byKey(const Key('tr2-row-ع1')),
         warnIfMissed: false,
       );
-      await settle(tester);
-      expect(find.byKey(const Key('treasury-detail')), findsOneWidget);
-      expect(find.text('أ'), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(
+          tester
+              .widget<Text>(find.byKey(const Key('tr2-visible-total')))
+              .data,
+          '400');
       expect(find.textContaining('دفعة أولى'), findsOneWidget);
-      expect(find.text('200 د.ل'), findsWidgets); // مجموع الفئة
 
       // الأرباح: إجمالي إيرادات الشهر = سجلات 400 + تركيبات 500 = 900.
-      // م133 — tr-back يعيد لـ treasury-main **داخل** شاشة قسم الخزينة
-      // نفسها (م108)؛ الوصول لقسم الأرباح يتطلب الخروج من الشاشة أولاً
-      // (سهم رجوع الأبار) ثم إعادة الفتح من قائمة أقسام المالية.
-      await tester.tap(find.byKey(const Key('tr-back')), warnIfMissed: false);
+      await tester.tap(find.byType(BackButton).first, warnIfMissed: false);
       await settle(tester);
       await tester.tap(find.byType(BackButton).first, warnIfMissed: false);
       await settle(tester);
@@ -243,13 +226,14 @@ void main() {
       // بصرف النظر عن showDebtCountBadge؛ يبقى التأكيد صحيحاً (الشارة
       // غائبة رغم دين مفتوح) لكنه الآن يشهد على الحذف الدائم لا الخيار.
       expect(find.byKey(const Key('fin-debt-badge')), findsNothing);
-      // فتح قسم الخزينة لرؤية «إجمالي الديون (غير المحصّلة)» رغم الدين.
+      // م154 — الخزينة الجديدة بلا ذيل ديون (الديون في تبويبها):
+      // نكتفي بفتح الخزينة والتأكد من صفوفها الجديدة.
       await tester.tap(
         find.byKey(const Key('fin-seg-treasury')),
         warnIfMissed: false,
       );
       await settle(tester);
-      expect(find.textContaining('إجمالي الديون'), findsOneWidget);
+      expect(find.byKey(const Key('tr2-row-ع1')), findsOneWidget);
     });
 
     testWidgets(

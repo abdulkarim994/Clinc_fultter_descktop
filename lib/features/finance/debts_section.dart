@@ -134,9 +134,9 @@ class _DebtsSectionState extends ConsumerState<DebtsSection> {
                   isDense: true,
                   hintText: 'بحث بالاسم أو رقم الهاتف...',
                   hintStyle:
-                      TextStyle(fontSize: 12, color: BrandColors.mut2),
+                      TextStyle(fontSize: 12, color: BrandColors.strong),
                   prefixIcon: Icon(Icons.search_rounded,
-                      size: 16, color: BrandColors.mut2),
+                      size: 16, color: BrandColors.strong),
                   filled: true,
                   fillColor: BrandColors.surface,
                   contentPadding:
@@ -511,7 +511,7 @@ class _DebtsSectionState extends ConsumerState<DebtsSection> {
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                            fontSize: 9, color: BrandColors.mut2)),
+                            fontSize: 9, color: BrandColors.strong)),
                 ],
               ),
             ),

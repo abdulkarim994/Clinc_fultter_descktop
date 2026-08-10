@@ -87,6 +87,52 @@ num currentMonthTotal(
   return sum;
 }
 
+/// م154 — صفوف تحاليل شهرٍ مختار (YYYY-MM) من صفوف السجلات الخام، بمنع
+/// تكرارٍ بالمعرّف الفريد (صفٌّ مكرر بالمزامنة يُحتسب مرة) — مرتبةً
+/// الأحدث أولاً. يوم الاحتساب: incomeDate يتقدم على date.
+List<Map<String, Object?>> monthAnalysesRows(
+  List<Map<String, Object?>> records, {
+  required String month,
+}) {
+  final seen = <String>{};
+  final out = <Map<String, Object?>>[];
+  for (final r in records) {
+    final flag = r['isAnalysis'];
+    final isAnal = flag == true || flag == 1 || flag == '1' || flag == 'true';
+    if (!isAnal) continue;
+    final id = '${r['id'] ?? ''}';
+    if (id.isEmpty || id == 'null' || !seen.add(id)) continue;
+    final effDay = ('${r['incomeDate'] ?? ''}'.trim().isNotEmpty &&
+            '${r['incomeDate']}' != 'null')
+        ? '${r['incomeDate']}'
+        : '${r['date'] ?? ''}';
+    if (!effDay.startsWith(month)) continue;
+    out.add(r);
+  }
+  out.sort((a, b) => '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'));
+  return out;
+}
+
+/// م154 — إجماليات تحاليل شهرٍ مختار (كاش/تحويل) — الخزينة الجديدة تعرضها
+/// بنطاق مبدّل الشهر فتصفر تلقائياً مطلع كل شهر (اصطلاح الخزينة: 'كاش'
+/// مقابل أي شيءٍ آخر = تحويل).
+({num cash, num transfer}) monthAnalysesTotals(
+  List<Map<String, Object?>> records, {
+  required String month,
+}) {
+  num cash = 0, transfer = 0;
+  for (final r in monthAnalysesRows(records, month: month)) {
+    final v = r['amount'];
+    final amt = v is num ? v : (num.tryParse('$v') ?? 0);
+    if (r['payment'] == 'كاش') {
+      cash += amt;
+    } else {
+      transfer += amt;
+    }
+  }
+  return (cash: cash, transfer: transfer);
+}
+
 /// يتحقق من تطابق الصف مع وضع الدفع المطلوب.
 bool _modeMatch(Map<String, Object?> r, String mode) {
   if (mode == 'all') return true;

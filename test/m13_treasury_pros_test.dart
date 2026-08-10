@@ -197,7 +197,7 @@ void main() {
       await auth.register('doc@clinic.ly', 'secret12');
       await auth.login('doc@clinic.ly', 'secret12', remember: true);
       c.read(reposProvider).settings.set('app.config', config());
-      final (_, prosId) = seedScreenshotCase(c);
+      seedScreenshotCase(c);
       c.dispose();
 
       await tester.pumpWidget(
@@ -211,11 +211,6 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 120));
-
-      Future<void> settle() async {
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 400));
-      }
 
       await tester.tap(find.text('المالية'), warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 400));
@@ -231,38 +226,33 @@ void main() {
         warnIfMissed: false,
       );
       await tester.pumpAndSettle();
-      // افتح تفصيل التركيبات لعيادة الصفوة.
+      // م154 — الخزينة الجديدة: صف العيادة ثم تبويب «التركيبات».
       await tester.tap(
-        find.byKey(const Key('tr-pros-الصفوة')),
+        find.byKey(const Key('tr2-row-الصفوة')),
         warnIfMissed: false,
       );
-      await settle();
-      expect(find.byKey(const Key('tr-cat-pros')), findsOneWidget);
-
-      // بطاقة المجموعة ومجاميعها الأربعة.
-      await tester.tap(
-        find.byKey(const Key('tr-prosgroup-Khlgg')),
-        warnIfMissed: false,
-      );
-      await settle();
-      // رأس الحالة بالنوع.
-      expect(find.byKey(Key('tr-case-$prosId')), findsOneWidget);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('التركيبات'), warnIfMissed: false);
+      await tester.pumpAndSettle();
+      // قائمة مرضى التركيبات: عنصر المجموعة بنوعها وإجماليها.
+      expect(find.byKey(const Key('tr2-pros-g-Khlgg')), findsOneWidget);
       expect(find.textContaining('Zirocnia'), findsWidgets);
-      // دفعتان مرقمتان.
-      expect(find.text('دفعة 1'), findsOneWidget);
-      expect(find.text('دفعة 2'), findsOneWidget);
+      // الدخول للاسم: جدول الدفعات بأعمدته وصف الإجمالي المميز.
+      await tester.tap(
+        find.byKey(const Key('tr2-pros-g-Khlgg')),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('tr2-pros-footer')), findsOneWidget);
       // أجزاء الدفعات: معمل 1,500 وطبيب 600 وعيادة 900.
       expect(find.text('1,500'), findsWidgets);
       expect(find.text('600'), findsWidgets);
       expect(find.text('900'), findsWidgets);
-      // المدفوع/المتبقي.
-      expect(find.textContaining('المدفوع'), findsWidgets);
-      expect(find.textContaining('المتبقي'), findsWidgets);
-      // تذييل الأربع خانات.
-      expect(find.text('إجمالي'), findsWidgets);
-      expect(find.text('معمل'), findsWidgets);
-      expect(find.text('طبيب'), findsWidgets);
-      expect(find.text('عيادة'), findsWidgets);
+      // رؤوس الأعمدة الستة.
+      expect(find.text('الدفعة'), findsOneWidget);
+      expect(find.text('المعمل'), findsOneWidget);
+      expect(find.text('الطبيب'), findsOneWidget);
+      expect(find.text('العيادة'), findsOneWidget);
     });
   });
 }
