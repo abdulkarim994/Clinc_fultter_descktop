@@ -163,7 +163,8 @@ void main() {
     // قائمة المختبرات ظاهرة برأسها وحقل بحثها.
     expect(find.byKey(const Key('labs-desk-search')), findsOneWidget,
         reason: 'حقل بحث المختبرات يجب أن يظهر');
-    expect(find.text('المختبرات'), findsOneWidget,
+    // م161 — العنوان صار يتضمن الشهر المختار.
+    expect(find.textContaining('المختبرات'), findsWidgets,
         reason: 'رأس قائمة المختبرات يجب أن يظهر');
 
     // زر الرجوع لقائمة الأدوات ظاهر.
@@ -283,8 +284,10 @@ void main() {
     expect(find.byKey(const Key('desk-search-labs-cases')), findsOneWidget);
     // ترويسة المختبر: الاسم + عدد الحالات.
     expect(find.byKey(const Key('labs-desk-detail-name')), findsOneWidget);
-    expect(find.text('2 حالة'), findsOneWidget,
-        reason: 'عدد حالات المختبر في الترويسة');
+    // م161 — الترويسة صارت «N حالة · الشهر».
+    // م161/ب — يظهر في الترويسة وفي صف إجمالي الجدول معاً.
+    expect(find.textContaining('2 حالة'), findsWidgets,
+        reason: 'عدد حالات المختبر في الترويسة وصف الإجمالي');
 
     // اسما المريضين ظاهران في الجدول.
     expect(find.text('أحمد المحصّل'), findsWidgets);
