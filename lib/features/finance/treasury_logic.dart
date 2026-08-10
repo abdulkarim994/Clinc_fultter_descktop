@@ -148,6 +148,8 @@ num clinicProsTotalPaid(TreasurySlice s, String cli) => prosTotalPaid(
 /// دفعة دينٍ وردت هذا الشهر لحالةٍ من شهرٍ سابق (صفٌّ مستقل موسوم).
 class ProsCaseRow {
   ProsCaseRow({
+    required this.id,
+    required this.debtId,
     required this.date,
     required this.name,
     required this.lab,
@@ -160,6 +162,13 @@ class ProsCaseRow {
     this.isDebtPay = false,
     this.otherMonthPays = const [],
   });
+
+  /// م158 — هوية الصف: معرّف التركيبة (حالة) أو معرّف سجل الدفعة
+  /// (صف دفعة دين) — كل صفٍّ معالجةٌ مستقلة بتفاصيلها الخاصة.
+  final String id;
+
+  /// معرّف الدين المرتبط — فارغ لغير الدين.
+  final String debtId;
 
   /// تاريخ إنشاء الحالة (أو تاريخ الدفعة لصف دفعة الدين).
   final String date;
@@ -240,6 +249,8 @@ List<ProsCaseRow> prosCaseRows(
     final debt = isDebt ? debtOfPros(p['id']) : null;
     final total = jsNumOr0(p['total']);
     out.add(ProsCaseRow(
+      id: '${p['id'] ?? ''}',
+      debtId: '${debt?['id'] ?? ''}',
       date: '${p['date'] ?? ''}',
       name: '${jsOr(p['name'], 'بدون اسم')}',
       lab: '${p['labName'] ?? ''}'.trim(),
@@ -271,6 +282,8 @@ List<ProsCaseRow> prosCaseRows(
         .trim()
         .replaceAll('null', '');
     out.add(ProsCaseRow(
+      id: '${r['id'] ?? ''}',
+      debtId: '${r['debtId'] ?? ''}',
       date: '${r['date'] ?? ''}',
       name: '${jsOr(r['name'], 'بدون اسم')}',
       lab: '${origin?['labName'] ?? ''}'.trim().replaceAll('null', ''),
@@ -287,6 +300,68 @@ List<ProsCaseRow> prosCaseRows(
 
   out.sort((a, b) => b.date.compareTo(a.date));
   return out;
+}
+
+/// م158 — دفعات الحالة الواحدة (كل الشهور) لجدول تفاصيلها المستقل:
+/// كل صفٍّ في جدول التركيبات معالجةٌ منفصلة بتفاصيلها الخاصة —
+/// • غير الدين: دفعتها الكاملة الواحدة بحصصها المجمدة.
+/// • الدَّينية: كل سجلات دفعات دينها (عبر كل الشهور) بحصصها المحسوبة.
+/// • صف «دفعة دين» المستقل: سجل دفعته وحده.
+/// الصفوف الناتجة بنفس مفاتيح جدول التفاصيل المعتاد
+/// (date/amount/payment/lab/doc/clin).
+List<JMap> prosCaseDetailRows(
+  ProsCaseRow c, {
+  required List<JMap> allRecords,
+  required List<JMap> allPros,
+  required num doctorPct,
+}) {
+  List<JMap> payRow(JMap r) => [
+        {
+          'date': r['date'],
+          'amount': jsNumOr0(jsOr(r['_fullAmount'], r['amount'])),
+          'payment': r['payment'],
+          'lab': prosPayLab(r, doctorPct),
+          'doc': prosPayDoc(r, doctorPct),
+          'clin': prosPayClin(r, doctorPct),
+        },
+      ];
+
+  // صف «دفعة دين» المستقل — سجل الدفعة وحده.
+  if (c.isDebtPay) {
+    for (final r in allRecords) {
+      if (r['id'] == c.id) return payRow(r);
+    }
+    return const [];
+  }
+
+  // حالة دَينية — كل دفعات دينها عبر الشهور (الدفعة الأولى ضمنها).
+  if (c.debtId.isNotEmpty) {
+    final out = <JMap>[
+      for (final r in allRecords)
+        if (jsTruthy(r['isDebtPayment']) && '${r['debtId']}' == c.debtId)
+          ...payRow(r),
+    ];
+    out.sort(
+        (a, b) => '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'));
+    return out;
+  }
+
+  // غير الدين — دفعتها الكاملة الواحدة بحصصها المجمدة.
+  for (final p in allPros) {
+    if (p['id'] == c.id) {
+      return [
+        {
+          'date': p['date'],
+          'amount': p['total'],
+          'payment': p['payment'],
+          'lab': p['labValue'],
+          'doc': p['doctorShare'],
+          'clin': p['clinicShare'],
+        },
+      ];
+    }
+  }
+  return const [];
 }
 
 /// م156 — توزيع «المدفوع للتركيبات» على كاش/تحويل بنفس مقادير
