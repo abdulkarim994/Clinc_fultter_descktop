@@ -25,7 +25,7 @@ import '../desktop/desktop_gate.dart' show isDesktopUi;
 import '../desktop/widgets/desktop_dialogs.dart' show showDesktopDialog;
 import '../finance/finance_screen.dart' show financeRevProvider;
 import '../records/add_record_screen.dart'
-    show labTypesList, labsList, teethCount;
+    show labTypesFor, labsList, teethCount;
 import '../records/day_close_store.dart' show confirmClosedDayWrite;
 import '../records/income_day_dialog.dart' show askIncomeDay;
 import '../records/mini_calculator.dart' show showMiniCalculator;
@@ -418,7 +418,8 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
     final payments = _list(cfg, 'payments');
     final cur = '${jsOr(cfg['currency'], 'د.ل')}';
     final prices = cfg['servicePrices'];
-    final labTypes = labTypesList(cfg);
+    // م162 — أنواع المختبر المختار وحده (لكل معمل تركيباته وأسعاره).
+    final labTypes = labTypesFor(cfg, labName);
     final labs = labsList(cfg);
     final showPros = isProsthetic(service);
 
@@ -556,7 +557,17 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
                                           fontSize: 12.5))),
                           ],
                           onChanged: (v) =>
-                              setState(() => labName = v ?? ''),
+                              setState(() {
+                            labName = v ?? '';
+                            // م162 — النوع ليس من أنواع المختبر الجديد
+                            // ⇒ يُفرَّغ ليُختار من قائمته.
+                            final ts = labTypesFor(
+                                ref.read(appConfigProvider), labName);
+                            if (prosType.isNotEmpty &&
+                                !ts.any((t) => '${t['name']}' == prosType)) {
+                              prosType = '';
+                            }
+                          }),
                         ),
                 ),
                 const SizedBox(width: 10),
