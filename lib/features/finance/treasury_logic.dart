@@ -142,6 +142,22 @@ num clinicProsTotalPaid(TreasurySlice s, String cli) => prosTotalPaid(
       [...s.pdPays.where((r) => r['clinic'] == cli)],
     );
 
+/// م156 — توزيع «المدفوع للتركيبات» على كاش/تحويل بنفس مقادير
+/// [prosTotalPaid] حرفياً (غير الدين بكامل قيمتها + دفعات ديونها
+/// بمبلغها الكامل) — فيبقى cash + xfer == prosTotalPaid دائماً.
+/// حقل الطريقة موجود على الصفين (اصطلاح المستودع: كاش وإلا فتحويل).
+({num cash, num xfer}) prosPaidByMethod(
+    List<JMap> cp, List<JMap> pdPays) {
+  bool isCash(JMap r) => '${r['payment'] ?? ''}'.trim() == 'كاش';
+  num pdAmt(JMap r) => jsNumOr0(jsOr(r['_fullAmount'], r['amount']));
+  final nonDebt = [...cp.where((p) => !jsTruthy(p['isDebt']))];
+  final cash = _sum(nonDebt.where(isCash), 'total') +
+      _sumBy(pdPays.where(isCash), pdAmt);
+  final xfer = _sum(nonDebt.where((p) => !isCash(p)), 'total') +
+      _sumBy(pdPays.where((r) => !isCash(r)), pdAmt);
+  return (cash: cash, xfer: xfer);
+}
+
 List<JMap> clinicOpenDebts(TreasurySlice s, String cli) =>
     [...s.openDebts.where((d) => d['clinic'] == cli)];
 
