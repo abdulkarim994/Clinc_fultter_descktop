@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../expenses/expenses_screen.dart';
+import '../labs/lab_logo.dart';
 import '../labs/labs_tab.dart';
 import '../staff/staff_session.dart' show kCurrentStaff, staffCan, staffIsAdmin;
 
@@ -134,8 +135,10 @@ class _ExtraCard extends StatelessWidget {
                   border: Border.all(
                       color: const Color.fromRGBO(201, 162, 75, .28)),
                 ),
-                child: Icon(item.icon,
-                    color: BrandColors.goldDark, size: 24),
+                child: item.keyId == 'extra-labs'
+                    ? const LabLogo(size: 24, color: BrandColors.goldDark)
+                    : Icon(item.icon,
+                        color: BrandColors.goldDark, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
