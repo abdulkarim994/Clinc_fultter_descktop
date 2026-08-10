@@ -267,8 +267,9 @@ void main() {
     expect(find.byKey(const Key('dr-clinic-card-all')), findsOneWidget,
         reason: 'بطاقة كل العيادات تظهر في الوضع الموسّع');
     // العدّادات: مريضان و«زيارة هذا الشهر» على البطاقة (سجلان في الشهر).
+    // م155 — العدّاد صار ضمن سطرٍ مركّب «2 مريض · N زيارة هذا الشهر».
     expect(
-      find.descendant(of: card, matching: find.text('2')),
+      find.descendant(of: card, matching: find.textContaining('2 مريض')),
       findsWidgets,
       reason: 'عدد المرضى (2) يجب أن يظهر على البطاقة',
     );
