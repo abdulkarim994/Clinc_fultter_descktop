@@ -1295,12 +1295,15 @@ class _CollapsedChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
-        child: Row(children: [
+    // م156 — Wrap ملتف بدل السكرول الأفقي (كان متوقفاً بلا وسيلة وصول
+    // لبقية العيادات بالفأرة): كل الرقائق ظاهرة دفعةً واحدة، وتلتف
+    // لأسطرٍ إضافية عند الكثرة بلا أي تمرير.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+      child: Wrap(
+        spacing: 0,
+        runSpacing: 4,
+        children: [
           // رقاقة «كل العيادات» — تعيد الفلتر إلى null.
           _ClinicChip(
             keyId: 'dr-clinic-chip-all',
@@ -1319,7 +1322,7 @@ class _CollapsedChips extends StatelessWidget {
               onTap: () =>
                   onChanged(selected == c.name ? null : c.name),
             ),
-        ]),
+        ],
       ),
     );
   }

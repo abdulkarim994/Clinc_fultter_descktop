@@ -130,7 +130,9 @@ class _DesktopTreasuryScreenState
                       month: s.month,
                       clinicsCash: t.cash,
                       clinicsXfer: t.xfer,
-                      clinicsGrand: t.grand,
+                      // م156 — التركيبات المدفوعة كاش/تحويل بصفٍّ مستقل.
+                      prosCash: prosPaidByMethod(s.pros, s.pdPays).cash,
+                      prosXfer: prosPaidByMethod(s.pros, s.pdPays).xfer,
                       analCash: anal.cash,
                       analXfer: anal.transfer,
                       expCash: ex.cash,
