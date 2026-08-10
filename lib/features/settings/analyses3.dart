@@ -45,24 +45,41 @@ num triRepeatMonths(Map<String, Object?> cfg) {
 bool _isTri(Object? v) =>
     v == true || v == 1 || v == '1' || v == 'true';
 
+/// م153 — هاتف معرّف الهوية: `p:<هاتف مطبَّع>:<اسم>` ⇐ الهاتف، وإلا ''.
+String _pidPhone(String pid) {
+  if (!pid.startsWith('p:')) return '';
+  final i = pid.indexOf(':', 2);
+  return i < 0 ? '' : pid.substring(2, i);
+}
+
 /// تاريخ آخر تحليلٍ ثلاثيٍّ للمريض من صفوف السجلات — أو null إن لم يوجد.
 ///
 /// هوية المريض (م152 — قاعدة المالك المؤكدة: «لكل اسم مرة واحدة»):
 /// **الاسم المطبَّع أساس المطابقة** ([normalize] — أداة التطبيع العربي
 /// القائمة، فتُدرك «إبراهيم» رغم كتابتها «ابراهيم»)، **أو** تطابقُ
 /// معرّفَي المريض حين يتوفر الطرفان (يلتقط تغيير الاسم على نفس الهوية).
-/// كانت المقارنة تقف عند اختلاف المعرّفين ولا تسقط للاسم أبداً — فمرّ
-/// التحليل المكرر لنفس الاسم بهاتفٍ مختلف أو بلا هاتف (بلاغ المالك
-/// 2026-08-10 من نوافذ الهاتف الثلاث). التاريخ نصيٌّ بصيغة YYYY-MM-DD
-/// فالمقارنة المعجمية = الزمنية.
+///
+/// م153 (قرارا المالك):
+/// • **نطاق العيادة**: [clinic] غير الفارغة تقصر المطابقة على تحاليل
+///   العيادة نفسها — «محمد أحمد» في عيادتين حرٌّ في كلٍّ منهما على حدة.
+/// • **استثناء السميَّين**: هاتفان مختلفان **صريحان** على الطرفين
+///   (من [phone] المطبَّع أو من معرّفَي الهوية `p:هاتف:اسم`) = شخصان
+///   مختلفان فلا يتحاجبان. غياب هاتف أي طرفٍ يُبقي الحجب احتياطاً.
+///
+/// التاريخ نصيٌّ بصيغة YYYY-MM-DD فالمقارنة المعجمية = الزمنية.
 String? lastTriAnalysisDate(
   List<Map<String, Object?>> records, {
   String? patientId,
   required String patientName,
+  String clinic = '',
+  String phone = '',
   required String Function(String) normalize,
 }) {
   final pid = (patientId ?? '').trim();
   final wanted = normalize(patientName.trim());
+  final wantClinic = clinic.trim();
+  // هاتف الطرف الحالي: الممرَّر صراحةً (مطبَّعاً من المنادي) وإلا من معرّفه.
+  final qPhone = phone.trim().isNotEmpty ? phone.trim() : _pidPhone(pid);
   String? last;
   for (final r in records) {
     if (!_isTri(r['isAnalysis'])) continue;
@@ -70,11 +87,26 @@ String? lastTriAnalysisDate(
     // (أسماء متعددة قبل م145) لا تُحتسب، فالقاعدة قاعدةُ «التحليل
     // الثلاثي» نصاً ولا يصح أن تحجب المريض بصفٍّ قديمٍ مختلف.
     if ('${r['analysisName'] ?? ''}' != kTriAnalysesName) continue;
+    // م153 — نطاق العيادة: تحاليل نفس العيادة فقط (clinic ثم clinic_id).
+    if (wantClinic.isNotEmpty) {
+      final rc = '${r['clinic'] ?? ''}'.trim();
+      final rowClinic =
+          (rc.isNotEmpty && rc != 'null') ? rc : '${r['clinic_id'] ?? ''}'.trim();
+      if (rowClinic != wantClinic) continue;
+    }
     final rid = '${r['patient_id'] ?? ''}'.trim();
     final sameName = wanted.isNotEmpty &&
         normalize('${r['patient_name'] ?? r['name'] ?? ''}'.trim()) == wanted;
     final sameId = pid.isNotEmpty && rid.isNotEmpty && rid == pid;
     if (!sameName && !sameId) continue;
+    // م153 — استثناء السميَّين: هاتفان صريحان مختلفان = شخصان (إلا حين
+    // يتطابق المعرّفان — فهو المريض نفسه حتماً).
+    if (!sameId) {
+      final rPhone = _pidPhone(rid);
+      if (qPhone.isNotEmpty && rPhone.isNotEmpty && qPhone != rPhone) {
+        continue;
+      }
+    }
     final d = '${r['date'] ?? ''}'.trim();
     if (d.isEmpty || d == 'null') continue;
     if (last == null || d.compareTo(last) > 0) last = d;

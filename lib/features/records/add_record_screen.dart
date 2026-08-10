@@ -654,7 +654,13 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           triAnalysesEnabled(cfg) &&
           triAnalysesPrice(cfg) > 0;
       if (wouldWriteAnalysis) {
-        final blocked = triRepeatCheck(ref, patientName: nameCtl.text.trim());
+        // م153 — بنطاق العيادة المختارة وهاتف النموذج (استثناء السميَّين).
+        final blocked = triRepeatCheck(
+          ref,
+          patientName: nameCtl.text.trim(),
+          clinic: clinic,
+          phone: phoneCtl.text.trim(),
+        );
         if (blocked != null) {
           await showTriRepeatBlockedDialog(context, blocked);
           return;

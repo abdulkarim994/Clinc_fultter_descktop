@@ -52,13 +52,13 @@ void main() {
       };
 
   group('م152/أ — هوية المريض: الاسم أساس المطابقة والمعرّف إضافة', () {
-    test('نفس الاسم بمعرّفين مختلفين = نفس المريض (كان يمرّ — الثغرة)', () {
+    test('م153 — هاتفان صريحان مختلفان = سميّان (يمرّ بقرار المالك)', () {
       final rows = [triRow(id: 'a1', name: 'محمد', patientId: 'p:091:محمد')];
       expect(
         lastTriAnalysisDate(rows,
             patientId: 'p:092:محمد', patientName: 'محمد', normalize: arNorm),
-        today,
-        reason: 'اختلاف المعرّفين لا يلغي مطابقة الاسم',
+        isNull,
+        reason: 'استثناء السميّين: هاتفان صريحان مختلفان = شخصان',
       );
     });
 
@@ -129,8 +129,8 @@ void main() {
         .where((r) => jsTruthy(r['isAnalysis']))
         .length;
 
-    test('زيارة بهاتفٍ ثم أخرى بلا هاتف (معرّفان مختلفان) — التحليل الثاني '
-        'يُسقطه صمام saveNewRecord (كان يُكتب — الثغرة)', () {
+    test('زيارة بهاتفٍ ثم بلا هاتف يُصَدّ (غموض)، وبهاتفٍ مختلف صريح يمرّ '
+        '(سميّان — م153)', () {
       final c = container();
       addTearDown(c.dispose);
       final repos = c.read(reposProvider);
@@ -153,10 +153,11 @@ void main() {
           name: kTriAnalysesName, price: 50, payment: 'كاش');
       visit(phone: '0911111111', anal: anal); // الأول — يُكتب.
       expect(analCount(c), 1);
-      visit(phone: '', anal: anal); // نفس الاسم بلا هاتف — يُصَدّ.
-      expect(analCount(c), 1, reason: 'لا صف مخالف رغم اختلاف المعرّف');
-      visit(phone: '0922222222', anal: anal); // هاتف ثالث — يُصَدّ.
-      expect(analCount(c), 1);
+      visit(phone: '', anal: anal); // نفس الاسم بلا هاتف — يُصَدّ (غموض).
+      expect(analCount(c), 1, reason: 'غياب الهاتف = غموض ⇒ حجب احتياطي');
+      // م153 — هاتف ثالث صريح مختلف = سميّان بقرار المالك ⇒ يمرّ.
+      visit(phone: '0922222222', anal: anal);
+      expect(analCount(c), 2, reason: 'هاتفان صريحان مختلفان = شخصان');
     });
 
     test('addAnalysisToVisit بمعرّفٍ مختلف لنفس الاسم يُصَدّ', () {
