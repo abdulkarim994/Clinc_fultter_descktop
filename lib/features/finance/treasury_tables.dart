@@ -711,13 +711,32 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
 
   Future<void> _printAll() async {
     final fonts = await loadPdfBrand(ref);
-    final bytes = await prostheticsReportPdf(
+    // م159 — الطباعة مرآة الجدول حرفياً: نفس الصفوف الظاهرة (بفلترة
+    // البحث القائمة) ونفس تفاصيل كل حالة من الدوال النقية نفسها —
+    // فتتطابق القيم مع الشاشة دائماً بالبناء (بلاغ اختلاف القيم).
+    final q = _searchCtl.text.trim();
+    final cases = [
+      for (final k in widget.cases)
+        if (q.isEmpty || k.name.contains(q)) k,
+    ];
+    final repos = ref.read(reposProvider);
+    final allRecords =
+        repos.records.getAll().cast<Map<String, Object?>>();
+    final allPros =
+        repos.prosthetics.getAll().cast<Map<String, Object?>>();
+    final bytes = await prosCasesReportPdf(
       fonts,
       title: 'تركيبات ${widget.clinic}',
       subtitle: widget.month,
       currency: ref.read(currencyProvider),
-      groups: widget.groups,
-      doctorPct: widget.doctorPct,
+      cases: cases,
+      caseDetails: [
+        for (final k in cases)
+          prosCaseDetailRows(k,
+              allRecords: allRecords,
+              allPros: allPros,
+              doctorPct: widget.doctorPct),
+      ],
     );
     final msg = await printOrSharePdf(
         ref.read(dbDirProvider), bytes, 'treasury_pros.pdf');
