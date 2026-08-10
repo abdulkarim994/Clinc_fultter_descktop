@@ -165,7 +165,7 @@ void main() {
     repos.prosthetics.upsert({
       'id': 'p-old',
       'date': prevMonthDate,
-      'name': 'سارة محمود',
+      'name': 'محمد علي',
       'clinic': 'الصفوة',
       'clinic_id': 'الصفوة',
       'service': 'تركيبات',
@@ -183,7 +183,7 @@ void main() {
       'type': 'prosthetic',
       'prostheticId': 'p-old',
       'date': prevMonthDate,
-      'name': 'سارة محمود',
+      'name': 'محمد علي',
       'clinic': 'الصفوة',
       'clinic_id': 'الصفوة',
       'status': 'partial',
@@ -199,9 +199,43 @@ void main() {
       ],
     });
     repos.records.upsertLocal({
+      'id': 'pay-n1',
+      'date': today,
+      'name': 'خالد يوسف',
+      'clinic': 'الصفوة',
+      'clinic_id': 'الصفوة',
+      'amount': 500,
+      '_fullAmount': 500,
+      '_labAmount': 250,
+      '_docAmount': 125,
+      'payment': 'كاش',
+      'isDebtPayment': 1,
+      'isPros': 0,
+      'isDebt': 0,
+      'debtId': 'd-new',
+      'service': 'دفعة تركيبات',
+    });
+    repos.records.upsertLocal({
+      'id': 'pay-n2',
+      'date': prevMonthDate,
+      'name': 'خالد يوسف',
+      'clinic': 'الصفوة',
+      'clinic_id': 'الصفوة',
+      'amount': 300,
+      '_fullAmount': 300,
+      '_labAmount': 150,
+      '_docAmount': 75,
+      'payment': 'كاش',
+      'isDebtPayment': 1,
+      'isPros': 0,
+      'isDebt': 0,
+      'debtId': 'd-new',
+      'service': 'دفعة تركيبات',
+    });
+    repos.records.upsertLocal({
       'id': 'pay-1',
       'date': today,
-      'name': 'سارة محمود',
+      'name': 'محمد علي',
       'clinic': 'الصفوة',
       'clinic_id': 'الصفوة',
       'amount': 400,
@@ -250,6 +284,16 @@ void main() {
       await t.tap(find.text('التركيبات'));
       await t.pumpAndSettle();
       await shot(t, 'm157_desktop_pros_table');
+      // م158 — تفاصيل الحالة الدَّينية: كل دفعات دينها عبر الشهور.
+      await t.tap(find.byKey(const Key('tr2-pros-g-خالد يوسف')));
+      await t.pumpAndSettle();
+      await shot(t, 'm158_desktop_case_detail');
+      await t.tap(find.byKey(const Key('tr2-pros-back')));
+      await t.pumpAndSettle();
+      // م158 — تفاصيل صف «دفعة دين» المستقل: سجل دفعته وحده.
+      await t.tap(find.textContaining('دفعة دين').first);
+      await t.pumpAndSettle();
+      await shot(t, 'm158_desktop_paydetail');
     }, skip: !_goldens);
 
     testWidgets('جدول التركيبات — الهاتف', (t) async {
@@ -271,6 +315,10 @@ void main() {
       await t.tap(find.text('التركيبات'));
       await t.pumpAndSettle();
       await shot(t, 'm157_mobile_pros_table');
+      // م158 — تفاصيل الحالة على الهاتف.
+      await t.tap(find.byKey(const Key('tr2-pros-g-خالد يوسف')));
+      await t.pumpAndSettle();
+      await shot(t, 'm158_mobile_case_detail');
     }, skip: !_goldens);
   });
 }
