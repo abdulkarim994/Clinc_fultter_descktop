@@ -58,6 +58,24 @@ List<JMap> labTypesList(JMap config) => config['labTypes'] is List
       ]
     : const [];
 
+/// م162 — أنواع تركيبات مختبرٍ بعينه: من config.labTypesByLab[lab]
+/// (لكل مختبر تركيباته وأسعاره — قرار المالك)، وإن لم تكن للمختبر
+/// قائمة خاصة نعود للقائمة العامة القديمة تلقائياً (توافقٌ خلفي كامل:
+/// لا جهاز ينكسر ولا بيانات تُفقد، والمزامنة عبر app.config كما هي).
+List<JMap> labTypesFor(JMap config, String lab) {
+  final byLab = config['labTypesByLab'];
+  if (lab.isNotEmpty && byLab is Map) {
+    final own = byLab[lab];
+    if (own is List && own.isNotEmpty) {
+      return [
+        for (final t in own)
+          if (t is Map) Map<String, Object?>.from(t),
+      ];
+    }
+  }
+  return labTypesList(config);
+}
+
 /// عدد الأسنان الفريدة في معالجات التقرير.
 int teethCount(List<JMap> entries) => teethKeysOf(entries).length;
 
@@ -1485,8 +1503,17 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                                 for (final l in labsList(config))
                                   DropdownMenuItem(value: l, child: Text(l)),
                               ],
-                              onChanged: (v) =>
-                                  setState(() => labName = v ?? ''),
+                              onChanged: (v) => setState(() {
+                                labName = v ?? '';
+                                // م162 — النوع المختار ليس من أنواع
+                                // المختبر الجديد ⇒ يُفرَّغ ليُختار منه.
+                                final ts = labTypesFor(config, labName);
+                                if (prosType.isNotEmpty &&
+                                    !ts.any(
+                                        (t) => '${t['name']}' == prosType)) {
+                                  prosType = '';
+                                }
+                              }),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -1497,7 +1524,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                               initialValue: prosType.isEmpty ? null : prosType,
                               decoration: dec('نوع التركيبة'),
                               items: [
-                                for (final t in labTypesList(config))
+                                // م162 — أنواع المختبر المختار وحده.
+                                for (final t in labTypesFor(config, labName))
                                   DropdownMenuItem(
                                     value: '${t['name']}',
                                     child: Text('${t['name']}'),
@@ -1505,7 +1533,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                               ],
                               onChanged: (v) {
                                 prosType = v ?? '';
-                                _onProsTypeChange(labTypesList(config));
+                                _onProsTypeChange(
+                                    labTypesFor(config, labName));
                               },
                             ),
                           ),
@@ -2360,7 +2389,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                   initialValue: prosType.isEmpty ? null : prosType,
                   decoration: ddec('نوع التركيبة'),
                   items: [
-                    for (final t in labTypesList(config))
+                    // م162 — أنواع المختبر المختار وحده.
+                    for (final t in labTypesFor(config, labName))
                       DropdownMenuItem(
                         value: '${t['name']}',
                         child: Text('${t['name']}'),
@@ -2368,7 +2398,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                   ],
                   onChanged: (v) {
                     prosType = v ?? '';
-                    _onProsTypeChange(labTypesList(config));
+                    _onProsTypeChange(labTypesFor(config, labName));
                   },
                 ),
               ),
