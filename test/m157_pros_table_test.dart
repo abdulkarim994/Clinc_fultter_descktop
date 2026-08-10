@@ -148,6 +148,70 @@ void main() {
       expect(debtCase.otherMonthPays.single.amount, 300);
     });
 
+    test('م158 — تفاصيل كل حالة مستقلة: الدَّينية بكل دفعات دينها '
+        'وغير الدين بدفعتها ودفعة الدين بسجلها وحده', () {
+      final rows = prosCaseRows(slice(), 'ع1',
+          allDebts: allDebts(), allPros: allPros(), doctorPct: 50);
+      final allRecords = <Map<String, Object?>>[
+        // دفعتا دين d-old (شهران مختلفان).
+        {
+          'id': 'pay-0',
+          'date': '2026-07-10',
+          'name': 'سالم',
+          'amount': 500,
+          '_fullAmount': 500,
+          'payment': 'كاش',
+          'isDebtPayment': 1,
+          'debtId': 'd-old',
+        },
+        {
+          'id': 'pay-1',
+          'date': '2026-08-05',
+          'name': 'سالم',
+          'amount': 400,
+          '_fullAmount': 400,
+          'payment': 'كاش',
+          'isDebtPayment': 1,
+          'debtId': 'd-old',
+        },
+      ];
+
+      // غير الدين: دفعة واحدة كاملة بحصصها المجمدة.
+      final full = rows.singleWhere((r) => r.name == 'محمد');
+      final fd = prosCaseDetailRows(full,
+          allRecords: allRecords, allPros: slice().pros, doctorPct: 50);
+      expect(fd.length, 1);
+      expect(fd.single['amount'], 1500);
+      expect(fd.single['lab'], 300);
+
+      // صف دفعة الدين المستقل: سجل دفعته وحده (400) لا دفعات الاسم كلها.
+      final pay = rows.singleWhere((r) => r.isDebtPay);
+      final pd = prosCaseDetailRows(pay,
+          allRecords: allRecords, allPros: slice().pros, doctorPct: 50);
+      expect(pd.length, 1, reason: 'معالجة منفصلة بتفاصيلها وحدها');
+      expect(pd.single['amount'], 400);
+
+      // حالة دينية: كل دفعات دينها عبر الشهور مرتبةً بالأحدث.
+      final debtCase = ProsCaseRow(
+        id: 'p-old',
+        debtId: 'd-old',
+        date: '2026-07-10',
+        name: 'سالم',
+        lab: '',
+        work: 'Ifk',
+        units: 4,
+        total: 3000,
+        paid: 900,
+        remaining: 600,
+        labShare: 0,
+      );
+      final dd = prosCaseDetailRows(debtCase,
+          allRecords: allRecords, allPros: slice().pros, doctorPct: 50);
+      expect(dd.length, 2, reason: 'كل دفعات الدين عبر الشهور');
+      expect(dd.first['date'], '2026-08-05');
+      expect(dd.last['date'], '2026-07-10');
+    });
+
     test('دفعة لحالةٍ أنشئت في نفس الشهر لا تتكرر صفاً مستقلاً', () {
       final s = TreasurySlice(
         '2026-08',
