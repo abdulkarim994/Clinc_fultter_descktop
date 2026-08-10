@@ -101,15 +101,15 @@ void main() {
       reason: 'فجوة مضبوطة لا أكثر',
     );
 
-    // البطاقة مضغوطة: الارتفاع على قدر المحتوى (لا خلية شبكة ممطوطة).
+    // م155 — البطاقة صفّية صغيرة بهوية الخزينة: ارتفاع مضغوط بلا فراغ.
     expect(
       clinicCard.height,
-      lessThan(220),
-      reason: 'بلا فراغ ميت في وسط البطاقة',
+      lessThan(72),
+      reason: 'بطاقة صفّية مضغوطة (هوية الخزينة م155)',
     );
 
-    // بطاقتا الصف الواحد بحجم واحد (IntrinsicHeight + stretch —
-    // التذييل مدفوع للقاع بـ margin-top:auto كالأصل).
+    // م155 — البطاقات مرصوصة عمودياً بعرضٍ كامل موحد (بدل شبكة العمودين):
+    // الثانية تحت الأولى بفجوة صغيرة وبنفس العرض والارتفاع.
     final other = tester.getRect(find.byKey(const Key('clinic-card-كاريزما')));
     expect(
       other.height,
@@ -119,8 +119,13 @@ void main() {
     expect(other.width, closeTo(clinicCard.width, 0.5));
     expect(
       other.top,
-      closeTo(clinicCard.top, 0.5),
-      reason: 'البطاقتان في صف واحد بمحاذاة علوية واحدة',
+      greaterThan(clinicCard.bottom),
+      reason: 'البطاقات صفوف متراصة عمودياً (م155)',
+    );
+    expect(
+      other.top - clinicCard.bottom,
+      lessThanOrEqualTo(12),
+      reason: 'فجوة صغيرة مضبوطة بين الصفوف',
     );
 
     // م57 — الإحصاءات المدمجة كالأصل: «N مريض» و«N د.ل» داخل كل بطاقة.

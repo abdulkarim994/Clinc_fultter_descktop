@@ -326,170 +326,93 @@ class _ClinicsLandingState extends ConsumerState<_ClinicsLanding> {
                       fontSize: 12.5, color: BrandColors.mut2)),
             ),
           )
-        else
-          _clinicColumns(cards, cur, n),
+        else ...[
+          // م155 — بطاقات صفّية صغيرة بهوية الخزينة الجديدة (م154):
+          // صفٌّ أنيق لكل عيادة بدل الشبكة الكبيرة (قرار المالك).
+          for (var i = 0; i < cards.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            _clinicRow(cards[i], cur, n),
+          ],
+        ],
 
       ],
     );
   }
 
-  /// v25 — عمودان يحتضنان محتواهما (بديل الشبكة ثابتة الخلايا):
-  /// الترتيب بصرياً كترتيب الشبكة (0 يمين، 1 يسار، 2 يمين...).
-  Widget _clinicColumns(List<ClinicCard> cards, String cur,
-      String Function(Object?) n) {
-    final first = <Widget>[];
-    final second = <Widget>[];
-    for (var i = 0; i < cards.length; i++) {
-      (i.isEven ? first : second).add(_clinicCard(cards[i], cur, n));
-    }
-    // v26 — صفوف من عمودين بارتفاع جوهري واحد: البطاقتان في كل صف
-    // تتمددان لنفس الارتفاع، وبنية البطاقة الموحّدة (بما فيها مساحة
-    // شارة الدين المحجوزة) تجعل كل البطاقات بحجم واحد فعلياً.
-    final rows = <Widget>[];
-    for (var i = 0; i < first.length; i++) {
-      rows.add(IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: first[i]),
-            const SizedBox(width: 12), // .clinics-grid gap:12px
-            Expanded(
-              child: i < second.length
-                  ? second[i]
-                  : const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ));
-    }
-    return Column(children: [
-      for (var i = 0; i < rows.length; i++) ...[
-        if (i > 0) const SizedBox(height: 12), // gap:12px
-        rows[i],
-      ],
-    ]);
-  }
-
-  /// سطر إحصاء — توأم .clinic-stat حرفياً: أيقونة 12 بشفافية 50%، ثم
-  /// القيمة عريضة بلون العلامة الغامق، ثم الوسم بشفافية 72% («12 مريض»).
-  Widget _statLine(IconData icon, String value, String label) {
-    return Row(children: [
-      Icon(icon, size: 12, color: BrandColors.ink.withValues(alpha: .5)),
-      const SizedBox(width: 6),
-      Flexible(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: AlignmentDirectional.centerStart,
-          child: Row(children: [
-            Text(value,
-                style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: BrandColors.brandText)),
-            Text(' $label',
-                style: TextStyle(
-                    fontSize: 10.5,
-                    color: BrandColors.ink.withValues(alpha: .72))),
-          ]),
-        ),
-      ),
-    ]);
-  }
-
-  /// بطاقة العيادة — التوأم الحرفي لـ .clinic-card.glass في ClinicsLanding:
-  /// زوايا 22، حد ذهبي rgba(201,162,75,.25)، ظل sh-1، حشوة 16 وفجوات 12؛
-  /// قرص أيقونة 40 بقطر 12 وصبغة rgba(27,94,71,.1)؛ إحصاءات مدمجة
-  /// («12 مريض») بقيم بلون العلامة؛ شارة دين بعرض كامل ممركزة؛ وتذييل
-  /// الزيارات مدفوع للقاع (margin-top:auto).
-  Widget _clinicCard(
+  /// م155 — بطاقة العيادة الصفّية: توأم TreasuryMasterRow بروحها —
+  /// قرص أيقونة صغير + الاسم يميناً وسطرُ الإحصاء (مرضى · زيارات)
+  /// خفيفاً تحته، والدخل الشهري يساراً خلف صلاحيته (clinics.sums م125)
+  /// مع سهم الدخول. الضغط يفتح مرضى العيادة كما كان حرفياً.
+  Widget _clinicRow(
       ClinicCard c, String cur, String Function(Object?) n) {
-    return Container(
-      decoration: BoxDecoration(
-        color: BrandColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-            color: const Color.fromRGBO(201, 162, 75, .25)),
-        boxShadow: const [
-          BoxShadow(
-              color: Color.fromRGBO(10, 48, 36, .06),
-              blurRadius: 8,
-              offset: Offset(0, 2)),
-        ],
+    return Material(
+      color: BrandColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: BrandColors.line, width: .8),
       ),
-      child: Material(
-        color: Colors.transparent,
-        clipBehavior: Clip.antiAlias,
-        borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          key: Key('clinic-card-${c.name}'),
-          onTap: () =>
-              ref.read(openClinicProvider.notifier).state = c.name,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            // ملاحظة: mainAxisSize.max مع Expanded قبل التذييل — الارتفاع
-            // مضبوط من صف IntrinsicHeight (v26) فيمتد التذييل للقاع
-            // (margin-top:auto) وتتساوى بطاقتا الصف.
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ① الترويسة: قرص أيقونة 40×40 + الاسم (.clinic-name).
-                Row(children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: const Color.fromRGBO(27, 94, 71, .1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.home_work_outlined,
-                        size: 22, color: BrandColors.brand),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(c.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: .3,
-                            color: BrandColors.brandText)),
-                  ),
-                ]),
-                const SizedBox(height: 12),
-                // ② الإحصاءات (.clinic-stats): عمود بفجوة 6.
-                _statLine(Icons.people_outline_rounded,
-                    '${c.patientCount}', 'مريض'),
-                const SizedBox(height: 6),
-                // م125 — مجموع الدخل على البطاقة بصلاحيته المستقلة.
-                if (staffAllowed('clinics.sums')) ...[
-                  _statLine(
-                      Icons.credit_card_rounded, n(c.income), cur),
-                  const SizedBox(height: 12),
-                ] else
-                  const SizedBox(height: 12),
-                // م125 — شارة «دين معلق» حُذفت نهائياً (قرار المالك:
-                // لا داعي لها على بطاقات العيادات).
-                // ④ التذييل مدفوع للقاع (margin-top:auto كالأصل) —
-                // فتتساوى البطاقتان في الصف الواحد بلا فراغ وسطي ميت.
-                const Expanded(child: SizedBox.shrink()),
-                Row(children: [
-                  Expanded(
-                    child: Text('${c.visitCount} زيارة هذا الشهر',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 10.5,
-                            color: BrandColors.ink
-                                .withValues(alpha: .65))),
-                  ),
-                  Icon(Icons.chevron_left_rounded,
-                      size: 14,
-                      color: BrandColors.ink.withValues(alpha: .4)),
-                ]),
-              ],
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: Key('clinic-card-${c.name}'),
+        onTap: () =>
+            ref.read(openClinicProvider.notifier).state = c.name,
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          child: Row(children: [
+            // ① قرص الأيقونة — مصغّر من 40 إلى 30 (هوية البطاقة الكبيرة).
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: const Color.fromRGBO(27, 94, 71, .1),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: const Icon(Icons.home_work_outlined,
+                  size: 16, color: BrandColors.brand),
             ),
-          ),
+            const SizedBox(width: 9),
+            // ② الاسم + سطر الإحصاء الخفيف (مرضى · زيارات الشهر).
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(c.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: .3,
+                          color: BrandColors.brandText)),
+                  const SizedBox(height: 2),
+                  Text(
+                      '${c.patientCount} مريض · '
+                      '${c.visitCount} زيارة هذا الشهر',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 10.5,
+                          height: 1.1,
+                          color:
+                              BrandColors.ink.withValues(alpha: .65))),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // ③ الدخل الشهري — خلف صلاحيته المستقلة (م125 كما كان).
+            if (staffAllowed('clinics.sums'))
+              Text('${n(c.income)} $cur',
+                  textDirection: TextDirection.ltr,
+                  style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: BrandColors.goldDark,
+                      fontFeatures: [FontFeature.tabularFigures()])),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_left_rounded,
+                size: 17, color: BrandColors.mut),
+          ]),
         ),
       ),
     );
