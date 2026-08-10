@@ -32,6 +32,7 @@ import 'treasury_logic.dart'
         ProsGroup,
         TreasurySlice,
         detailItems,
+        prosCaseDetailRows,
         prosPayClin,
         prosPayDoc,
         prosPayLab;
@@ -691,7 +692,9 @@ class TreasuryProsTable extends ConsumerStatefulWidget {
 class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
   final _searchCtl = TextEditingController();
   String _sort = 'recent';
-  String? _open;
+
+  /// م158 — الحالة المفتوحة تفاصيلُها (كل صفٍّ معالجة مستقلة).
+  ProsCaseRow? _openCase;
   String _pay = 'all';
 
   // م157 — أعرُض أعمدة الجدول القابلة للسحب (سطح المكتب غير المكثف).
@@ -730,11 +733,16 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
     final cur = ref.watch(currencyProvider);
     final fs = widget.dense ? 11.5 : 12.5;
 
-    // ── المستوى الثاني: جدول دفعات الاسم المفتوح ────────────────────────
-    if (_open != null) {
-      final g = widget.groups.firstWhere((x) => x.name == _open,
-          orElse: () => ProsGroup(_open!));
-      final all = prosGroupPayments(g, widget.doctorPct);
+    // ── المستوى الثاني (م158): تفاصيل الحالة الواحدة المفتوحة ──────────
+    if (_openCase != null) {
+      final oc = _openCase!;
+      final repos = ref.read(reposProvider);
+      final all = prosCaseDetailRows(
+        oc,
+        allRecords: repos.records.getAll().cast<Map<String, Object?>>(),
+        allPros: repos.prosthetics.getAll().cast<Map<String, Object?>>(),
+        doctorPct: widget.doctorPct,
+      );
       final rows = [
         for (final r in all)
           if (_pay == 'all' ||
@@ -783,16 +791,33 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
               tooltip: 'رجوع للقائمة',
               icon: Icon(Icons.arrow_forward_rounded,
                   size: 18, color: BrandColors.brandIcon),
-              onPressed: () => setState(() => _open = null),
+              onPressed: () => setState(() => _openCase = null),
             ),
             Expanded(
-              child: Text(g.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: fs + 1.5,
-                      fontWeight: FontWeight.w900,
-                      color: BrandColors.brandText)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(oc.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: fs + 1.5,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.brandText)),
+                  // م158 — تمييز الحالة: نوع العمل وتاريخ الإنشاء
+                  // (+ وسم دفعة الدين) — كل صفٍّ معالجة مستقلة.
+                  Text(
+                      '${oc.work} · ${oc.date}'
+                      '${oc.isDebtPay ? ' · دفعة دين' : ''}',
+                      key: const Key('tr2-pros-case-sub'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: fs - 2,
+                          fontWeight: FontWeight.w700,
+                          color: BrandColors.mut)),
+                ],
+              ),
             ),
             SegmentedButton<String>(
               key: const Key('tr2-pros-pay'),
@@ -1106,7 +1131,7 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
     final double wDate = dense ? 54 : _cwDate;
     final double wLab = dense ? 42 : _cwLab;
     final double wWork = dense ? 42 : _cwWork;
-    final double wUnits = dense ? 22 : 44;
+    final double wUnits = dense ? 27 : 44;
     final double wMoney = dense ? 45 : _cwMoney;
 
     TextStyle head() => TextStyle(
@@ -1201,8 +1226,10 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
               _pGap(null),
               SizedBox(
                   width: wUnits,
-                  child: Text('وحدات',
-                      style: head(), textAlign: TextAlign.center)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('وحدات', maxLines: 1, style: head()),
+                  )),
               _pGap((dx) => _cwMoney = (_cwMoney - dx).clamp(50, 120),
                   key: const Key('tr2-pros-grip-money')),
               SizedBox(
@@ -1232,7 +1259,7 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
                     ? Key('tr2-pros-g-${c.name}')
                     : Key('tr2-pros-row-$i'),
                 onTap: () => setState(() {
-                  _open = c.name;
+                  _openCase = c;
                   _pay = 'all';
                 }),
                 child: Padding(
@@ -1241,47 +1268,55 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
                   child: Row(children: [
                     SizedBox(
                       width: wDate,
-                      child: Text(c.date,
-                          style: TextStyle(
-                              fontSize: dense ? fs - 2 : fs - 1.5,
-                              fontWeight: FontWeight.w700,
-                              color: BrandColors.ink,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures()
-                              ])),
+                      // م158 — سنة-شهر-يوم كاملاً على سطرٍ واحد دائماً.
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(c.date,
+                            maxLines: 1,
+                            style: TextStyle(
+                                fontSize: dense ? fs - 2 : fs - 1.5,
+                                fontWeight: FontWeight.w700,
+                                color: BrandColors.ink,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ])),
+                      ),
                     ),
                     SizedBox(width: dense ? 3 : 10),
                     Expanded(
-                      child: Row(children: [
-                        Flexible(
-                          child: Text(c.name,
+                      // م158 — الاسم لا يختفي أبداً: Wrap يضع الشارة
+                      // بجانب الاسم حين يتسع العرض وتحته حين يضيق.
+                      child: Wrap(
+                        spacing: 4,
+                        runSpacing: 1,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(c.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                   fontSize: dense ? fs - 1 : fs,
                                   fontWeight: FontWeight.w800,
                                   color: BrandColors.brandText)),
-                        ),
-                        // شارة «دفعة دين» بجانب الاسم (قرار المالك).
-                        if (c.isDebtPay)
-                          Container(
-                            key: Key('tr2-pros-debtpay-$i'),
-                            margin: const EdgeInsetsDirectional.only(
-                                start: 4),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: BrandColors.goldDark
-                                  .withValues(alpha: .12),
-                              borderRadius: BorderRadius.circular(6),
+                          if (c.isDebtPay)
+                            Container(
+                              key: Key('tr2-pros-debtpay-$i'),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: BrandColors.goldDark
+                                    .withValues(alpha: .12),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text('دفعة دين',
+                                  style: TextStyle(
+                                      fontSize: dense ? 8.5 : 9.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: BrandColors.goldDark)),
                             ),
-                            child: Text('دفعة دين',
-                                style: TextStyle(
-                                    fontSize: dense ? 8.5 : 9.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: BrandColors.goldDark)),
-                          ),
-                      ]),
+                        ],
+                      ),
                     ),
                     SizedBox(width: dense ? 3 : 10),
                     // المعمل مختصراً بلا كلمة «معمل» (قرار المالك).
@@ -1295,6 +1330,32 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
                     SizedBox(width: dense ? 3 : 10),
                     numCell(c.paid, wMoney, color: BrandColors.green),
                     SizedBox(width: dense ? 3 : 10),
+                    // م158/ب — لا متبقيَ وفيه دفعات خارج الشهر:
+                    // إشارة التعجب تحل مكان الصفر نفسه (قرار المالك).
+                    if (c.remaining == 0 && c.otherMonthPays.isNotEmpty)
+                      SizedBox(
+                        width: wMoney,
+                        child: Center(
+                          child: Tooltip(
+                            richMessage: TextSpan(
+                              text: [
+                                'دفعات خارج هذا الشهر:',
+                                for (final p0 in c.otherMonthPays)
+                                  '${p0.date} — ${n(p0.amount)}',
+                              ].join('\n'),
+                              style: const TextStyle(fontSize: 11.5),
+                            ),
+                            child: InkWell(
+                              key: Key('tr2-pros-otherpays-$i'),
+                              onTap: () => _showOtherPays(c),
+                              child: Icon(Icons.error_outline_rounded,
+                                  size: dense ? 13 : 15,
+                                  color: BrandColors.goldDark),
+                            ),
+                          ),
+                        ),
+                      )
+                    else
                     numCell(
                       c.remaining,
                       wMoney,
@@ -1345,43 +1406,65 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
               border: Border.all(
                   color: const Color.fromRGBO(201, 162, 75, .30)),
             ),
-            child: Row(children: [
-              SizedBox(
-                  width: wDate,
-                  child: Text('الإجمالي',
-                      style: TextStyle(
-                          fontSize: dense ? fs - 1.5 : fs - 1,
-                          fontWeight: FontWeight.w900,
-                          color: BrandColors.strong))),
-              SizedBox(width: dense ? 3 : 10),
-              // قيم المعامل — تحت خانة الاسم (لا عمود لها بالجدول).
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text('قيم المعامل: ${n(tLab)} $cur',
-                      key: const Key('tr2-pros-grand-lab'),
-                      style: TextStyle(
-                          fontSize: dense ? fs - 2 : fs - 1,
-                          fontWeight: FontWeight.w800,
-                          color: BrandColors.ink)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  SizedBox(
+                      width: wDate,
+                      child: Text('الإجمالي',
+                          style: TextStyle(
+                              fontSize: dense ? fs - 1.5 : fs - 1,
+                              fontWeight: FontWeight.w900,
+                              color: BrandColors.strong))),
+                  SizedBox(width: dense ? 3 : 10),
+                  const Expanded(child: SizedBox.shrink()),
+                  SizedBox(width: dense ? 3 : 10),
+                  SizedBox(width: wLab),
+                  SizedBox(width: dense ? 3 : 10),
+                  SizedBox(width: wWork),
+                  SizedBox(width: dense ? 3 : 10),
+                  txtCell(
+                      tUnits > 0 ? formatNumber(tUnits) : '—', wUnits),
+                  SizedBox(width: dense ? 3 : 10),
+                  numCell(tTotal, wMoney,
+                      color: BrandColors.ink, bold: true),
+                  SizedBox(width: dense ? 3 : 10),
+                  numCell(tPaid, wMoney,
+                      color: BrandColors.green, bold: true),
+                  SizedBox(width: dense ? 3 : 10),
+                  numCell(tRem, wMoney,
+                      color:
+                          tRem > 0 ? BrandColors.red : BrandColors.mut2,
+                      bold: true),
+                ]),
+                // م158 — «قيم المعامل» سطرٌ ثانٍ كامل بخط الإجمالي نفسه
+                // (تكبيرٌ وموضعٌ متناسق بقرار المالك).
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    key: const Key('tr2-pros-grand-lab'),
+                    children: [
+                      Text('قيم المعامل:',
+                          style: TextStyle(
+                              fontSize: dense ? fs - 1 : fs - .5,
+                              fontWeight: FontWeight.w900,
+                              color: BrandColors.strong)),
+                      const SizedBox(width: 6),
+                      Text('${n(tLab)} $cur',
+                          maxLines: 1,
+                          style: TextStyle(
+                              fontSize: dense ? fs - 1 : fs - .5,
+                              fontWeight: FontWeight.w900,
+                              color: BrandColors.goldDark,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ])),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(width: dense ? 3 : 10),
-              SizedBox(width: wLab),
-              SizedBox(width: dense ? 3 : 10),
-              SizedBox(width: wWork),
-              SizedBox(width: dense ? 3 : 10),
-              txtCell(tUnits > 0 ? formatNumber(tUnits) : '—', wUnits),
-              SizedBox(width: dense ? 3 : 10),
-              numCell(tTotal, wMoney, color: BrandColors.ink, bold: true),
-              SizedBox(width: dense ? 3 : 10),
-              numCell(tPaid, wMoney, color: BrandColors.green, bold: true),
-              SizedBox(width: dense ? 3 : 10),
-              numCell(tRem, wMoney,
-                  color: tRem > 0 ? BrandColors.red : BrandColors.mut2,
-                  bold: true),
-            ]),
+              ],
+            ),
           ),
         ],
       ),
