@@ -190,6 +190,7 @@ class DesktopDataTable<T> extends ConsumerStatefulWidget {
     this.emptyTitle = 'لا صفوف',
     this.emptyHint,
     this.footer,
+    this.totalOf,
     this.rowHeight = 40,
     this.selectable = true,
     this.zebra = true,
@@ -244,6 +245,11 @@ class DesktopDataTable<T> extends ConsumerStatefulWidget {
 
   /// شريحة حرة أسفل الجدول (فوق الترقيم) — إجماليات ونحوها.
   final Widget? footer;
+
+  /// م161/ب — صف إجمالي بمحاذاة الأعمدة: قيمة الإجمالي لكل عمود بمعرّفه
+  /// (null أو '' = خانة فارغة). حين يُمرَّر يُرسم صفٌّ ختامي داخل الجدول
+  /// مباشرةً تحت الصفوف بنفس أعرض الأعمدة (تجميعٌ بنظرة واحدة).
+  final String? Function(String colId)? totalOf;
 
   final double rowHeight;
   final bool selectable;
@@ -1039,6 +1045,10 @@ class _DesktopDataTableState<T> extends ConsumerState<DesktopDataTable<T>> {
                       ),
                     ),
                   ),
+                  // م161/ب — صف الإجمالي بمحاذاة الأعمدة المثبتة.
+                  if (widget.totalOf != null)
+                    _totalsSlice(pinnedCols, wOf,
+                        withSelBox: widget.selectable),
                 ],
               ),
             ),
@@ -1086,6 +1096,9 @@ class _DesktopDataTableState<T> extends ConsumerState<DesktopDataTable<T>> {
                           ),
                         ),
                       ),
+                      // م161/ب — صف الإجمالي بمحاذاة الأعمدة المتحركة.
+                      if (widget.totalOf != null)
+                        _totalsSlice(scrollCols, wOf, withSelBox: false),
                     ],
                   ),
                 ),
@@ -1094,6 +1107,48 @@ class _DesktopDataTableState<T> extends ConsumerState<DesktopDataTable<T>> {
           ),
         ],
       ),
+    );
+  }
+
+  /// م161/ب — شريحة صف الإجمالي لعمودٍ من الأعمدة المعروضة.
+  Widget _totalsSlice(List<DeskCol<T>> cols, double Function(DeskCol<T>) wOf,
+      {required bool withSelBox}) {
+    final tOf = widget.totalOf!;
+    return Container(
+      height: 38,
+      decoration: BoxDecoration(
+        color: const Color.fromRGBO(201, 162, 75, .10),
+        border: Border(
+            top: BorderSide(
+                color: const Color.fromRGBO(201, 162, 75, .35), width: 1)),
+      ),
+      child: Row(children: [
+        if (withSelBox) SizedBox(width: _selColWidth),
+        for (final c in cols)
+          SizedBox(
+            width: wOf(c),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Align(
+                alignment: c.numeric
+                    ? Alignment.center
+                    : AlignmentDirectional.centerStart,
+                child: Text(tOf(c.id) ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection:
+                        c.numeric ? TextDirection.ltr : null,
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: BrandColors.strong,
+                        fontFeatures: const [
+                          FontFeature.tabularFigures()
+                        ])),
+              ),
+            ),
+          ),
+      ]),
     );
   }
 
