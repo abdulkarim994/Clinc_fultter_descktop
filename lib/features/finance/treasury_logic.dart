@@ -142,6 +142,153 @@ num clinicProsTotalPaid(TreasurySlice s, String cli) => prosTotalPaid(
       [...s.pdPays.where((r) => r['clinic'] == cli)],
     );
 
+// ── م157 — صفوف جدول التركيبات الجديد (حالات + دفعات ديون مستقلة) ──────────
+
+/// صفٌّ واحد في جدول التركيبات (م157): حالة تركيب أنشئت هذا الشهر، أو
+/// دفعة دينٍ وردت هذا الشهر لحالةٍ من شهرٍ سابق (صفٌّ مستقل موسوم).
+class ProsCaseRow {
+  ProsCaseRow({
+    required this.date,
+    required this.name,
+    required this.lab,
+    required this.work,
+    required this.units,
+    required this.total,
+    required this.paid,
+    required this.remaining,
+    required this.labShare,
+    this.isDebtPay = false,
+    this.otherMonthPays = const [],
+  });
+
+  /// تاريخ إنشاء الحالة (أو تاريخ الدفعة لصف دفعة الدين).
+  final String date;
+  final String name;
+
+  /// اسم المعمل.
+  final String lab;
+
+  /// نوع العمل (prosType).
+  final String work;
+
+  /// عدد الوحدات (0 = غير مسجل).
+  final num units;
+  final num total;
+  final num paid;
+  final num remaining;
+
+  /// نصيب المعمل المنسوب لهذا الصف (لسطر «قيم المعامل» في الإجمالي).
+  final num labShare;
+
+  /// صفُّ دفعة دينٍ مستقل (حالة من شهرٍ سابق دُفع عليها هذا الشهر).
+  final bool isDebtPay;
+
+  /// دفعات الحالة الواقعة خارج شهر العرض — لإشارة التعجب بتلميحها
+  /// (السلوك المالي القديم: كل دفعة تُحتسب في شهر دفعها).
+  final List<({String date, num amount})> otherMonthPays;
+}
+
+/// بناء صفوف جدول التركيبات (م157) — نقيٌّ للعرض فقط، لا يمسّ أي
+/// احتساب مالي: حالات الشهر كما هي، ودفعات الشهر لحالات الشهور السابقة
+/// صفوفاً مستقلة موسومة «دفعة دين» (لا تُدمج بغيرها). [allDebts] كامل
+/// جدول الديون (لا مقصوص الشهر) لقراءة المتبقي والدفعات بتواريخها.
+List<ProsCaseRow> prosCaseRows(
+  TreasurySlice s,
+  String cli, {
+  required List<JMap> allDebts,
+  required List<JMap> allPros,
+  required num doctorPct,
+}) {
+  JMap? prosById(Object? id) {
+    if (id == null) return null;
+    for (final p in allPros) {
+      if (p['id'] == id) return p;
+    }
+    return null;
+  }
+
+  JMap? debtOfPros(Object? prosId) {
+    for (final d in allDebts) {
+      if (d['type'] == 'prosthetic' && d['prostheticId'] == prosId) return d;
+    }
+    return null;
+  }
+
+  JMap? debtById(Object? id) {
+    for (final d in allDebts) {
+      if (d['id'] == id) return d;
+    }
+    return null;
+  }
+
+  List<({String date, num amount})> otherPays(JMap? debt) {
+    if (debt == null) return const [];
+    final inst = debt['installments'];
+    if (inst is! List) return const [];
+    return [
+      for (final it in inst.whereType<Map>())
+        if (!'${it['date'] ?? ''}'.startsWith(s.month))
+          (date: '${it['date'] ?? ''}', amount: jsNumOr0(it['amount'])),
+    ];
+  }
+
+  final out = <ProsCaseRow>[];
+
+  // ① حالات الشهر — صفٌّ لكل تركيبة أنشئت في شهر العرض.
+  for (final p in s.pros.where((p) => p['clinic'] == cli)) {
+    final isDebt = jsTruthy(p['isDebt']);
+    final debt = isDebt ? debtOfPros(p['id']) : null;
+    final total = jsNumOr0(p['total']);
+    out.add(ProsCaseRow(
+      date: '${p['date'] ?? ''}',
+      name: '${jsOr(p['name'], 'بدون اسم')}',
+      lab: '${p['labName'] ?? ''}'.trim(),
+      work: () {
+        final t = '${p['prosType'] ?? ''}'.trim();
+        return (t.isEmpty || t == 'null') ? 'تركيبات' : t;
+      }(),
+      units: jsNumOr0(p['prosUnits']),
+      total: total,
+      paid: isDebt ? jsNumOr0(debt?['paidAmount']) : total,
+      remaining: isDebt ? jsNumOr0(debt?['remaining']) : 0,
+      labShare: jsNumOr0(p['labValue']),
+      otherMonthPays: otherPays(debt),
+    ));
+  }
+
+  // ② دفعات الشهر لحالات الشهور السابقة — صفوفٌ مستقلة موسومة.
+  for (final r in s.pdPays.where((r) => r['clinic'] == cli)) {
+    final debt = debtById(r['debtId']);
+    // حالة الدفعة أنشئت هذا الشهر؟ مدفوعها ظاهرٌ في صف حالتها أعلاه.
+    if (debt != null && '${debt['date'] ?? ''}'.startsWith(s.month)) {
+      continue;
+    }
+    // التركيبة الأصلية من شهرٍ سابق (ليست في شريحة الشهر): حقول
+    // المعمل/نوع العمل/الوحدات من صفّها الأصلي عبر prostheticId،
+    // وإلا فمن service الدين احتياطاً.
+    final origin = prosById(debt?['prostheticId']);
+    final work = '${origin?['prosType'] ?? debt?['service'] ?? ''}'
+        .trim()
+        .replaceAll('null', '');
+    out.add(ProsCaseRow(
+      date: '${r['date'] ?? ''}',
+      name: '${jsOr(r['name'], 'بدون اسم')}',
+      lab: '${origin?['labName'] ?? ''}'.trim().replaceAll('null', ''),
+      work: work.isEmpty ? 'تركيبات' : work,
+      units: jsNumOr0(origin?['prosUnits']),
+      total: jsNumOr0(jsOr(r['_fullAmount'], r['amount'])),
+      paid: jsNumOr0(jsOr(r['_fullAmount'], r['amount'])),
+      remaining: jsNumOr0(debt?['remaining']),
+      labShare: prosPayLab(r, doctorPct),
+      isDebtPay: true,
+      otherMonthPays: otherPays(debt),
+    ));
+  }
+
+  out.sort((a, b) => b.date.compareTo(a.date));
+  return out;
+}
+
 /// م156 — توزيع «المدفوع للتركيبات» على كاش/تحويل بنفس مقادير
 /// [prosTotalPaid] حرفياً (غير الدين بكامل قيمتها + دفعات ديونها
 /// بمبلغها الكامل) — فيبقى cash + xfer == prosTotalPaid دائماً.
