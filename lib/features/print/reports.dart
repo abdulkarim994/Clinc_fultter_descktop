@@ -760,8 +760,18 @@ Future<Uint8List> prosCasesReportPdf(
     tLab += k.labShare;
   }
 
-  String caseTitle(ProsCaseRow k) =>
-      '${k.name} — ${k.work} · ${k.date}${k.isDebtPay ? ' · دفعة دين' : ''}';
+  // م160 — نسبة الطبيب بالمئة في عنوان كل جدول (سلوك التقرير القديم
+  // حرفياً): تُحسب الفعلية من قيم دفعات الحالة نفسها (طبيب/الربح).
+  String caseTitle(ProsCaseRow k, List<JMap> pays) {
+    final doc = pays.fold<num>(0, (t, r) => t + jsNumOr0(r['doc']));
+    final clin = pays.fold<num>(0, (t, r) => t + jsNumOr0(r['clin']));
+    final profit = doc + clin;
+    final base =
+        '${k.name} — ${k.work} · ${k.date}${k.isDebtPay ? ' · دفعة دين' : ''}';
+    if (profit <= 0) return base;
+    final pct = (doc / profit * 100).round();
+    return '$base — نسبة الطبيب ~$pct% • العيادة ~${100 - pct}%';
+  }
 
   return _doc(fonts, [
     _h1(title),
@@ -806,7 +816,7 @@ Future<Uint8List> prosCasesReportPdf(
     ),
     // ── قسمٌ مستقل لكل حالة (لا تجميع بالاسم — م158) ──
     for (var i = 0; i < cases.length; i++) ...[
-      _secTitle(caseTitle(cases[i])),
+      _secTitle(caseTitle(cases[i], caseDetails[i])),
       _table(
         const ['التاريخ', 'الدفعة', 'الدفع', 'المخبر', 'الطبيب', 'العيادة'],
         [
@@ -830,6 +840,31 @@ Future<Uint8List> prosCasesReportPdf(
         ],
       ),
     ],
+    // ── م160 — الإجمالي النهائي أسفل كل الجداول: كل القيم + نصيبا
+    // الطبيب والعيادة عبر كل الحالات (من نفس صفوف التفاصيل المطبوعة).
+    _secTitle('الإجمالي النهائي'),
+    () {
+      num aPay = 0, aLab = 0, aDoc = 0, aClin = 0;
+      for (final pays in caseDetails) {
+        for (final r in pays) {
+          aPay += jsNumOr0(r['amount']);
+          aLab += jsNumOr0(r['lab']);
+          aDoc += jsNumOr0(r['doc']);
+          aClin += jsNumOr0(r['clin']);
+        }
+      }
+      return _table(
+        const ['', 'إجمالي الدفعات', 'المخبر', 'نصيب الطبيب', 'نصيب العيادة'],
+        const [],
+        totRow: [
+          'المجموع',
+          '${_n(aPay)} $c',
+          '${_n(aLab)} $c',
+          '${_n(aDoc)} $c',
+          '${_n(aClin)} $c',
+        ],
+      );
+    }(),
   ]);
 }
 
