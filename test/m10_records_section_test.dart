@@ -438,7 +438,8 @@ void main() {
       // نهائياً بقرار المالك (م125، patients_tab.dart): لا مكافئ لها بعد
       // الآن، فحُذف التوقّع بدل تبديل مفتاح.
       expect(find.byKey(const Key('clinic-card-ع1')), findsOneWidget);
-      expect(find.text('300'), findsOneWidget);
+      // م155 — الدخل صار نصاً مركّباً «300 <عملة>» على البطاقة الصفّية.
+      expect(find.textContaining('300'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('clinic-card-ع1')));
       await settle(tester);
