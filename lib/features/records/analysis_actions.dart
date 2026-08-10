@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/ar_normalize.dart' show arNorm;
+import '../../core/utils/ar_normalize.dart' show arNorm, normPhone;
 import '../../core/utils/js_compat.dart' show getCurrentDate;
 import '../settings/analyses3.dart'
     show
@@ -24,10 +24,14 @@ import 'record_saver.dart' show addAnalysisToVisit;
 
 /// م149 — فحص قاعدة تكرار التحليل لمريضٍ ما اليوم: تعيد رسالة الحجب
 /// النصية أو null إن كان مسموحاً. مصدرٌ واحد لكل مسارات الإضافة.
+/// م153 — [clinic] تقصر القاعدة على العيادة نفسها، و[phone] (خام —
+/// يُطبَّع هنا) لاستثناء السميَّين بهاتفين صريحين مختلفين.
 String? triRepeatCheck(
   WidgetRef ref, {
   String? patientId,
   required String patientName,
+  String clinic = '',
+  String phone = '',
 }) {
   final cfg = ref.read(appConfigProvider);
   final records =
@@ -37,6 +41,8 @@ String? triRepeatCheck(
       records,
       patientId: patientId,
       patientName: patientName,
+      clinic: clinic,
+      phone: normPhone(phone),
       normalize: arNorm,
     ),
     today: getCurrentDate(),
@@ -151,10 +157,12 @@ Future<bool> promptAddAnalysisToVisit(
     return false;
   }
   // م149 — قاعدة تكرار التحليل: حجبٌ برسالة المواصفة قبل سؤال الطريقة.
+  // م153 — بنطاق عيادة الزيارة نفسها (والهاتف من معرّف الهوية إن وُجد).
   final blocked = triRepeatCheck(
     ref,
     patientId: patientId,
     patientName: patientName,
+    clinic: clinic,
   );
   if (blocked != null) {
     if (context.mounted) await showTriRepeatBlockedDialog(context, blocked);

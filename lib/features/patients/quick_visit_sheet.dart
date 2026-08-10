@@ -228,7 +228,13 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
           triAnalysesEnabled(cfg) &&
           triAnalysesPrice(cfg) > 0;
       if (wouldWriteAnalysis) {
-        final blocked = triRepeatCheck(ref, patientName: widget.name);
+        // م153 — بنطاق عيادة الورقة وهاتف المريض (استثناء السميَّين).
+        final blocked = triRepeatCheck(
+          ref,
+          patientName: widget.name,
+          clinic: widget.clinic,
+          phone: widget.phone,
+        );
         if (blocked != null) {
           await showTriRepeatBlockedDialog(context, blocked);
           return;

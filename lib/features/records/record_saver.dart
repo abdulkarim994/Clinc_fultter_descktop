@@ -18,7 +18,7 @@ import '../../data/repositories/repositories.dart';
 import '../../data/sync/feature_flags.dart';
 import '../patients/archive_store.dart' show PatientArchiveStore;
 import '../staff/staff_session.dart' show staffCreatedBy;
-import '../../core/utils/ar_normalize.dart' show arNorm;
+import '../../core/utils/ar_normalize.dart' show arNorm, normPhone;
 import '../settings/analyses3.dart'
     show
         kTriAnalysesName,
@@ -109,6 +109,8 @@ bool addAnalysisToVisit(
       repos.records.getAll().cast<Map<String, Object?>>(),
       patientId: patientId,
       patientName: patientName,
+      // م153 — القاعدة بنطاق العيادة، والهاتف من معرّف الهوية إن وُجد.
+      clinic: clinic,
       normalize: arNorm,
     ),
     today: getCurrentDate(),
@@ -511,6 +513,10 @@ SaveRecordResult saveNewRecord(
             repos.records.getAll().cast<Map<String, Object?>>(),
             patientId: pid,
             patientName: name,
+            // م153 — القاعدة بنطاق عيادة الزيارة، وهاتف النموذج المطبَّع
+            // لاستثناء السميَّين بهاتفين صريحين مختلفين.
+            clinic: f.clinic,
+            phone: normPhone(f.phone),
             normalize: arNorm,
           ),
           today: getCurrentDate(),
