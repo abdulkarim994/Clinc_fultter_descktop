@@ -43,7 +43,9 @@ import '../../patients/patients_tab.dart'
         patientMapProvider,
         patientsRevProvider;
 import '../../patients/quick_visit_sheet.dart' show showQuickVisitSheet;
+import '../../finance/analyses_registry.dart' show AnalysesRegistryCard;
 import '../../print/treatment_tables.dart' show formatNumber;
+import '../../settings/analyses3.dart' show triAnalysesEnabled;
 import '../../staff/staff_gate.dart' show gateStaff, staffAllowed;
 import '../desktop_prefs.dart'
     show desktopPrefsProvider, saveDesktopPref;
@@ -109,6 +111,10 @@ class _DesktopRecordsScreenState
 
   /// المريض المختار حالياً (null = لم يختر بعد).
   PatientAgg? _selectedAgg;
+
+  /// م155 — سجل التحاليل الثلاثية مفتوحاً في اللوح التفصيلي (يستبعد
+  /// اختيار مريض والعكس — لوحٌ واحد لعرضٍ واحد).
+  bool _analysesOpen = false;
 
   /// م(طباعة) — عند فتح الملف من فعل «طباعة ملف المريض» نُمرر autoPrint.
   bool _selectedAutoPrint = false;
@@ -189,7 +195,17 @@ class _DesktopRecordsScreenState
     setState(() {
       _selectedAgg = agg;
       _selectedAutoPrint = autoPrint;
+      _analysesOpen = false; // م155 — اختيار مريض يغلق سجل التحاليل.
       _keyboardIndex = null; // إعادة تعيين التحديد اللوحي
+    });
+  }
+
+  /// م155 — فتح سجل التحاليل الثلاثية في اللوح التفصيلي.
+  void _openAnalyses() {
+    setState(() {
+      _analysesOpen = true;
+      _selectedAgg = null;
+      _keyboardIndex = null;
     });
   }
 
@@ -559,6 +575,11 @@ class _DesktopRecordsScreenState
             clinicCards: cards,
             currency: cur,
             clinicFilter: _clinicFilter,
+            // م155 — مدخل التحاليل الثلاثية الثابت (خلف علم الميزة).
+            showAnalysesEntry:
+                triAnalysesEnabled(ref.watch(appConfigProvider)),
+            analysesSelected: _analysesOpen,
+            onOpenAnalyses: _openAnalyses,
             clinicStripExpanded: clinicStripExpanded,
             phoneMode: _phoneMode,
             sortBy: _sortBy,
@@ -592,7 +613,23 @@ class _DesktopRecordsScreenState
             pkeyOf: _pkey,
             itemMenuBuilder: _itemMenu,
           ),
-          detail: _selectedAgg == null
+          detail: _analysesOpen
+              // م155 — سجل التحاليل الثلاثية جدولاً منظماً في اللوح
+              // التفصيلي: رقم/تاريخ/اسم/طريقة/قيمة + تعديل وحذف + إجمالي.
+              ? DetailHost(
+                  hostKey: 'analyses-registry',
+                  child: ListView(
+                    key: const Key('dr-analyses-pane'),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+                    children: const [
+                      AnalysesRegistryCard(
+                          showIndex: true,
+                          showDate: true,
+                          inlineTotal: true),
+                    ],
+                  ),
+                )
+              : _selectedAgg == null
               ? null
               : DetailHost(
                   // مفتاح فريد لكل مريض/حالة طباعة كي يُعاد بناء الملاح
@@ -625,6 +662,9 @@ class _MasterPanel extends StatelessWidget {
     required this.clinicCards,
     required this.currency,
     required this.clinicFilter,
+    required this.showAnalysesEntry,
+    required this.analysesSelected,
+    required this.onOpenAnalyses,
     required this.clinicStripExpanded,
     required this.phoneMode,
     required this.sortBy,
@@ -658,6 +698,9 @@ class _MasterPanel extends StatelessWidget {
   final List<ClinicCard> clinicCards;
   final String currency;
   final String? clinicFilter;
+  final bool showAnalysesEntry;
+  final bool analysesSelected;
+  final VoidCallback onOpenAnalyses;
   final bool clinicStripExpanded;
   final bool phoneMode;
   final String sortBy;
@@ -697,9 +740,12 @@ class _MasterPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── رأس القسم: عنوان + عداد ────────────────────────────────────
-          _PanelHeader(count: rows.length),
-          const Divider(height: 1),
+          // ── رأس القسم: عنوان + عداد (يُخفى حين عيادةٌ مفتوحة — م155/ب:
+          // اسم الدكتور يحل محله تحت البحث كسلوك الهاتف). ──
+          if (clinicFilter == null) ...[
+            _PanelHeader(count: rows.length),
+            const Divider(height: 1),
+          ],
           // ── حقل البحث الفوري + قمع الأدوات ──────────────────────────────
           _SearchField(
             controller: searchCtl,
@@ -714,8 +760,127 @@ class _MasterPanel extends StatelessWidget {
             onDebtOnly: onDebtOnly,
             onShowArchived: onShowArchived,
           ),
-          // ── شريط العيادات القابل للطي (رقائق أفقية مطويّة / بطاقات موسّعة) ─
-          if (clinicCards.isNotEmpty)
+          // ── م155/ب: عيادة مفتوحة — رأس باسم الدكتور وعدّاد مرضاه
+          // (كفتح العيادة في الهاتف)، مع زر عودة لكل العيادات؛ وتُخفى
+          // بوابة العيادات والتحاليل كلياً فتملأ الأسماء اللوح. ──
+          if (clinicFilter != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+              child: Material(
+                color: BrandColors.brand600.withValues(alpha: .06),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                      color: BrandColors.brand600.withValues(alpha: .45),
+                      width: 1),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  child: Row(children: [
+                    Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: const Color.fromRGBO(27, 94, 71, .1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.home_work_outlined,
+                          size: 14, color: BrandColors.brand),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(clinicFilter!,
+                              key: const Key('dr-clinic-open-name'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: BrandColors.brandText)),
+                          const SizedBox(height: 1),
+                          Text('${rows.length} مريض',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  height: 1.1,
+                                  color: BrandColors.ink
+                                      .withValues(alpha: .65))),
+                        ],
+                      ),
+                    ),
+                    // زر العودة — يعيد الفلتر إلى «كل العيادات».
+                    TextButton.icon(
+                      key: const Key('dr-clinic-open-back'),
+                      onPressed: () => onClinicChanged(null),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: BrandColors.brand600,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                      ),
+                      icon: const Icon(Icons.grid_view_rounded, size: 13),
+                      label: const Text('كل العيادات',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+          // ── م155: مدخل التحاليل الثلاثية — ثابت أولاً (توأم بوابة
+          // الهاتف)، يفتح السجل جدولاً في اللوح التفصيلي — يظهر في
+          // البوابة فقط (لا عيادة مفتوحة). ──
+          if (clinicFilter == null && showAnalysesEntry)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
+              child: Material(
+                color: analysesSelected
+                    ? BrandColors.green.withValues(alpha: .08)
+                    : BrandColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                      color: BrandColors.green
+                          .withValues(alpha: analysesSelected ? .55 : .35),
+                      width: analysesSelected ? 1.2 : .8),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  key: const Key('dr-anal-registry-entry'),
+                  onTap: onOpenAnalyses,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 9),
+                    child: Row(children: [
+                      Icon(Icons.biotech_rounded,
+                          size: 17, color: BrandColors.green),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text('إيراد التحاليل الثلاثية',
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: BrandColors.brandText)),
+                      ),
+                      Text('السجل الكامل',
+                          style: TextStyle(
+                              fontSize: 10.5, color: BrandColors.mut2)),
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_left_rounded,
+                          size: 17, color: BrandColors.mut),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+          // ── شريط العيادات القابل للطي (رقائق أفقية مطويّة / بطاقات
+          // موسّعة) — في البوابة فقط؛ يختفي كلياً حين عيادةٌ مفتوحة. ──
+          if (clinicFilter == null && clinicCards.isNotEmpty)
             _ClinicStrip(
               cards: clinicCards,
               currency: currency,
@@ -1242,12 +1407,12 @@ class _ExpandedCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      // ~120px — البطاقات نفسها بمحتواها الحالي (الـ Expanced الداخلي يمتص
-      // الفراغ فلا تجاوز مع الارتفاع الأقل من السابق).
-      height: 120,
+    // م155 — بطاقات صفّية عمودية بهوية الخزينة (م154) بدل الشريط الأفقي:
+    // صفٌّ لكل عيادة بمعلوماتها، وسقفُ ارتفاعٍ يمرّر القائمة عند الكثرة.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 236),
       child: ListView(
-        scrollDirection: Axis.horizontal,
+        shrinkWrap: true,
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
         children: [
           // بطاقة «كل العيادات» تبقى خياراً (تعيد الفلتر إلى null).
@@ -1255,7 +1420,8 @@ class _ExpandedCards extends StatelessWidget {
             selected: selected == null,
             onTap: () => onChanged(null),
           ),
-          for (final c in cards)
+          for (final c in cards) ...[
+            const SizedBox(height: 6),
             _ClinicCard(
               card: c,
               currency: currency,
@@ -1263,6 +1429,7 @@ class _ExpandedCards extends StatelessWidget {
               onTap: () =>
                   onChanged(selected == c.name ? null : c.name),
             ),
+          ],
         ],
       ),
     );
@@ -1278,56 +1445,49 @@ class _AllClinicsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // م155 — صفٌّ بهوية الخزينة بدل البطاقة العمودية الصغيرة.
     final Color border =
         selected ? BrandColors.brand600 : BrandColors.line;
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 8),
-      child: SizedBox(
-        width: 128,
-        child: Material(
-          color: selected
-              ? BrandColors.brand600.withValues(alpha: .08)
-              : BrandColors.surface,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-                color: border, width: selected ? 1.4 : .8),
-          ),
-          child: InkWell(
-            key: const Key('dr-clinic-card-all'),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(children: [
-                    Icon(Icons.grid_view_rounded,
-                        size: 16,
-                        color: selected
-                            ? BrandColors.brand600
-                            : BrandColors.brand),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text('كل العيادات',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: BrandColors.brandText)),
-                    ),
-                  ]),
-                  const SizedBox(height: 8),
-                  Text('عرض كل المرضى',
-                      style: TextStyle(
-                          fontSize: 10.5, color: BrandColors.mut2)),
-                ],
-              ),
+    return Material(
+      color: selected
+          ? BrandColors.brand600.withValues(alpha: .08)
+          : BrandColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: border, width: selected ? 1.2 : .8),
+      ),
+      child: InkWell(
+        key: const Key('dr-clinic-card-all'),
+        onTap: onTap,
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(children: [
+            Icon(Icons.grid_view_rounded,
+                size: 16,
+                color: selected
+                    ? BrandColors.brand600
+                    : BrandColors.brand),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('كل العيادات',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: BrandColors.brandText)),
             ),
-          ),
+            Text('عرض كل المرضى',
+                style: TextStyle(
+                    fontSize: 10.5, color: BrandColors.mut2)),
+            if (selected) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.check_circle_rounded,
+                  size: 15, color: BrandColors.brand600),
+            ],
+          ]),
         ),
       ),
     );
@@ -1352,109 +1512,84 @@ class _ClinicCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = formatNumber;
-    // حد ذهبي كبطاقة الهاتف، ويبرز بلون العلامة عند الاختيار.
-    final Color border = selected
-        ? BrandColors.brand600
-        : const Color.fromRGBO(201, 162, 75, .35);
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 8),
-      child: SizedBox(
-        width: 150,
-        child: Material(
-          color: selected
-              ? BrandColors.brand600.withValues(alpha: .06)
-              : BrandColors.surface,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-                color: border, width: selected ? 1.4 : .8),
-          ),
-          child: InkWell(
-            key: Key('dr-clinic-card-${card.name}'),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
+    // م155 — صفٌّ بهوية الخزينة (توأم بوابة الهاتف الجديدة): قرص أيقونة
+    // + الاسم وسطر الإحصاء يميناً، والدخل بصلاحيته يساراً؛ يبرز بلون
+    // العلامة عند الاختيار كفلترٍ قائم.
+    final Color border =
+        selected ? BrandColors.brand600 : BrandColors.line;
+    return Material(
+      color: selected
+          ? BrandColors.brand600.withValues(alpha: .06)
+          : BrandColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: border, width: selected ? 1.2 : .8),
+      ),
+      child: InkWell(
+        key: Key('dr-clinic-card-${card.name}'),
+        onTap: onTap,
+        child: Padding(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Row(children: [
+            // ① قرص الأيقونة.
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: const Color.fromRGBO(27, 94, 71, .1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.home_work_outlined,
+                  size: 14, color: BrandColors.brand),
+            ),
+            const SizedBox(width: 8),
+            // ② الاسم + سطر الإحصاء الخفيف.
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ① الترويسة: أيقونة العيادة + الاسم.
-                  Row(children: [
-                    Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        color: const Color.fromRGBO(27, 94, 71, .1),
-                        borderRadius: BorderRadius.circular(7),
-                      ),
-                      child: const Icon(Icons.home_work_outlined,
-                          size: 13, color: BrandColors.brand),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(card.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: BrandColors.brandText)),
-                    ),
-                  ]),
-                  const SizedBox(height: 6),
-                  // ② عدد المرضى.
-                  _stat(Icons.people_outline_rounded,
-                      '${card.patientCount}', 'مريض'),
-                  // م125 — الدخل خلف صلاحيته المستقلة (كالهاتف :451-453):
-                  // بدونها لا يظهر رقم الدخل إطلاقاً.
-                  if (staffAllowed('clinics.sums')) ...[
-                    const SizedBox(height: 3),
-                    _stat(Icons.credit_card_rounded,
-                        n(card.income), currency),
-                  ],
-                  // التذييل مدفوع للقاع (margin-top:auto كبطاقة الهاتف):
-                  // يمتص أي فراغ فلا يتجاوز المحتوى ولا يترك فجوة ميتة.
-                  const Expanded(child: SizedBox(height: 6)),
-                  // ③ زيارات الشهر — كالهاتف «X زيارة هذا الشهر».
-                  Text('${card.visitCount} زيارة هذا الشهر',
+                  Text(card.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: BrandColors.brandText)),
+                  const SizedBox(height: 1),
+                  Text(
+                      '${card.patientCount} مريض · '
+                      '${card.visitCount} زيارة هذا الشهر',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 10,
+                          height: 1.1,
                           color:
                               BrandColors.ink.withValues(alpha: .65))),
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// سطر إحصاء مضغوط — أيقونة صغيرة + قيمة عريضة + وسم خفيف.
-  Widget _stat(IconData icon, String value, String label) {
-    return Row(children: [
-      Icon(icon, size: 12, color: BrandColors.ink.withValues(alpha: .5)),
-      const SizedBox(width: 5),
-      Flexible(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: AlignmentDirectional.centerStart,
-          child: Row(children: [
-            Text(value,
-                style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    color: BrandColors.brandText)),
-            Text(' $label',
-                style: TextStyle(
-                    fontSize: 10,
-                    color: BrandColors.ink.withValues(alpha: .72))),
+            const SizedBox(width: 8),
+            // ③ الدخل الشهري — خلف صلاحيته المستقلة (م125 كما كان).
+            if (staffAllowed('clinics.sums'))
+              Text('${n(card.income)} $currency',
+                  textDirection: TextDirection.ltr,
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: BrandColors.goldDark,
+                      fontFeatures: [FontFeature.tabularFigures()])),
+            if (selected) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.check_circle_rounded,
+                  size: 15, color: BrandColors.brand600),
+            ],
           ]),
         ),
       ),
-    ]);
+    );
   }
 }
 
@@ -1607,7 +1742,9 @@ class _PatientTileState extends State<_PatientTile> {
     } else if (widget.isKeyboardFocused) {
       bg = BrandColors.gold.withValues(alpha: .08);
     } else if (_hovered) {
-      bg = BrandColors.surface2;
+      // م155 — تظليل المرور: صبغة علامة فاتحة شفافة بدل surface2 الداكنة
+      // (كانت تظهر شريطاً غامقاً ثقيلاً — ملاحظة المالك بالصورة).
+      bg = BrandColors.brand.withValues(alpha: .05);
     } else {
       bg = Colors.transparent;
     }
@@ -1635,8 +1772,9 @@ class _PatientTileState extends State<_PatientTile> {
       child: GestureDetector(
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
+        // م155 — Container فوري بدل AnimatedContainer (كان تأخير 100مل
+        // يجعل التظليل يبدو متثاقلاً عند المرور السريع فوق الصفوف).
+        child: Container(
           height: _kItemHeight,
           decoration: BoxDecoration(
             color: bg,
