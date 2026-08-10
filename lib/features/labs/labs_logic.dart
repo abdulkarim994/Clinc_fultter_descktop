@@ -77,6 +77,100 @@ List<LabCase> labCases(
   return cases;
 }
 
+// ── م161 — إعادة تصميم قسم المختبر: قيمٌ شهرية وصفوف جدول موحّدة ─────────────
+
+/// صفٌّ في جدول المختبر (م161): حالة تركيبٍ لهذا المختبر في الشهر المختار.
+/// [value] = قيمة المختبر (labValue) — ما يستحقه المعمل (قرار المالك).
+class LabRow {
+  const LabRow({
+    required this.id,
+    required this.date,
+    required this.name,
+    required this.clinic,
+    required this.prosType,
+    required this.units,
+    required this.value,
+  });
+
+  /// معرّف التركيبة — لفتح تفاصيل الحالة من الصف (سطح المكتب).
+  final String id;
+  final String date;
+  final String name;
+  final String clinic;
+  final String prosType;
+  final num units;
+  final num value;
+}
+
+/// صفوف مختبرٍ في شهرٍ مختار — مرتبةً بالأحدث أولاً دائماً (جدول/طباعة).
+/// [month] بصيغة YYYY-MM؛ فارغ = كل الشهور.
+List<LabRow> labMonthRows(
+  String lab, {
+  required List<JMap> prosthetics,
+  String month = '',
+}) {
+  final rows = <LabRow>[
+    for (final p in prosthetics)
+      if (p['labName'] == lab &&
+          (month.isEmpty || '${jsOr(p['date'], '')}'.startsWith(month)))
+        LabRow(
+          id: '${jsOr(p['id'], '')}',
+          date: '${jsOr(p['date'], '')}',
+          name: '${jsOr(p['name'], '')}',
+          clinic: '${jsOr(p['clinic'], jsOr(p['clinic_id'], ''))}',
+          prosType: '${jsOr(p['prosType'], 'تركيبات')}',
+          units: _unitsOf(p['prosUnits']),
+          value: jsNumOr0(p['labValue']),
+        ),
+  ];
+  rows.sort((a, b) => b.date.compareTo(a.date));
+  return rows;
+}
+
+/// قيمة المختبر الكلية في شهرٍ مختار (مجموع labValue لحالاته).
+num labMonthValue(
+  String lab, {
+  required List<JMap> prosthetics,
+  String month = '',
+}) =>
+    labMonthRows(lab, prosthetics: prosthetics, month: month)
+        .fold<num>(0, (s, r) => s + r.value);
+
+/// بطاقة مختبرٍ في القائمة (م161): الاسم وقيمة الشهر وعدد حالاته.
+class LabCard {
+  const LabCard(this.name, this.monthValue, this.count);
+  final String name;
+  final num monthValue;
+  final int count;
+}
+
+/// بطاقات كل المختبرات لشهرٍ مختار — مرتبةً أبجدياً باسم المختبر.
+List<LabCard> labCards(
+  List<String> labs, {
+  required List<JMap> prosthetics,
+  String month = '',
+}) {
+  final out = [
+    for (final lab in labs)
+      LabCard(
+        lab,
+        labMonthValue(lab, prosthetics: prosthetics, month: month),
+        labMonthRows(lab, prosthetics: prosthetics, month: month).length,
+      ),
+  ];
+  out.sort((a, b) => a.name.compareTo(b.name));
+  return out;
+}
+
+/// تجميع صفوف مختبرٍ بالعيادة — لخيار طباعة «كل عيادة على حدة».
+Map<String, List<LabRow>> labRowsByClinic(List<LabRow> rows) {
+  final map = <String, List<LabRow>>{};
+  for (final r in rows) {
+    (map[r.clinic.isEmpty ? '—' : r.clinic] ??= []).add(r);
+  }
+  return map;
+}
+
 num labTotalAll(List<LabCase> cases) =>
     cases.fold<num>(0, (s, c) => s + jsNumOr0(c.row['labValue']));
 

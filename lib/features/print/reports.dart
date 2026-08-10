@@ -580,6 +580,79 @@ Future<Uint8List> monthlyReportPdf(
 /// رمادي غامق مع عمود «سعر الوحدة» لسهولة مراجعة الحساب (المخزن،
 /// وإلا القيمة ÷ الوحدات)، صف مجموع مؤطر، وخلاصة مالية ختامية
 /// بصناديق أنيقة — التوقيع البرمجي للدالة كما هو حرفياً.
+/// م161 — تقرير قيم كل المعامل لشهرٍ مختار (زر «طباعة قيم كل المعامل»).
+Future<Uint8List> labsValuesPdf(
+  PdfFonts fonts, {
+  required String subtitle,
+  required String currency,
+  required List<LabCard> cards,
+}) {
+  final c = currency;
+  final total = cards.fold<num>(0, (t, k) => t + k.monthValue);
+  return _doc(fonts, [
+    _h1('قيم المعامل'),
+    _sub(subtitle),
+    pw.SizedBox(height: 8),
+    _table(
+      const ['المختبر', 'عدد الحالات', 'قيمة الشهر'],
+      [
+        for (final k in cards)
+          [k.name, '${k.count}', '${_n(k.monthValue)} $c'],
+      ],
+      totRow: ['الإجمالي', '', '${_n(total)} $c'],
+    ),
+  ]);
+}
+
+/// م161 — تقرير مختبرٍ واحد بجدول م161 (التاريخ/الاسم/العيادة/النوع/
+/// الوحدات/القيمة) مرتباً بالأحدث + صف الإجمالي. [byClinic] = قسمٌ لكل
+/// عيادة على حدة، وإلا جدولٌ واحد لكل العيادات معاً.
+Future<Uint8List> labMonthReportPdf(
+  PdfFonts fonts, {
+  required String lab,
+  required String subtitle,
+  required String currency,
+  required List<LabRow> rows,
+  bool byClinic = false,
+}) {
+  final c = currency;
+  List<List<String>> body(List<LabRow> rs) => [
+        for (final r in rs)
+          [
+            r.date,
+            r.name,
+            r.clinic.isEmpty ? '—' : r.clinic,
+            r.prosType,
+            _n(r.units),
+            '${_n(r.value)} $c',
+          ],
+      ];
+  List<String> tot(List<LabRow> rs) => [
+        'الإجمالي',
+        '',
+        '',
+        '',
+        _n(rs.fold<num>(0, (t, r) => t + r.units)),
+        '${_n(rs.fold<num>(0, (t, r) => t + r.value))} $c',
+      ];
+  const headers = [
+    'التاريخ', 'الاسم', 'العيادة', 'نوع التركيب', 'الوحدات', 'القيمة',
+  ];
+
+  return _doc(fonts, [
+    _h1('تقرير مختبر: $lab'),
+    _sub(subtitle),
+    pw.SizedBox(height: 8),
+    if (byClinic)
+      for (final e in labRowsByClinic(rows).entries) ...[
+        _secTitle(e.key),
+        _table(headers, body(e.value), totRow: tot(e.value)),
+      ]
+    else
+      _table(headers, body(rows), totRow: tot(rows)),
+  ]);
+}
+
 Future<Uint8List> labReportPdf(
   PdfFonts fonts, {
   required String lab,

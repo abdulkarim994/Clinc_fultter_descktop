@@ -33,6 +33,7 @@ import '../staff/activity_log_screen.dart' show ActivityLogScreen;
 import '../staff/staff_account_screen.dart' show StaffAccountCard;
 import '../../core/app_build.dart';
 import '../../core/theme/app_theme.dart';
+import '../labs/lab_logo.dart';
 import '../xrays/storage_meter.dart'
     show StorageMeter, StorageLevel, humanBytesAr;
 import '../../core/utils/js_compat.dart';
@@ -931,7 +932,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 shape: BoxShape.circle,
                 color: tint.withValues(alpha: .10),
               ),
-              child: Icon(s.icon, size: 19, color: tint),
+              child: s.id == 'labs'
+                  ? LabLogo(size: 19, color: tint)
+                  : Icon(s.icon, size: 19, color: tint),
             ),
             const SizedBox(width: 12),
             Expanded(

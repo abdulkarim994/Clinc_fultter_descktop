@@ -23,6 +23,9 @@
 library;
 
 import 'package:flutter/material.dart';
+// م161 — لوغو المختبر الموحّد.
+// ignore: directives_ordering
+import '../../labs/lab_logo.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,7 +34,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/js_compat.dart';
 import '../../labs/labs_logic.dart';
 import '../../print/print_service.dart' show loadPdfBrand, printOrSharePdf;
-import '../../print/reports.dart' show labReportPdf;
+import '../../print/reports.dart'
+    show labMonthReportPdf, labsValuesPdf;
 import '../widgets/context_menu.dart' show CtxItem;
 import '../widgets/desktop_dialogs.dart' show showDesktopPanel;
 import '../widgets/desktop_table.dart' show DeskCol, DesktopDataTable;
@@ -52,7 +56,11 @@ class _LabSummary {
     required this.total,
     required this.active,
     required this.due,
+    required this.monthValue,
   });
+
+  /// م161 — قيمة المختبر للشهر المختار (مجموع labValue لحالاته).
+  final num monthValue;
 
   /// اسم المختبر.
   final String lab;
@@ -113,6 +121,8 @@ class _DesktopLabsScreenState extends ConsumerState<DesktopLabsScreen> {
         : <String>[];
     final repos = ref.watch(reposProvider);
     final cur = ref.watch(currencyProvider);
+    // م161 — نطاق الشهر المختار (تصفير تلقائي مطلع كل شهر كالهاتف).
+    final month = ref.watch(selectedMonthProvider);
     final prosthetics = repos.prosthetics.getAll();
     final debts = repos.debts.getAll();
     final records = repos.records.getAll();
@@ -127,6 +137,8 @@ class _DesktopLabsScreenState extends ConsumerState<DesktopLabsScreen> {
         total: labCasesCount(prosthetics, lab),
         active: cases.where((c) => c.financialStatus == 'دين').length,
         due: labTotalDebt(cases),
+        monthValue:
+            labMonthValue(lab, prosthetics: prosthetics, month: month),
       ));
     }
 
@@ -146,10 +158,15 @@ class _DesktopLabsScreenState extends ConsumerState<DesktopLabsScreen> {
         _MasterHeader(
           count: filtered.length,
           total: summaries.length,
+          month: month,
           searchCtl: _searchCtl,
           labSort: _labSort,
           onSearch: (v) => setState(() => _query = v),
           onSortChanged: (s) => setState(() => _labSort = s),
+          // م161 — طباعة قيم كل المعامل للشهر المختار.
+          onPrintAll: labs.isEmpty
+              ? null
+              : () => _printAllLabs(labs, prosthetics, month),
         ),
         const Divider(height: 1),
         Expanded(
@@ -181,17 +198,23 @@ class _DesktopLabsScreenState extends ConsumerState<DesktopLabsScreen> {
     final sel = _selectedLab;
     // نتحقق أن المختبر المحدَّد ما زال ضمن الإعدادات (قد يُحذف).
     if (sel != null && labs.contains(sel)) {
-      final cases = _casesOf(sel,
-          prosthetics: prosthetics, debts: debts, records: records);
+      // م161 — حالات الشهر المختار وحدها (كجدول الهاتف الجديد).
+      final cases = [
+        for (final c in _casesOf(sel,
+            prosthetics: prosthetics, debts: debts, records: records))
+          if ('${c.row['date'] ?? ''}'.startsWith(month)) c,
+      ];
       detailWidget = DetailHost(
-        hostKey: 'labs-$sel',
+        hostKey: 'labs-$sel-$month',
         child: _LabDetail(
           key: ValueKey('labs-detail-$sel'),
           lab: sel,
+          month: month,
           cases: cases,
           cur: cur,
           onClose: () => setState(() => _selectedLab = null),
-          onPrint: () => _printLab(sel, cases),
+          onPrint: (byClinic) =>
+              _printLab(sel, prosthetics, month, byClinic: byClinic),
           onOpenCase: (c) => _openCase(c, cur),
           onCopyName: (name) {
             Clipboard.setData(ClipboardData(text: name));
@@ -212,6 +235,23 @@ class _DesktopLabsScreenState extends ConsumerState<DesktopLabsScreen> {
     );
   }
 
+  /// م161 — طباعة قيم كل المعامل للشهر المختار.
+  Future<void> _printAllLabs(
+      List<String> labs, List<JMap> prosthetics, String month) async {
+    try {
+      final fonts = await loadPdfBrand(ref);
+      final bytes = await labsValuesPdf(fonts,
+          subtitle: month,
+          currency: ref.read(currencyProvider),
+          cards: labCards(labs, prosthetics: prosthetics, month: month));
+      final msg = await printOrSharePdf(
+          ref.read(dbDirProvider), bytes, 'labs_values.pdf');
+      if (mounted) _snack(msg);
+    } catch (e) {
+      if (mounted) _snack('تعذّرت الطباعة');
+    }
+  }
+
   // ── فتح تفاصيل الحالة الكاملة (نافذة شبه‑شاشة) ────────────────────────────
 
   Future<void> _openCase(LabCase c, String cur) async {
@@ -225,15 +265,23 @@ class _DesktopLabsScreenState extends ConsumerState<DesktopLabsScreen> {
 
   // ── طباعة تقرير المختبر — توأم _printLab الهاتفي حرفياً ───────────────────
 
-  Future<void> _printLab(String lab, List<LabCase> cases) async {
+  Future<void> _printLab(
+      String lab, List<JMap> prosthetics, String month,
+      {required bool byClinic}) async {
     if (lab.isEmpty) {
       _snack('لا مختبر محدّد');
       return;
     }
     try {
       final fonts = await loadPdfBrand(ref);
-      final bytes = await labReportPdf(fonts,
-          lab: lab, cases: cases, currency: ref.read(currencyProvider));
+      // م161 — نفس تقرير الهاتف: جدول الشهر بالأحدث + صف الإجمالي،
+      // بخياري «كل العيادات معاً» أو «كل عيادة على حدة».
+      final bytes = await labMonthReportPdf(fonts,
+          lab: lab,
+          subtitle: month,
+          currency: ref.read(currencyProvider),
+          rows: labMonthRows(lab, prosthetics: prosthetics, month: month),
+          byClinic: byClinic);
       final msg = await printOrSharePdf(
           ref.read(dbDirProvider), bytes, 'lab_$lab.pdf');
       if (mounted) _snack(msg);
@@ -249,18 +297,26 @@ class _MasterHeader extends StatelessWidget {
   const _MasterHeader({
     required this.count,
     required this.total,
+    required this.month,
     required this.searchCtl,
     required this.labSort,
     required this.onSearch,
     required this.onSortChanged,
+    required this.onPrintAll,
   });
 
   final int count;
   final int total;
+
+  /// م161 — الشهر المختار (يظهر بالعنوان وتُطبع قيمه).
+  final String month;
   final TextEditingController searchCtl;
   final String labSort;
   final void Function(String) onSearch;
   final void Function(String) onSortChanged;
+
+  /// م161 — طباعة قيم كل المعامل (null = لا مختبرات).
+  final VoidCallback? onPrintAll;
 
   @override
   Widget build(BuildContext context) {
@@ -279,14 +335,13 @@ class _MasterHeader extends StatelessWidget {
                 color: BrandColors.brand600.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.biotech_rounded,
-                  size: 18, color: BrandColors.brand700),
+              child: const LabLogo(size: 18, color: BrandColors.brand700),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: Text('المختبرات',
+              child: Text('المختبرات — $month',
                   style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w900,
                       color: BrandColors.brandText)),
             ),
@@ -306,11 +361,13 @@ class _MasterHeader extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 8),
-          // بحث فوري (تصفية بالاسم).
-          SizedBox(
-            height: 34,
-            child: TextField(
-              key: const Key('labs-desk-search'),
+          // بحث فوري (تصفية بالاسم) + م161: زر طباعة قيم كل المعامل.
+          Row(children: [
+            Expanded(
+              child: SizedBox(
+                height: 34,
+                child: TextField(
+                  key: const Key('labs-desk-search'),
               controller: searchCtl,
               style: const TextStyle(fontSize: 12),
               decoration: InputDecoration(
@@ -332,9 +389,34 @@ class _MasterHeader extends StatelessWidget {
                   borderSide: BorderSide(color: BrandColors.line, width: .8),
                 ),
               ),
-              onChanged: onSearch,
+                  onChanged: onSearch,
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: 6),
+            Tooltip(
+              message: 'طباعة قيم كل المعامل',
+              child: Material(
+                color: BrandColors.gold.withValues(alpha: .08),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  side: BorderSide(
+                      color: BrandColors.gold.withValues(alpha: .3)),
+                ),
+                child: InkWell(
+                  key: const Key('labs-desk-print-all'),
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: onPrintAll,
+                  child: const SizedBox(
+                    width: 36,
+                    height: 34,
+                    child: Icon(Icons.print_rounded,
+                        size: 16, color: BrandColors.goldDark),
+                  ),
+                ),
+              ),
+            ),
+          ]),
           const SizedBox(height: 6),
           // فرز القائمة: بالاسم / بالأعلى مستحقاً.
           SingleChildScrollView(
@@ -433,8 +515,7 @@ class _LabTileState extends State<_LabTile> {
                 border: Border.all(
                     color: BrandColors.brand600.withValues(alpha: .25)),
               ),
-              child: const Icon(Icons.biotech_rounded,
-                  size: 18, color: BrandColors.brand700),
+              child: const LabLogo(size: 18, color: BrandColors.brand700),
             ),
             const SizedBox(width: 10),
             // الاسم + الشارات.
@@ -473,24 +554,29 @@ class _LabTileState extends State<_LabTile> {
               ),
             ),
             const SizedBox(width: 8),
-            // إجمالي المستحق + chevron.
+            // م161 — قيمة الشهر (كبطاقة الهاتف) + المستحق إن وجد.
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  s.due.toStringAsFixed(0),
+                  s.monthValue.toStringAsFixed(0),
                   textDirection: TextDirection.ltr,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
-                    color:
-                        s.due > 0 ? BrandColors.red : BrandColors.mut2,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: BrandColors.goldDark,
+                    fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
-                Text('مستحق',
+                Text('قيمة الشهر',
                     style: TextStyle(
                         fontSize: 9.5, color: BrandColors.mut2)),
+                if (s.due > 0)
+                  Text('مستحق ${s.due.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: BrandColors.red)),
               ],
             ),
             const SizedBox(width: 4),
@@ -532,6 +618,7 @@ class _LabDetail extends StatelessWidget {
   const _LabDetail({
     super.key,
     required this.lab,
+    required this.month,
     required this.cases,
     required this.cur,
     required this.onClose,
@@ -541,10 +628,15 @@ class _LabDetail extends StatelessWidget {
   });
 
   final String lab;
+
+  /// م161 — الشهر المختار (نطاق الجدول والطباعة).
+  final String month;
   final List<LabCase> cases;
   final String cur;
   final VoidCallback onClose;
-  final VoidCallback onPrint;
+
+  /// م161 — طباعة بخيارين: byClinic=true كل عيادة على حدة.
+  final void Function(bool byClinic) onPrint;
   final void Function(LabCase) onOpenCase;
   final void Function(String) onCopyName;
 
@@ -572,8 +664,7 @@ class _LabDetail extends StatelessWidget {
                 border: Border.all(
                     color: BrandColors.brand600.withValues(alpha: .3)),
               ),
-              child: const Icon(Icons.biotech_rounded,
-                  size: 21, color: BrandColors.brand700),
+              child: const LabLogo(size: 21, color: BrandColors.brand700),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -588,7 +679,7 @@ class _LabDetail extends StatelessWidget {
                           fontSize: 15,
                           fontWeight: FontWeight.w900,
                           color: BrandColors.brandText)),
-                  Text('${cases.length} حالة',
+                  Text('${cases.length} حالة · $month',
                       style: TextStyle(
                           fontSize: 11.5, color: BrandColors.mut2)),
                 ],
@@ -596,25 +687,33 @@ class _LabDetail extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             // زر طباعة تقرير المختبر (ذهبي) — توأم lab-print الهاتفي.
-            Tooltip(
-              message: 'طباعة تقرير المختبر',
-              child: Material(
-                color: BrandColors.gold.withValues(alpha: .08),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: BorderSide(
-                      color: BrandColors.gold.withValues(alpha: .3)),
-                ),
-                child: InkWell(
-                  key: const Key('labs-desk-print'),
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: onPrint,
-                  child: const SizedBox(
-                    width: 38,
-                    height: 36,
-                    child: Icon(Icons.print_rounded,
-                        size: 16, color: BrandColors.goldDark),
-                  ),
+            Material(
+              color: BrandColors.gold.withValues(alpha: .08),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(
+                    color: BrandColors.gold.withValues(alpha: .3)),
+              ),
+              child: PopupMenuButton<String>(
+                key: const Key('labs-desk-print'),
+                tooltip: 'طباعة',
+                enabled: cases.isNotEmpty,
+                onSelected: (v) => onPrint(v == 'byClinic'),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                      value: 'all',
+                      child: Text('كل العيادات معاً',
+                          style: TextStyle(fontSize: 12.5))),
+                  PopupMenuItem(
+                      value: 'byClinic',
+                      child: Text('كل عيادة على حدة',
+                          style: TextStyle(fontSize: 12.5))),
+                ],
+                child: const SizedBox(
+                  width: 38,
+                  height: 36,
+                  child: Icon(Icons.print_rounded,
+                      size: 16, color: BrandColors.goldDark),
                 ),
               ),
             ),
@@ -638,7 +737,7 @@ class _LabDetail extends StatelessWidget {
             defaultSortId: 'date',
             defaultSortAsc: false,
             persistSort: false,
-            defaultPinned: const ['status', 'name'],
+            defaultPinned: const ['date', 'name'],
             rowHeight: 40,
             emptyTitle: 'لا توجد حالات لهذا المختبر',
             searchHint: 'بحث بالاسم أو النوع…',
@@ -659,9 +758,19 @@ class _LabDetail extends StatelessWidget {
               CtxItem('طباعة تقرير المختبر',
                   icon: Icons.print_rounded,
                   keyId: 'labs-print-report',
-                  onTap: onPrint),
+                  onTap: () => onPrint(false)),
             ],
             columns: _columns(cur),
+            // م161/ب — صف الإجمالي آخر صف داخل الجدول بمحاذاة كل عمود
+            // (قرار المالك: تجميع كل شيء بنظرة واحدة).
+            totalOf: (id) => switch (id) {
+              'date' => 'الإجمالي',
+              'name' => '${cases.length} حالة',
+              'units' => labTotalUnits(cases).toStringAsFixed(0),
+              'value' => labTotalAll(cases).toStringAsFixed(0),
+              'paid' => labTotalCollected(cases).toStringAsFixed(0),
+              _ => '',
+            },
             footer: _LabTotalsFooter(cases: cases, cur: cur),
           ),
         ),
@@ -669,10 +778,80 @@ class _LabDetail extends StatelessWidget {
     );
   }
 
-  // ── تعريف الأعمدة (من LabCase.row وحالتها المالية) ──────────────────────
+  // ── تعريف الأعمدة — م161: ترتيب جدول الهاتف (التاريخ/الاسم/العيادة/
+  // النوع/الوحدات/القيمة) + عمودا سطح المكتب الإضافيان (المدفوع/الحالة).
   List<DeskCol<LabCase>> _columns(String cur) {
     return [
-      // الحالة المالية — شارة ملوّنة (مثبّتة افتراضياً).
+      // التاريخ — أولاً كالهاتف (الفرز الافتراضي الأحدث).
+      DeskCol.text<LabCase>(
+        id: 'date',
+        label: 'التاريخ',
+        width: 96,
+        value: (c) => '${c.row['date'] ?? ''}',
+        sortKey: (c) => '${c.row['date'] ?? ''}',
+      ),
+      // المريض (يتوسّع — flex:2، مثبّت افتراضياً).
+      DeskCol.text<LabCase>(
+        id: 'name',
+        label: 'الاسم',
+        width: 150,
+        flex: 2,
+        weight: FontWeight.w800,
+        value: (c) => '${c.row['name'] ?? ''}',
+        color: (_) => BrandColors.brandText,
+      ),
+      // العيادة.
+      DeskCol.text<LabCase>(
+        id: 'clinic',
+        label: 'العيادة',
+        width: 96,
+        value: (c) => '${c.row['clinic'] ?? ''}'.trim(),
+        color: (_) => BrandColors.mut,
+      ),
+      // نوع التركيب.
+      DeskCol.text<LabCase>(
+        id: 'type',
+        label: 'نوع التركيب',
+        width: 120,
+        value: (c) => '${c.row['prosType'] ?? ''}'.trim(),
+      ),
+      // م161 — الوحدات عموداً مستقلاً (الرقم فقط).
+      DeskCol.text<LabCase>(
+        id: 'units',
+        label: 'الوحدات',
+        width: 70,
+        numeric: true,
+        value: (c) {
+          final u = jsNumOr0(c.row['prosUnits']);
+          return (u > 0 ? u : 1).toStringAsFixed(0);
+        },
+        sortKey: (c) => jsNumOr0(c.row['prosUnits']),
+      ),
+      // القيمة (labValue) — رقمية ذهبية.
+      DeskCol.text<LabCase>(
+        id: 'value',
+        label: 'القيمة',
+        width: 90,
+        numeric: true,
+        weight: FontWeight.w800,
+        value: (c) => jsNumOr0(c.row['labValue']).toStringAsFixed(0),
+        sortKey: (c) => jsNumOr0(c.row['labValue']),
+        color: (_) => BrandColors.goldDark,
+      ),
+      // المدفوع (مشتق كالهاتف) — إضافي سطح المكتب.
+      DeskCol.text<LabCase>(
+        id: 'paid',
+        label: 'المدفوع',
+        width: 90,
+        numeric: true,
+        weight: FontWeight.w800,
+        value: (c) => _paidOf(c).toStringAsFixed(0),
+        sortKey: (c) => _paidOf(c),
+        color: (c) => c.financialStatus == 'محصّل'
+            ? BrandColors.green
+            : BrandColors.mut2,
+      ),
+      // الحالة المالية — شارة ملوّنة (إضافي سطح المكتب).
       DeskCol<LabCase>(
         id: 'status',
         label: 'الحالة',
@@ -697,78 +876,6 @@ class _LabDetail extends StatelessWidget {
                     color: color)),
           );
         },
-      ),
-      // المريض (يتوسّع — flex:2، مثبّت افتراضياً).
-      DeskCol.text<LabCase>(
-        id: 'name',
-        label: 'المريض',
-        width: 150,
-        flex: 2,
-        weight: FontWeight.w800,
-        value: (c) => '${c.row['name'] ?? ''}',
-        color: (_) => BrandColors.brandText,
-      ),
-      // النوع × الوحدات.
-      DeskCol.text<LabCase>(
-        id: 'type',
-        label: 'النوع',
-        width: 140,
-        value: (c) {
-          final t = '${c.row['prosType'] ?? ''}'.trim();
-          if (t.isEmpty) return '';
-          final u = jsNumOr0(c.row['prosUnits']);
-          return u > 1 ? '$t ×${u.toStringAsFixed(0)}' : t;
-        },
-      ),
-      // العيادة.
-      DeskCol.text<LabCase>(
-        id: 'clinic',
-        label: 'العيادة',
-        width: 96,
-        value: (c) => '${c.row['clinic'] ?? ''}'.trim(),
-        color: (_) => BrandColors.mut,
-      ),
-      // القيمة (labValue) — رقمية.
-      DeskCol.text<LabCase>(
-        id: 'value',
-        label: 'القيمة',
-        width: 90,
-        numeric: true,
-        weight: FontWeight.w800,
-        value: (c) => jsNumOr0(c.row['labValue']).toStringAsFixed(0),
-        sortKey: (c) => jsNumOr0(c.row['labValue']),
-        color: (_) => BrandColors.goldDark,
-      ),
-      // المدفوع (مشتق كالهاتف) — رقمية.
-      DeskCol.text<LabCase>(
-        id: 'paid',
-        label: 'المدفوع',
-        width: 90,
-        numeric: true,
-        weight: FontWeight.w800,
-        value: (c) => _paidOf(c).toStringAsFixed(0),
-        sortKey: (c) => _paidOf(c),
-        color: (c) => c.financialStatus == 'محصّل'
-            ? BrandColors.green
-            : BrandColors.mut2,
-      ),
-      // الحالة التشغيلية (تاريخ الحالة statusDate).
-      DeskCol.text<LabCase>(
-        id: 'opStatus',
-        label: 'حالة المختبر',
-        width: 110,
-        value: (c) => c.statusDate,
-        sortKey: (c) => c.statusDate,
-        color: (_) => BrandColors.mut,
-      ),
-      // التاريخ — رقمية بمفتاح فرز.
-      DeskCol.text<LabCase>(
-        id: 'date',
-        label: 'التاريخ',
-        width: 100,
-        numeric: true,
-        value: (c) => '${c.row['date'] ?? ''}',
-        sortKey: (c) => '${c.row['date'] ?? ''}',
       ),
     ];
   }
@@ -799,14 +906,8 @@ class _LabTotalsFooter extends StatelessWidget {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(children: [
-          _stat('عدد الحالات', '${cases.length}'),
-          _sep(),
-          _stat('إجمالي الوحدات',
-              labTotalUnits(cases).toStringAsFixed(0)),
-          _sep(),
-          _stat('إجمالي المختبر',
-              '${labTotalAll(cases).toStringAsFixed(2)} $cur'),
-          _sep(),
+          // م161/ب — العدّ والوحدات والقيمة صارت صفَّ إجمالي داخل الجدول
+          // بمحاذاة أعمدته؛ هنا الملخص المالي وحده (محصّل/ديون/صافٍ).
           _stat('المحصّل', '${collected.toStringAsFixed(2)} $cur',
               color: BrandColors.green),
           _sep(),

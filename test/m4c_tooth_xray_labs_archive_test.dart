@@ -845,32 +845,28 @@ void main() {
         warnIfMissed: false,
       );
       await settle(tester);
-      expect(find.text('مخبر النور'), findsOneWidget);
-      expect(find.text('2 حالة'), findsOneWidget);
+      // م161 — بطاقة المختبر الصفّية: الاسم وعدد حالات الشهر.
+      expect(find.byKey(const Key('lab-مخبر النور')), findsOneWidget);
+      expect(find.textContaining('2 حالة'), findsWidgets);
 
       await tester.tap(
         find.byKey(const Key('lab-مخبر النور')),
         warnIfMissed: false,
       );
       await settle(tester);
-      expect(find.text('محصّل'), findsOneWidget);
-      expect(find.text('دين'), findsOneWidget);
-      // زيركون × 2 وحدات
-      expect(find.textContaining('زيركون × 2'), findsOneWidget);
+      // م161 — شاشة المختبر المستقلة: جدول بأعمدته وصف الإجمالي.
+      expect(find.text('نوع التركيب'), findsOneWidget);
+      expect(find.text('زيركون'), findsWidgets);
+      expect(find.byKey(const Key('lab-detail-total')), findsOneWidget);
+      // إجمالي القيم = 200 + 300 = 500 (القيمة = قيمة المختبر).
+      expect(find.textContaining('500'), findsWidgets);
 
-      // المجاميع أسفل القائمة.
-      await tester.drag(vScrollable(), const Offset(0, -600));
-      await settle(tester);
-      expect(find.text('500.00'), findsOneWidget); // إجمالي المختبر
-      expect(find.text('200.00'), findsOneWidget); // المحصّل
-      expect(find.text('300.00'), findsOneWidget); // الديون
-      expect(find.text('-100.00'), findsOneWidget); // الصافي
-      expect(find.text('3'), findsWidgets); // إجمالي الوحدات 2+1
-
-      // الرجوع للقائمة.
-      await tester.drag(vScrollable(), const Offset(0, 600));
-      await settle(tester);
-      await tester.tap(find.byKey(const Key('lab-back')), warnIfMissed: false);
+      // الرجوع للقائمة: زر شريط تطبيق شاشة المختبر المستقلة (الأعلى).
+      final back = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byType(BackButton),
+      );
+      await tester.tap(back.last, warnIfMissed: false);
       await settle(tester);
       expect(find.byKey(const Key('lab-مخبر النور')), findsOneWidget);
     });
