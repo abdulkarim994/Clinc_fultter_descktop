@@ -1,1 +1,65 @@
-Ly8vINmFMTY0IOKAlCDYudiv2Kkg2KzZh9in2LLZiiDZhdiy2KfZhdmG2Kkg2YTZhNin2K7Yqtio2KfYsTog2YLYp9i52K/Yqtin2YYg2K3ZgtmK2YLZitiq2KfZhiDZiNiu2KfYr9mFINmF2LLZitmBINmF2LTYqtix2YMKLy8vICjZhtmB2LMg2YbZhdi3IG0yYiDYrdix2YHZitin2YspINmF2Lkg2LHZgti12Kkg2KfZhNiq2YLYp9ix2Kgg2KfZhNmC2YrYp9iz2YrYqSDYqNij2LHYqNi5INiv2YjYsdin2KouCmxpYnJhcnk7CgppbXBvcnQgJ2RhcnQ6aW8nOwoKaW1wb3J0ICdwYWNrYWdlOmRlbnRhbF9jbGluaWNfZmx1dHRlci9kYXRhL2RiL2xvY2FsX2RiLmRhcnQnOwppbXBvcnQgJ3BhY2thZ2U6ZGVudGFsX2NsaW5pY19mbHV0dGVyL2RhdGEvcmVwb3NpdG9yaWVzL3JlcG9zaXRvcmllcy5kYXJ0JzsKaW1wb3J0ICdwYWNrYWdlOmRlbnRhbF9jbGluaWNfZmx1dHRlci9kYXRhL3N5bmMvY29udGV4dC5kYXJ0JzsKaW1wb3J0ICdwYWNrYWdlOmRlbnRhbF9jbGluaWNfZmx1dHRlci9kYXRhL3N5bmMvZW5naW5lLmRhcnQnOwppbXBvcnQgJ3BhY2thZ2U6ZGVudGFsX2NsaW5pY19mbHV0dGVyL2RhdGEvc3luYy9mZWF0dXJlX2ZsYWdzLmRhcnQnOwppbXBvcnQgJ3BhY2thZ2U6cGF0aC9wYXRoLmRhcnQnIGFzIHA7CgppbXBvcnQgJ2hlbHBlcnMvZmFrZV9zeW5jX3NlcnZlci5kYXJ0JzsKCmNsYXNzIFN5bmNEZXZpY2UgewogIFN5bmNEZXZpY2UodGhpcy5uYW1lLCBGYWtlU3luY1NlcnZlciBzZXJ2ZXIpCiAgICAgIDogdG1wID0gRGlyZWN0b3J5LnN5c3RlbVRlbXAuY3JlYXRlVGVtcFN5bmMoJ20xNjRfJHtuYW1lfV8nKSB7CiAgICBkYiA9IExvY2FsRGIub3BlbihwLmpvaW4odG1wLnBhdGgsICdkZW50YWxfY2xpbmljX29mZmxpbmUuZGInKSk7CiAgICByZXBvcyA9IFJlcG9zaXRvcmllcyhkYik7CiAgICBjdHggPSBTeW5jQ29udGV4dChkYjogZGIsIHJlcG9zOiByZXBvcywgdHJhbnNwb3J0OiBzZXJ2ZXIpOwogICAgZW5naW5lID0gU3luY0VuZ2luZShjdHgpOwogIH0KCiAgZmluYWwgU3RyaW5nIG5hbWU7CiAgZmluYWwgRGlyZWN0b3J5IHRtcDsKICBsYXRlIGZpbmFsIExvY2FsRGIgZGI7CiAgbGF0ZSBmaW5hbCBSZXBvc2l0b3JpZXMgcmVwb3M7CiAgbGF0ZSBmaW5hbCBTeW5jQ29udGV4dCBjdHg7CiAgbGF0ZSBmaW5hbCBTeW5jRW5naW5lIGVuZ2luZTsKCiAgRnV0dXJlPHZvaWQ+IHN5bmMoKSA9PiBlbmdpbmUucnVuQ3ljbGUoJ3Rlc3QnKTsKCiAgdm9pZCBkaXNwb3NlKCkgewogICAgZGIuY2xvc2UoKTsKICAgIHRtcC5kZWxldGVTeW5jKHJlY3Vyc2l2ZTogdHJ1ZSk7CiAgfQp9CgovLy8g2K7Yp9iv2YUgKyDYrNmH2KfYstin2YYg4oCUINil2YbYtNin2KHZiyDZiNiq2YHZg9mK2YPYp9mLINmI2KrZgtin2LHYqNin2Ysg2KjYo9ix2KjYuSDYr9mI2LHYp9iqLgpjbGFzcyBGYWtlU2VydmVyQnVuZGxlIHsKICBGYWtlU2VydmVyQnVuZGxlKCkgewogICAgc3luY0ZsYWdzLnJlc2V0Rm9yVGVzdCgpOwogICAgc2VydmVyID0gRmFrZVN5bmNTZXJ2ZXIoKTsKICAgIGEgPSBTeW5jRGV2aWNlKCdBJywgc2VydmVyKTsKICAgIGIgPSBTeW5jRGV2aWNlKCdCJywgc2VydmVyKTsKICB9CgogIGxhdGUgZmluYWwgRmFrZVN5bmNTZXJ2ZXIgc2VydmVyOwogIGxhdGUgZmluYWwgU3luY0RldmljZSBhOwogIGxhdGUgZmluYWwgU3luY0RldmljZSBiOwoKICBGdXR1cmU8dm9pZD4gY29udmVyZ2UoKSBhc3luYyB7CiAgICBhd2FpdCBhLnN5bmMoKTsKICAgIGF3YWl0IGIuc3luYygpOwogICAgYXdhaXQgYS5zeW5jKCk7CiAgICBhd2FpdCBiLnN5bmMoKTsKICB9CgogIHZvaWQgZGlzcG9zZSgpIHsKICAgIGEuZGlzcG9zZSgpOwogICAgYi5kaXNwb3NlKCk7CiAgICBzeW5jRmxhZ3MucmVzZXRGb3JUZXN0KCk7CiAgfQp9Cg==
+/// م164 — عدة جهازي مزامنة للاختبار: قاعدتان حقيقيتان وخادم مزيف مشترك
+/// (نفس نمط m2b حرفياً) مع رقصة التقارب القياسية بأربع دورات.
+library;
+
+import 'dart:io';
+
+import 'package:dental_clinic_flutter/data/db/local_db.dart';
+import 'package:dental_clinic_flutter/data/repositories/repositories.dart';
+import 'package:dental_clinic_flutter/data/sync/context.dart';
+import 'package:dental_clinic_flutter/data/sync/engine.dart';
+import 'package:dental_clinic_flutter/data/sync/feature_flags.dart';
+import 'package:path/path.dart' as p;
+
+import 'helpers/fake_sync_server.dart';
+
+class SyncDevice {
+  SyncDevice(this.name, FakeSyncServer server)
+      : tmp = Directory.systemTemp.createTempSync('m164_${name}_') {
+    db = LocalDb.open(p.join(tmp.path, 'dental_clinic_offline.db'));
+    repos = Repositories(db);
+    ctx = SyncContext(db: db, repos: repos, transport: server);
+    engine = SyncEngine(ctx);
+  }
+
+  final String name;
+  final Directory tmp;
+  late final LocalDb db;
+  late final Repositories repos;
+  late final SyncContext ctx;
+  late final SyncEngine engine;
+
+  Future<void> sync() => engine.runCycle('test');
+
+  void dispose() {
+    db.close();
+    tmp.deleteSync(recursive: true);
+  }
+}
+
+/// خادم + جهازان — إنشاءً وتفكيكاً وتقارباً بأربع دورات.
+class FakeServerBundle {
+  FakeServerBundle() {
+    syncFlags.resetForTest();
+    server = FakeSyncServer();
+    a = SyncDevice('A', server);
+    b = SyncDevice('B', server);
+  }
+
+  late final FakeSyncServer server;
+  late final SyncDevice a;
+  late final SyncDevice b;
+
+  Future<void> converge() async {
+    await a.sync();
+    await b.sync();
+    await a.sync();
+    await b.sync();
+  }
+
+  void dispose() {
+    a.dispose();
+    b.dispose();
+    syncFlags.resetForTest();
+  }
+}
