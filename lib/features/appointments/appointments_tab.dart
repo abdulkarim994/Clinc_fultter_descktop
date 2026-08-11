@@ -46,10 +46,46 @@ final followUpDraftProvider = StateProvider<JMap?>((ref) => null);
 final apptClinicProvider = StateProvider<String>((ref) => '');
 
 class AppointmentsTab extends ConsumerStatefulWidget {
-  const AppointmentsTab({super.key});
+  const AppointmentsTab({super.key, this.dayOnly = false, this.initialDay});
+
+  /// م166 — وضع «يوم فقط»: جدول اليوم + زرا الإضافة والاستراحة فقط
+  /// (بلا رأس ولا شريط أيام ولا أرشيف ولا قادمة) — لشاشة اليوم الكاملة.
+  final bool dayOnly;
+
+  /// اليوم الابتدائي (شاشة اليوم الكاملة تمرر يومها).
+  final String? initialDay;
 
   @override
   ConsumerState<AppointmentsTab> createState() => _AppointmentsTabState();
+}
+
+/// م166 — شاشة اليوم الكاملة (هاتف): كل مواعيد يومٍ لعيادةٍ بشاشة مستقلة
+/// بنفس البطاقات وورقة الإجراءات وزرّي الإضافة والاستراحة — بلا أرشيف
+/// (قرار المالك). إعادة استعمال كاملة لمكوّن الحجوزات بوضع «يوم فقط».
+class DayScheduleScreen extends ConsumerWidget {
+  const DayScheduleScreen({super.key, required this.day});
+
+  final String day;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cfg = ref.watch(appConfigProvider);
+    final clinics = clinicsOf(cfg);
+    final clinic = clinics.length == 1
+        ? clinics.first
+        : ref.watch(apptClinicProvider);
+    final label = clinic.isEmpty
+        ? ''
+        : ' — ${clinic == kNoClinic ? 'غير محددة' : clinic}';
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('$day (${dayLabel(day)})$label',
+            style: const TextStyle(
+                fontSize: 14.5, fontWeight: FontWeight.w800)),
+      ),
+      body: AppointmentsTab(dayOnly: true, initialDay: day),
+    );
+  }
 }
 
 class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
@@ -58,9 +94,11 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
   @override
   void initState() {
     super.initState();
-    selectedDay = getCurrentDate();
+    selectedDay = widget.initialDay ?? getCurrentDate();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // م166 — شاشة اليوم لا تنظف الأرشيف ولا تخطف مسودة المتابعة.
+      if (widget.dayOnly) return;
       _purgeOldArchive();
       _consumeFollowUpDraft();
     });
@@ -203,6 +241,78 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
     final (active, archived) = splitDayRows(dayAll);
     final upcoming = upcomingForClinic(apptMap, filterKey, today: today);
     final needClinic = clinicRequired(cfg) && clinic.isEmpty;
+
+    // ── م166: وضع «يوم فقط» — الجدول وزرا الإضافة فقط (شاشة اليوم) ──
+    if (widget.dayOnly) {
+      return ListView(
+        key: const Key('appointments-day-only'),
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 24),
+        children: [
+          Row(children: [
+            Expanded(
+              child: FilledButton.icon(
+                key: const Key('appt-add-toggle'),
+                style: FilledButton.styleFrom(
+                    backgroundColor: BrandColors.gold,
+                    foregroundColor: BrandColors.brand900,
+                    padding: const EdgeInsets.symmetric(vertical: 10)),
+                onPressed: () => _openWizard(),
+                icon: const Icon(Icons.add_rounded, size: 17),
+                label: const Text('إضافة موعد',
+                    style: TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w800)),
+              ),
+            ),
+            const SizedBox(width: 6),
+            OutlinedButton.icon(
+              key: const Key('appt-add-break'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFB45309),
+                side: const BorderSide(color: Color(0xFFD97706)),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 9, vertical: 10),
+              ),
+              onPressed: () => _openWizard(breakMode: true),
+              icon: const Icon(Icons.free_breakfast_rounded, size: 15),
+              label: const Text('استراحة',
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${active.where((a) => !isBreakRow(a)).length} موعد',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: BrandColors.brand700),
+                  ),
+                  const SizedBox(height: 5),
+                  if (active.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Center(
+                        child: Text('لا مواعيد في هذا اليوم',
+                            style: TextStyle(
+                                fontSize: 11.5, color: BrandColors.mut2)),
+                      ),
+                    )
+                  else
+                    ..._timeline(
+                        active, debts, centerName, currency, today),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return ListView(
       key: const Key('appointments-tab'),
@@ -368,13 +478,34 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'مواعيد ${dayLabel(selectedDay)} — '
-                        '${active.where((a) => !isBreakRow(a)).length} موعد',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: BrandColors.brand700),
+                      // م166 — الرأس ينقر: شاشة اليوم الكاملة (عرض/تعديل/
+                      // حذف/إضافة لكل مواعيد هذا اليوم لهذه العيادة).
+                      InkWell(
+                        key: const Key('appt-day-open'),
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                DayScheduleScreen(day: selectedDay),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(children: [
+                            Expanded(
+                              child: Text(
+                                'مواعيد ${dayLabel(selectedDay)} — '
+                                '${active.where((a) => !isBreakRow(a)).length} موعد',
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: BrandColors.brand700),
+                              ),
+                            ),
+                            Icon(Icons.open_in_full_rounded,
+                                size: 14, color: BrandColors.brandIcon),
+                          ]),
+                        ),
                       ),
                       const SizedBox(height: 5),
                       if (active.isEmpty)

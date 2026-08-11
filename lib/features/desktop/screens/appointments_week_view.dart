@@ -31,8 +31,9 @@ library;
 import 'dart:async' show Timer;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart'
-    show HardwareKeyboard, LogicalKeyboardKey;
+    show HardwareKeyboard, KeyEvent, LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart' show appConfigProvider, reposProvider;
@@ -52,11 +53,22 @@ import '../../appointments/appt_lifecycle.dart'
     show apptStatusColor, filterByClinic, normApptStatus;
 import '../../appointments/appointments_tab.dart' show apptRevProvider;
 import '../../patients/patients_tab.dart' show patientsRevProvider;
+import '../desktop_prefs.dart'
+    show desktopPrefsProvider, saveDesktopPref;
 
 // ── ثوابت التخطيط ───────────────────────────────────────────────────────────
 
-/// ارتفاع الساعة الواحدة بالبكسل (عقد التصميم).
-const double _kHourH = 64;
+/// ارتفاع الساعة الافتراضي بالبكسل (عقد التصميم).
+const double _kHourHDefault = 64;
+
+/// م166 — ارتفاع الساعة الحي: يتغير بـ Ctrl+عجلة الفأرة (40–160) ويُحفظ
+/// في تفضيلات الجهاز. متغير مكتبةٍ خاص: جدولة واحدة معروضة في أي لحظة
+/// (عادية أو ملء شاشة)، وإعادة البناء بعد كل تغيير تعيد قراءة القيمة
+/// في كل الأبناء (عمود الساعات وأعمدة الأيام).
+double _kHourH = _kHourHDefault;
+
+/// مفتاح تفضيل مقياس الجدول.
+const _kHourHKey = 'appt.hourH';
 
 /// عرض عمود الساعات على اليمين.
 const double _kTimeColW = 56;
@@ -156,10 +168,24 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
   /// لحظة «الآن» المعاد رسمها دورياً.
   DateTime _now = DateTime.now();
 
+  /// م166 — Ctrl مضغوطاً؟ (يوقف سكرول الشبكة ليصير العجلةُ تكبيراً).
+  bool _ctrlDown = false;
+
+  bool _onKey(KeyEvent e) {
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    if (ctrl != _ctrlDown && mounted) setState(() => _ctrlDown = ctrl);
+    return false; // لا نستهلك الحدث.
+  }
+
   @override
   void initState() {
     super.initState();
     _weekStart = _weekStartOf(DateTime.now());
+    // م166 — استرجاع مقياس الجدول المحفوظ (40–160).
+    final saved = double.tryParse(
+        '${ref.read(desktopPrefsProvider)[_kHourHKey] ?? ''}');
+    if (saved != null) _kHourH = saved.clamp(40.0, 160.0);
+    HardwareKeyboard.instance.addHandler(_onKey);
     // تحديث خط «الآن» كل دقيقة (يُلغى في dispose — لا مؤقتٌ معلّق).
     _nowTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
@@ -168,8 +194,17 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onKey);
     _nowTimer?.cancel();
     super.dispose();
+  }
+
+  /// م166 — تكبير/تصغير بخطوة ~10% مع حفظ التفضيل.
+  void _zoom(double factor) {
+    setState(() {
+      _kHourH = (_kHourH * factor).clamp(40.0, 160.0);
+    });
+    saveDesktopPref(ref, _kHourHKey, '$_kHourH', immediate: true);
   }
 
   /// سبت الأسبوع الحاوي لتاريخٍ ما (منتصف الليل). حساب العقد:
@@ -289,6 +324,13 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
               _weekStart = _weekStart.add(const Duration(days: 7))),
           onToday: () =>
               setState(() => _weekStart = _weekStartOf(DateTime.now())),
+          // م166 — مؤشر المقياس وزر العودة لـ 100% (Ctrl+عجلة للتغيير).
+          zoomPct: (_kHourH / _kHourHDefault * 100).round(),
+          onResetZoom: () {
+            setState(() => _kHourH = _kHourHDefault);
+            saveDesktopPref(ref, _kHourHKey, '$_kHourHDefault',
+                immediate: true);
+          },
         ),
         _DayHeaderRow(days: days, todayStr: todayStr),
         if (noTime.isNotEmpty)
@@ -297,8 +339,19 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
             onTap: (a) => _showDetails(a),
           ),
         Expanded(
-          child: SingleChildScrollView(
+          // م166 — Ctrl+عجلة = تكبير/تصغير (السكرول العادي بلا Ctrl).
+          child: Listener(
+            onPointerSignal: (e) {
+              if (e is PointerScrollEvent &&
+                  HardwareKeyboard.instance.isControlPressed) {
+                _zoom(e.scrollDelta.dy < 0 ? 1.1 : 1 / 1.1);
+              }
+            },
+            child: SingleChildScrollView(
             key: const Key('appt-week-scroll'),
+            physics: _ctrlDown
+                ? const NeverScrollableScrollPhysics()
+                : null,
             child: SizedBox(
               height: gridHeight,
               child: Row(
@@ -346,6 +399,7 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
               ),
             ),
           ),
+          ),
         ),
       ],
     );
@@ -377,6 +431,8 @@ class _WeekNav extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.onToday,
+    required this.zoomPct,
+    required this.onResetZoom,
   });
 
   final DateTime weekStart;
@@ -384,6 +440,10 @@ class _WeekNav extends StatelessWidget {
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final VoidCallback onToday;
+
+  /// م166 — مقياس الجدول (100 = الافتراضي) وزر العودة إليه.
+  final int zoomPct;
+  final VoidCallback onResetZoom;
 
   String _range() {
     String d(DateTime x) =>
@@ -435,8 +495,35 @@ class _WeekNav extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        // موازنة بصرية لعرض الأزرار على اليسار.
-        const SizedBox(width: 40),
+        // م166 — شارة المقياس: تظهر عند غير 100% ونقرها يعيد الضبط
+        // (التغيير بـ Ctrl + عجلة الفأرة).
+        if (zoomPct != 100)
+          Tooltip(
+            message: 'المقياس $zoomPct% — انقر للعودة إلى 100%\n(Ctrl + عجلة الفأرة للتكبير/التصغير)',
+            child: InkWell(
+              key: const Key('appt-week-zoom-reset'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: onResetZoom,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: BrandColors.gold.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: BrandColors.gold.withValues(alpha: .4)),
+                ),
+                child: Text('$zoomPct% ⟲',
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: BrandColors.goldDark)),
+              ),
+            ),
+          )
+        else
+          // موازنة بصرية لعرض الأزرار على اليسار.
+          const SizedBox(width: 40),
       ]),
     );
   }

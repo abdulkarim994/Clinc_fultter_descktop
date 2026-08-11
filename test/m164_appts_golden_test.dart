@@ -215,6 +215,16 @@ void main() {
     await shot(t, 'm165_phone_compact');
   }, skip: !_goldens);
 
+  testWidgets('م166 — الهاتف: شاشة اليوم الكاملة', (t) async {
+    final c = await boot(t, size: const Size(420, 900));
+    await pumpPhone(t, c);
+    await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('appt-day-open')));
+    await t.pumpAndSettle();
+    await shot(t, 'm166_phone_day_screen');
+  }, skip: !_goldens);
+
   testWidgets('م164 — الكمبيوتر: تبويبات العيادات فوق الجدولة', (t) async {
     debugForceDesktopUi = true;
     t.view.physicalSize = const Size(1600, 1000);
@@ -247,5 +257,10 @@ void main() {
         warnIfMissed: false);
     await t.pumpAndSettle();
     await shot(t, 'm164_desktop_tabs');
+    // م166 — ملء الشاشة: الجدولة على كامل النافذة بشريط خروج رفيع.
+    await t.tap(find.byKey(const Key('appt-desk-fullscreen')),
+        warnIfMissed: false);
+    await t.pumpAndSettle();
+    await shot(t, 'm166_desktop_fullscreen');
   }, skip: !_goldens);
 }
