@@ -5,6 +5,8 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show KeyDownEvent, KeyEvent, KeyRepeatEvent, LogicalKeyboardKey;
 
 import '../../core/theme/app_theme.dart';
 
@@ -107,6 +109,61 @@ class _MiniCalculatorState extends State<_MiniCalculator> {
         : acc.toStringAsFixed(2);
   }
 
+  /// م167/ج — الكيبورد كامل: أرقام (علوية وNumpad) وعمليات وناتج ومسح —
+  /// كل مفتاحٍ يمر بنفس محرك _tap القائم حرفياً (لا منطق جديد).
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final k = e.logicalKey;
+    if (k == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.numpadEnter) {
+      _tap('=');
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.backspace) {
+      _tap('⌫');
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.delete) {
+      _tap('C');
+      return KeyEventResult.handled;
+    }
+    // مفاتيح Numpad الصريحة (بعض المنصات لا تبعث character لها).
+    final numpad = <LogicalKeyboardKey, String>{
+      LogicalKeyboardKey.numpadAdd: '+',
+      LogicalKeyboardKey.numpadSubtract: '-',
+      LogicalKeyboardKey.numpadMultiply: '×',
+      LogicalKeyboardKey.numpadDivide: '÷',
+      LogicalKeyboardKey.numpadDecimal: '.',
+    };
+    final np = numpad[k];
+    if (np != null) {
+      _tap(np);
+      return KeyEventResult.handled;
+    }
+    final ch = e.character;
+    if (ch != null && ch.isNotEmpty) {
+      const map = {
+        '0': '0', '1': '1', '2': '2', '3': '3', '4': '4',
+        '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
+        '.': '.', '+': '+', '-': '-',
+        '*': '×', 'x': '×', '/': '÷', '%': '%', '=': '=',
+        'c': 'C', 'C': 'C',
+      };
+      final t = map[ch];
+      if (t != null) {
+        _tap(t);
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
+
   // م62 — ألوان هوية التطبيق (لا البرتقالي): لوح كريمي، مفاتيح بيضاء،
   // أرقام داكنة، عمليات ورموز ذهبية غامقة، «=» أخضر معبأ، C أحمر.
   // والحاسبة مغلّفة LTR فترجع للتخطيط القياسي (العمليات يميناً والأرقام
@@ -155,7 +212,11 @@ class _MiniCalculatorState extends State<_MiniCalculator> {
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
       // م62 — LTR: تخطيط قياسي (العمليات في العمود الأيمن، الأرقام
       // بترتيبها الطبيعي) بدل انعكاس الواجهة العربية.
-      child: Directionality(
+      // م167/ج — Focus مستقبِل: الحاسبة تعمل بالكيبورد كاملاً.
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: _onKey,
+        child: Directionality(
         textDirection: TextDirection.ltr,
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -250,6 +311,7 @@ class _MiniCalculatorState extends State<_MiniCalculator> {
             ]),
           ),
         ),
+      ),
       ),
     );
   }
