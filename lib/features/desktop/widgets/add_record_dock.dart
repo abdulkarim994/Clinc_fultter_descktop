@@ -62,11 +62,28 @@ final addRecordDockProvider = StateProvider<AddRecordDockRequest?>(
   (ref) => null,
 );
 
+/// م167/ج — موضع اللوح المسحوب (إحداثيات مساحة العمل). null = المرسى
+/// الافتراضي (بداية RTL). يضبطه سحبُ الرأس ويُحفظ في تفضيلات الجهاز.
+final addRecordDockPosProvider = StateProvider<Offset?>((ref) => null);
+
+/// عرض اللوح — دالة مشتركة (اللوح نفسه وصدفة سطح المكتب للقص الذكي).
+double addRecordPanelWidth(Size screen) =>
+    (screen.width * .52).clamp(640.0, 840.0);
+
 /// اللوح الجانبي العائم — يُبنى فقط حين [addRecordDockProvider] غير null.
 class AddRecordSidePanel extends ConsumerStatefulWidget {
-  const AddRecordSidePanel({super.key, required this.request});
+  const AddRecordSidePanel({
+    super.key,
+    required this.request,
+    this.onDrag,
+    this.onDragEnd,
+  });
 
   final AddRecordDockRequest request;
+
+  /// م167/ج — سحب اللوح من رأسه (تمرران من صدفة سطح المكتب).
+  final void Function(Offset delta)? onDrag;
+  final VoidCallback? onDragEnd;
 
   @override
   ConsumerState<AddRecordSidePanel> createState() => _AddRecordSidePanelState();
@@ -92,7 +109,8 @@ class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
     final screen = MediaQuery.sizeOf(context);
     // عرضٌ مريح لصفوف الحقول الثنائية؛ ينكمش على الشاشات الضيقة كي يبقى
     // جزءٌ من مساحة العمل مرئياً دائماً.
-    final width = (screen.width * .44).clamp(560.0, 660.0);
+    // م167/ب — لوح أعرض بهوامش أرحب (طلب المالك: استغلال الشاشة بلا تلاصق).
+    final width = addRecordPanelWidth(screen);
     // سقفُ ارتفاعٍ تعانق البطاقة المحتوى دونه: صافي مساحة العمل (تقديرٌ
     // متحفّظ ‎128 للهيدر/الشريط/الهوامش) — التمرير يعمل فوق هذا السقف فقط.
     final maxH = (screen.height - 128).clamp(360.0, 1000.0);
@@ -139,6 +157,8 @@ class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _PanelHeader(
+                    onDrag: widget.onDrag,
+                    onDragEnd: widget.onDragEnd,
                     title: req.isEdit ? 'تعديل السجل' : 'زيارة جديدة',
                     subtitle: req.isEdit
                         ? 'عدّل ما تشاء ثم احفظ — يستبدل السجل الأصلي'
@@ -149,7 +169,7 @@ class _AddRecordSidePanelState extends ConsumerState<AddRecordSidePanel> {
                   // فقط حين يبلغ المحتوى سقف ConstrainedBox أعلاه.
                   Flexible(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
                       child: AddRecordScreen(
                         // مفتاحٌ مقترن بهوية الطلب: تبديل «جديد↔تعديل» أو
                         // سجلٍ لآخر يعيد إنشاء حالة النموذج بلا تسرّب حقول.
@@ -182,19 +202,40 @@ class _PanelHeader extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onClose,
+    this.onDrag,
+    this.onDragEnd,
   });
 
   final String title;
   final String subtitle;
   final VoidCallback onClose;
 
+  /// م167/ج — سحب اللوح بالإمساك بالرأس.
+  final void Function(Offset delta)? onDrag;
+  final VoidCallback? onDragEnd;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return MouseRegion(
+      cursor: onDrag == null
+          ? MouseCursor.defer
+          : SystemMouseCursors.grab,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: onDrag == null ? null : (d) => onDrag!(d.delta),
+        onPanEnd: onDragEnd == null ? null : (_) => onDragEnd!(),
+        child: Container(
       padding: const EdgeInsetsDirectional.fromSTEB(14, 9, 8, 9),
       decoration: const BoxDecoration(gradient: BrandColors.brandGradient),
       child: Row(
         children: [
+          // م167/ج — مقبض السحب: أيقونة تدل على قابلية النقل.
+          Icon(
+            Icons.drag_indicator_rounded,
+            size: 16,
+            color: Colors.white.withValues(alpha: .55),
+          ),
+          const SizedBox(width: 4),
           const Icon(
             Icons.add_circle_rounded,
             size: 17,
@@ -274,6 +315,8 @@ class _PanelHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+        ),
       ),
     );
   }
