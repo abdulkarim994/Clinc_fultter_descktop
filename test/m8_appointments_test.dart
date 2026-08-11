@@ -371,71 +371,8 @@ void main() {
       },
     );
 
-    testWidgets(
-      'موعد متابعة من شاشة الإضافة: نموذج مسبق التعبئة والعودة للرئيسية',
-      (tester) async {
-        await boot(tester);
-        // م133 — نموذج الإدخال rec-* لم يبق على تبويب الرئيسية (صار
-        // DailyIncomeScreen، م121+)؛ انتقل لورقة سفلية تُفتح بالزر العائم
-        // Key('fab-add') (app_shell.dart).
-        await tester.tap(find.byKey(const Key('fab-add')), warnIfMissed: false);
-        await settle(tester);
-        await tester.enterText(find.byKey(const Key('rec-name')), 'هدى');
-        await tester.enterText(
-          find.byKey(const Key('rec-phone')),
-          '0917777777',
-        );
-        await tester.ensureVisible(find.byKey(const Key('rec-followup')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('rec-followup')),
-          warnIfMissed: false,
-        );
-        await settle(tester);
-
-        // انتقل للتقويم بنموذج متابعة مفتوح ومسبق التعبئة.
-        expect(find.byKey(const Key('appointments-tab')), findsOneWidget);
-        expect(find.text('موعد متابعة'), findsOneWidget);
-        final nameField = tester.widget<TextField>(
-          find.byKey(const Key('appt-name')),
-        );
-        expect(nameField.controller!.text, 'هدى');
-        final notesField = tester.widget<TextField>(
-          find.byKey(const Key('appt-notes')),
-        );
-        expect(notesField.controller!.text.startsWith('متابعة'), isTrue);
-
-        // اختر تاريخاً (منتقي التاريخ) ثم احفظ ⇒ عودة تلقائية للرئيسية.
-        await tester.ensureVisible(find.byKey(const Key('appt-date')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('appt-date')),
-          warnIfMissed: false,
-        );
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('حسنًا'), warnIfMissed: false);
-        await settle(tester);
-        await tester.ensureVisible(find.byKey(const Key('appt-save')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('appt-save')),
-          warnIfMissed: false,
-        );
-        await settle(tester);
-
-        final c = container();
-        addTearDown(c.dispose);
-        final appt = c.read(reposProvider).appointments.getAll().single;
-        expect(appt['name'], 'هدى');
-        expect(appt['phone'], '0917777777');
-        // م133 — followUpAuto يعيد لتبويب home كما كان (appointments_tab
-        // سطر 180)، لكن home صار شاشة «دخل اليوم» (م121+) والنموذج ورقةٌ
-        // تُغلق عند القفز للتقويم — فالعودة تعني ظهور الرئيسية الجديدة
-        // لا حقل rec-name القديم.
-        expect(find.byKey(const Key('appointments-tab')), findsNothing);
-        expect(find.textContaining('دخل اليوم'), findsOneWidget);
-      },
-    );
+    // م167 — حُذفت شريحة «موعد» من نموذج زيارة جديدة (قرار المالك)،
+    // فذهب معها اختبار «موعد متابعة من شاشة الإضافة».
 
     testWidgets('إشعار مواعيد اليوم عند فتح التطبيق (apptNotif)', (
       tester,

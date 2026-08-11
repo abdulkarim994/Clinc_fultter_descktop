@@ -100,6 +100,8 @@ void main() {
     await boot(tester);
     await sendCtrlN(tester);
     expect(find.byType(AddRecordSidePanel), findsOneWidget);
+    // م167/ب — اللوح الأعرض يبدأ انزلاقه من خارج الشاشة: انتظر اكتماله.
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('dock-close')));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(AddRecordSidePanel), findsNothing);
@@ -120,7 +122,6 @@ void main() {
       'rec-debt-toggle',
       'rec-report-open',
       'rec-medical-open',
-      'rec-followup',
       'rec-notes',
       'rec-save',
       'rec-today',
@@ -134,6 +135,8 @@ void main() {
       'rec-debt',
       'rec-report-tgl',
       'rec-debtpay-seg',
+      // م167 — شريحة «موعد» حُذفت نهائياً (قرار المالك).
+      'rec-followup',
     ]) {
       expect(find.byKey(Key(gone)), findsNothing,
           reason: 'المفتاح القديم $gone عاد للظهور — عقد «د» استبدله');
@@ -198,6 +201,7 @@ void main() {
     // اللوح أسفل الهيدر وأضيق من الشاشة (جزء من الجدول يبقى مرئياً).
     final rect = tester.getRect(find.byType(AddRecordSidePanel));
     expect(rect.top, greaterThan(0));
-    expect(rect.width, lessThan(700));
+    // م167/ب — اللوح صار أعرض (~840) لاستغلال الشاشة؛ يبقى أضيق منها.
+    expect(rect.width, lessThan(900));
   });
 }
