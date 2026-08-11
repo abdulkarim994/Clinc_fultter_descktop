@@ -22,12 +22,10 @@ import '../../core/error_log.dart' show recordError;
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/js_compat.dart';
 import '../../data/rates/rate_snapshot.dart';
-import '../appointments/appointments_tab.dart' show followUpDraftProvider;
 import '../patients/patients_logic.dart' show distinctIdentityPhones;
 import '../patients/patients_tab.dart'
     show addVisitDraftProvider, patientsRevProvider;
 import '../print/treatment_tables.dart' show formatNumber;
-import '../shell/app_shell.dart' show activeTabProvider;
 import '../../data/audit/audit_trail.dart' show recordAudit;
 import '../finance/finance_screen.dart' show financeRevProvider;
 import '../patients/clinic_scope.dart'
@@ -81,15 +79,8 @@ int teethCount(List<JMap> entries) => teethKeysOf(entries).length;
 
 /// عرض التاريخ بأرقام هندية شرقية بصيغة السنة/الشهر/اليوم (توأم عرض
 /// input[type=date] في الأصل) — التخزين يبقى ISO لاتينياً.
-String _arDate(String iso) {
-  const east = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-  final b = StringBuffer();
-  for (final ch in iso.split('')) {
-    final d = int.tryParse(ch);
-    b.write(d != null ? east[d] : (ch == '-' ? '/' : ch));
-  }
-  return b.toString();
-}
+/// م167/ب — التاريخ بالأرقام اللاتينية (عرضاً فقط؛ التخزين YYYY-MM-DD).
+String _enDate(String iso) => iso.replaceAll('-', '/');
 
 /// يفتح نموذج الإدخال الكامل كورقة سفلية (بديل تبويب الرئيسية القديم بكل
 /// خياراته). يُستدعى من زر «+» في الصدفة ومن مسارات «إضافة زيارة».
@@ -459,6 +450,14 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
   }
 
   void _refreshPhoneSuggestions(String phone) {
+    // م167/ب — مريضٌ مربوط فعلاً ⇒ كتابة الهاتف لا تفتح اقتراحات جديدة
+    // (اختيار الاسم يلغي اقتراحات الهاتف والعكس — مصدرٌ واحدٌ نشط).
+    if (selectedPatient.isNotEmpty) {
+      if (suggestions.isNotEmpty) {
+        setState(() => suggestions = const []);
+      }
+      return;
+    }
     final repos = ref.read(reposProvider);
     final found = phoneFirstSearch(
       phone,
@@ -662,6 +661,15 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
   }
 
   Future<void> _save() async {
+    // م167/ب — رقم هاتف ناقص (غير فارغ وأقل من 10 أرقام) يوقف الحفظ؛
+    // الفارغ يمر كما كان (الحقل اختياري — لا كسر للبيانات القديمة).
+    for (final ctl in [phoneCtl, phone2Ctl]) {
+      final digits = ctl.text.replaceAll(RegExp(r'[^0-9]'), '');
+      if (digits.isNotEmpty && digits.length < 10) {
+        _snack('⚠ رقم الهاتف ناقص — الصيغة 09XXXXXXXX');
+        return;
+      }
+    }
     // م149 — قاعدة تكرار التحليل: إن كانت علامة «التحاليل الثلاثية» مؤشَّرة
     // والمريض ممنوعاً (لم تمضِ المدة المضبوطة منذ آخر تحليل) يتوقف الحفظ
     // **كله** برسالة الخطأ حتى يزيل المستخدم العلامة — قرار المالك الصريح.
@@ -879,11 +887,11 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     final prosDocShare = prosNet * (prosPctLive / 100);
     final prosClinShare = prosNet * ((100 - prosPctLive) / 100);
 
-    // حقل الأصل: زوايا مستديرة كبيرة + حد شعري فاتح + تعبئة بيضاء +
-    // hint خافت + تركيز رفيع بلون العلامة (inp حرفياً).
+    // م167 — النمط الناعم الموحد (م163): تعبئة خافتة + حد شعري + زوايا
+    // 12 + تركيز بلون العلامة — نظام واحد لكل الحقول في النسختين.
     OutlineInputBorder fieldBorder(Color color, [double w = 1]) =>
         OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: color, width: w),
         );
     InputDecoration dec(String hint) => InputDecoration(
@@ -891,15 +899,24 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       hintStyle: TextStyle(fontSize: 12.5, color: BrandColors.faint),
       isDense: true,
       filled: true,
-      fillColor: BrandColors.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      enabledBorder: fieldBorder(BrandColors.line),
-      focusedBorder: fieldBorder(
-        BrandColors.brand600.withValues(alpha: .55),
-        1.2,
-      ),
-      border: fieldBorder(BrandColors.line),
+      fillColor: BrandColors.ink.withValues(alpha: .045),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+      enabledBorder: fieldBorder(BrandColors.line, .7),
+      focusedBorder: fieldBorder(BrandColors.brand600, 1.3),
+      border: fieldBorder(BrandColors.line, .7),
     );
+    // م167/ب — ملصق عائم داخل الحقل (للأقسام المتمددة: تركيبات/دين).
+    InputDecoration vdec(String label, {String hint = ''}) =>
+        dec(hint).copyWith(
+          labelText: label,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          floatingLabelStyle: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: BrandColors.brandText,
+          ),
+        );
+    // م167 — إيقاع موحد: ملصق 10.5 فوق الحقل وارتفاع ثابت 46 لكل صف.
     Widget labeled(String label, Widget field) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -907,14 +924,16 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           padding: const EdgeInsets.only(bottom: 4),
           child: Text(
             label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: FontWeight.w800,
-              color: BrandColors.brandText,
+              color: BrandColors.mut,
             ),
           ),
         ),
-        SizedBox(height: 50, child: field),
+        SizedBox(height: 46, child: field),
       ],
     );
 
@@ -1008,7 +1027,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
         ],
         // ═══ شريط ملخص اليوم — يُخفى داخل ورقة الإدخال المضغوطة (دخل اليوم
         //     صار له تبويب الرئيسية) ═══
@@ -1056,41 +1075,31 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.edit_rounded,
-                    size: 15,
-                    color: BrandColors.brandIcon,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      widget.compact ? 'بيانات الزيارة' : 'إدخال جديد',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13.5,
-                        color: BrandColors.brandText,
+              // م167 — في المضغوط: زر «اليوم» انتقل لرأس الورقة وسطر
+              // «بيانات الزيارة» أُسقط (رأسٌ واحد لا ثلاثة أسطر).
+              if (!widget.compact) ...[
+                Row(
+                  children: [
+                    Icon(
+                      Icons.edit_rounded,
+                      size: 15,
+                      color: BrandColors.brandIcon,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'إدخال جديد',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13.5,
+                          color: BrandColors.brandText,
+                        ),
                       ),
                     ),
-                  ),
-                  OutlinedButton.icon(
-                    key: const Key('rec-today'),
-                    style: OutlinedButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    onPressed: () {
-                      // setToday — التاريخ اليوم + شهر التطبيق الحالي.
-                      setState(() => date = getCurrentDate());
-                      ref.read(selectedMonthProvider.notifier).state =
-                          getCurrentDate().substring(0, 7);
-                    },
-                    icon: const Icon(Icons.event_rounded, size: 13),
-                    label: const Text('اليوم', style: TextStyle(fontSize: 11)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
 
               // ── الصف 1: التاريخ + العيادة (متناظران) ──
               Row(
@@ -1119,11 +1128,32 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                           }
                         },
                         child: InputDecorator(
-                          decoration: dec(''),
+                          decoration: dec('').copyWith(
+                            // م167/ب — «اليوم» أيقونة داخل الحقل (يساره).
+                            suffixIcon: IconButton(
+                              key: const Key('rec-today'),
+                              tooltip: 'اليوم',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                setState(() => date = getCurrentDate());
+                                ref
+                                    .read(selectedMonthProvider.notifier)
+                                    .state = getCurrentDate().substring(0, 7);
+                              },
+                              icon: Icon(Icons.today_rounded,
+                                  size: 17, color: BrandColors.brand700),
+                            ),
+                            suffixIconConstraints: const BoxConstraints(
+                                minWidth: 36, minHeight: 36),
+                          ),
                           child: Center(
                             child: Text(
-                              _arDate(date),
-                              style: const TextStyle(fontSize: 13.5),
+                              _enDate(date),
+                              maxLines: 1,
+                              textDirection: TextDirection.ltr,
+                              style: const TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w800),
                             ),
                           ),
                         ),
@@ -1152,48 +1182,11 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               ),
               const SizedBox(height: 10),
 
-              // ── الصف 2 (الهاتف أولاً): الهاتف + الاسم (متناظران) ──
+              // ── الصف 2: الاسم أولاً ثم الهاتف (م167/ب — قرار المالك)،
+              // نصفان متساويان وزر الرقم الثاني suffix داخل حقل الهاتف ──
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: labeled(
-                      'رقم الهاتف',
-                      TextField(
-                        key: const Key('rec-phone'),
-                        controller: phoneCtl,
-                        keyboardType: TextInputType.phone,
-                        textDirection: TextDirection.ltr,
-                        decoration: dec('الرقم…'),
-                        onChanged: _refreshPhoneSuggestions,
-                      ),
-                    ),
-                  ),
-                  // زر الرقم الثاني — مربع مستقل صغير بين الحقلين
-                  // (توأم زر + في الأصل).
-                  if (!showPhone2)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 4, top: 26),
-                      child: Material(
-                        color: BrandColors.brand600.withValues(alpha: .08),
-                        borderRadius: BorderRadius.circular(8),
-                        child: InkWell(
-                          key: const Key('rec-phone2-add'),
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () => setState(() => showPhone2 = true),
-                          child: const SizedBox(
-                            width: 26,
-                            height: 26,
-                            child: Icon(
-                              Icons.add_rounded,
-                              size: 15,
-                              color: BrandColors.brand700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: labeled(
                       'اسم المريض',
@@ -1202,6 +1195,37 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                         controller: nameCtl,
                         decoration: dec('ابحث أو أدخل اسماً'),
                         onChanged: _refreshNameSuggestions,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: labeled(
+                      'رقم الهاتف',
+                      TextField(
+                        key: const Key('rec-phone'),
+                        controller: phoneCtl,
+                        keyboardType: TextInputType.phone,
+                        textDirection: TextDirection.ltr,
+                        decoration: dec('09XXXXXXXX').copyWith(
+                          suffixIcon: showPhone2
+                              ? null
+                              : IconButton(
+                                  key: const Key('rec-phone2-add'),
+                                  tooltip: 'رقم ثانٍ',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () =>
+                                      setState(() => showPhone2 = true),
+                                  icon: Icon(
+                                    Icons.add_rounded,
+                                    size: 16,
+                                    color: BrandColors.brand700,
+                                  ),
+                                ),
+                          suffixIconConstraints: const BoxConstraints(
+                              minWidth: 34, minHeight: 34),
+                        ),
+                        onChanged: _refreshPhoneSuggestions,
                       ),
                     ),
                   ),
@@ -1366,7 +1390,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               ),
               const SizedBox(height: 10),
 
-              // ── الصف 4: القيمة + خيارات (متناظران بارتفاع الحقول) ──
+              // ── الصف 4: القيمة + (دين/التحاليل) — نصفان متوازنان
+              // بنفس ارتفاع الحقل، بلا شريحة «موعد» (م167 — قرار المالك) ──
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1386,110 +1411,76 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                   Expanded(
                     child: labeled(
                       'خيارات',
-                      Row(
-                        children: [
-                          _miniSwitch(
-                            key: const Key('rec-debt'),
-                            value: isDebt,
-                            onChanged: (v) => setState(() => isDebt = v),
-                          ),
-                          Text(
-                            'دين',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: BrandColors.mut,
+                      Container(
+                        decoration: BoxDecoration(
+                          color: BrandColors.ink.withValues(alpha: .045),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: BrandColors.line, width: .7),
+                        ),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _miniSwitch(
+                              key: const Key('rec-debt'),
+                              value: isDebt,
+                              onChanged: (v) =>
+                                  setState(() => isDebt = v),
                             ),
-                          ),
-                          // نظام «التحاليل الثلاثية» — يظهر الصح فقط في وضع
-                          // الإنشاء وحين الميزة مفعّلة.
-                          _analToggle(config),
-                          const Spacer(),
-                          // م41 — الكبسولة تنكمش بدل الفيضان عند التكبير.
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Material(
-                                color: BrandColors.gold.withValues(alpha: .12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                  side: BorderSide(
-                                    color: BrandColors.gold.withValues(
-                                      alpha: .45,
-                                    ),
-                                  ),
-                                ),
-                                child: InkWell(
-                                  key: const Key('rec-followup'),
-                                  borderRadius: BorderRadius.circular(20),
-                                  onTap: () {
-                                    // goFollowUpAppt — تقويم الحجوزات
-                                    // بنموذج متابعة مسبق التعبئة.
-                                    ref
-                                        .read(followUpDraftProvider.notifier)
-                                        .state = {
-                                      'name': nameCtl.text.trim(),
-                                      'phone': phoneCtl.text.trim(),
-                                      'service': service.trim(),
-                                      // م164 — المتابعة ترث عيادة السجل.
-                                      'clinic': clinic,
-                                    };
-                                    // م133 — الورقة كانت تبقى مفتوحة
-                                    // فوق التقويم فتخطف نقراته صامتةً:
-                                    // القفز يبدّل التبويب تحتها ولا
-                                    // يغلقها (بخلاف مسار الحفظ الذي
-                                    // يغلق عبر onSaved). نفس الحارس:
-                                    // خارج الورقة onSaved == null فلا
-                                    // أثر، ولا يُقحم pop أعمى قد يطوي
-                                    // شاشةً كاملة.
-                                    widget.onSaved?.call();
-                                    ref.read(activeTabProvider.notifier).state =
-                                        'calendar';
-                                  },
-                                  child: const Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.event_rounded,
-                                          size: 13,
-                                          color: BrandColors.goldDark,
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'موعد',
-                                          style: TextStyle(
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: BrandColors.goldDark,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                            const SizedBox(width: 2),
+                            Text(
+                              'دين',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: isDebt
+                                    ? BrandColors.goldDark
+                                    : BrandColors.mut,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
 
+              // ── م167/ج: «التحاليل الثلاثية» سطرٌ كامل بارز (كانت
+              // منكمشة كأنها إضافة هامشية — ملاحظة المالك) ──
+              if (widget.editEntry == null &&
+                  triAnalysesEnabled(config)) ...[
+                const SizedBox(height: 10),
+                Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: hasAnalysis
+                        ? BrandColors.green.withValues(alpha: .08)
+                        : BrandColors.ink.withValues(alpha: .045),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: hasAnalysis
+                          ? BrandColors.green.withValues(alpha: .45)
+                          : BrandColors.line,
+                      width: hasAnalysis ? 1 : .7,
+                    ),
+                  ),
+                  child: Center(child: _analToggle(config)),
+                ),
+              ],
+
               // ── قسم التركيبات ──
               if (pros) ...[
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.all(11),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: BrandColors.surface2,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: BrandColors.line),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: BrandColors.line, width: .7),
                   ),
                   child: Column(
                     children: [
@@ -1500,7 +1491,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                               isExpanded: true,
                               key: const Key('rec-labname'),
                               initialValue: labName.isEmpty ? null : labName,
-                              decoration: dec('المختبر'),
+                              decoration: vdec('المختبر'),
                               items: [
                                 for (final l in labsList(config))
                                   DropdownMenuItem(value: l, child: Text(l)),
@@ -1518,13 +1509,13 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                               }),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               isExpanded: true,
                               key: const Key('rec-prostype'),
                               initialValue: prosType.isEmpty ? null : prosType,
-                              decoration: dec('نوع التركيبة'),
+                              decoration: vdec('نوع التركيبة'),
                               items: [
                                 // م162 — أنواع المختبر المختار وحده.
                                 for (final t in labTypesFor(config, labName))
@@ -1542,7 +1533,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Expanded(
@@ -1550,33 +1541,33 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                               key: const Key('rec-prosunits'),
                               controller: prosUnitsCtl,
                               keyboardType: TextInputType.number,
-                              decoration: dec('عدد الواحدات'),
+                              decoration: vdec('عدد الواحدات', hint: '0'),
                               onChanged: (_) => _onUnitsChange(),
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
                               key: const Key('rec-prosunitprice'),
                               controller: prosUnitPriceCtl,
                               keyboardType: TextInputType.number,
-                              decoration: dec('سعر الوحدة'),
+                              decoration: vdec('سعر الوحدة', hint: '0'),
                               onChanged: (_) => _onUnitsChange(),
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: TextField(
                               key: const Key('rec-lab'),
                               controller: labValueCtl,
                               keyboardType: TextInputType.number,
-                              decoration: dec('قيمة المعمل'),
+                              decoration: vdec('قيمة المعمل', hint: '0'),
                               onChanged: (_) => setState(() {}),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       // معاينة التقسيم الحية — الملصقات والصيغ الحرفية.
                       _previewRow(
                         'صافي الربح:',
@@ -1602,73 +1593,102 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               ],
               const SizedBox(height: 10),
 
-              // ── صف التبديلين: تحديد الأسنان + المعلومات الطبية
-              // (مفاتيح تبديل iOS بنفس موقع الأصل) ──
+              // ── م167: رقاقتان متساويتان بارتفاع موحد (كانتا مفتاحين
+              // عائمين بلا احتواء) — نفس المفاتيح والسلوك حرفياً ──
               Row(
                 children: [
                   Expanded(
-                    child: Row(
-                      children: [
-                        _miniSwitch(
-                          key: const Key('rec-report-tgl'),
-                          value: hasReport,
-                          onChanged: (v) {
-                            if (v) {
-                              setState(() => hasReport = true);
-                              _openReport();
-                            } else {
-                              setState(() {
-                                hasReport = false;
-                                reportEntries = [];
-                                reportMeta = {};
-                              });
-                            }
-                          },
-                        ),
-                        Flexible(
-                          child: InkWell(
-                            key: const Key('rec-report-open'),
-                            onTap: hasReport ? _openReport : null,
-                            child: Text(
-                              hasReport && reportEntries.isNotEmpty
-                                  ? 'تحديد الأسنان (${teethCount(reportEntries)})'
-                                  : 'تحديد الأسنان',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: BrandColors.mut,
+                    child: Container(
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: BrandColors.ink.withValues(alpha: .045),
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: BrandColors.line, width: .7),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Row(
+                        children: [
+                          _miniSwitch(
+                            key: const Key('rec-report-tgl'),
+                            value: hasReport,
+                            onChanged: (v) {
+                              if (v) {
+                                setState(() => hasReport = true);
+                                _openReport();
+                              } else {
+                                setState(() {
+                                  hasReport = false;
+                                  reportEntries = [];
+                                  reportMeta = {};
+                                });
+                              }
+                            },
+                          ),
+                          Flexible(
+                            child: InkWell(
+                              key: const Key('rec-report-open'),
+                              onTap: hasReport ? _openReport : null,
+                              child: Text(
+                                hasReport && reportEntries.isNotEmpty
+                                    ? 'تحديد الأسنان (${teethCount(reportEntries)})'
+                                    : 'تحديد الأسنان',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: hasReport
+                                      ? BrandColors.brandText
+                                      : BrandColors.mut,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Row(
-                      children: [
-                        _miniSwitch(
-                          key: const Key('rec-medical-tgl'),
-                          value: _hasMedical,
-                          // النقرة تفتح النافذة دائماً — الحالة انعكاس
-                          // للبيانات الحقيقية (سلوك الأصل).
-                          onChanged: (_) => _openMedicalInfo(),
-                        ),
-                        Flexible(
-                          child: InkWell(
-                            key: const Key('rec-medical-open'),
-                            onTap: _openMedicalInfo,
-                            child: Text(
-                              'المعلومات الطبية',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: BrandColors.mut,
+                    child: Container(
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: BrandColors.ink.withValues(alpha: .045),
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: BrandColors.line, width: .7),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Row(
+                        children: [
+                          _miniSwitch(
+                            key: const Key('rec-medical-tgl'),
+                            value: _hasMedical,
+                            // النقرة تفتح النافذة دائماً — الحالة انعكاس
+                            // للبيانات الحقيقية (سلوك الأصل).
+                            onChanged: (_) => _openMedicalInfo(),
+                          ),
+                          Flexible(
+                            child: InkWell(
+                              key: const Key('rec-medical-open'),
+                              onTap: _openMedicalInfo,
+                              child: Text(
+                                'المعلومات الطبية',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: _hasMedical
+                                      ? BrandColors.brandText
+                                      : BrandColors.mut,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -1678,17 +1698,18 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               if (isDebt) ...[
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.all(11),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: BrandColors.surface2,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: BrandColors.line),
+                    borderRadius: BorderRadius.circular(12),
+                    border:
+                        Border.all(color: BrandColors.line, width: .7),
                   ),
                   child: TextField(
                     key: const Key('rec-firstpay'),
                     controller: firstPayCtl,
                     keyboardType: TextInputType.number,
-                    decoration: dec('الدفعة الأولى'),
+                    decoration: vdec('الدفعة الأولى', hint: '0'),
                   ),
                 ),
               ],
@@ -1721,11 +1742,9 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 style: FilledButton.styleFrom(
                   backgroundColor: BrandColors.brand600,
                   foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(
-                    vertical: widget.compact ? 13 : 15,
-                  ),
+                  minimumSize: const Size.fromHeight(48),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                 ),
                 icon: Icon(
@@ -1789,9 +1808,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           getCurrentDate().substring(0, 7);
     }
 
-    // م146/و — نظام قياسٍ واحدٌ موحد (طلب المالك: Compact + Balanced):
-    // ألغي الازدواج التكيفي؛ حقول 42، مزراب 10، فجوات قسمٍ 8، فواصل 14.
-    const rowGap = 10.0;
+    // م146/و — نظام قياسٍ واحد موحد؛ (م167: صف الأرباع ألغى rowGap).
 
     // م146 — زخرفة «كثيفة»: المسمى يعوم داخل إطار الحقل بدل سطرٍ مستقل
     // فوقه (نمط النماذج المكتبية الحديث) — يوفّر ~25 نقطة لكل صف، وهو
@@ -1808,7 +1825,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 12,
-            vertical: 9,
+            vertical: 12,
           ),
         );
 
@@ -1833,34 +1850,29 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       },
       child: InputDecorator(
         decoration: ddec('التاريخ').copyWith(
-          // زر «اليوم» المصغّر داخل الحقل (م147).
-          suffixIcon: Padding(
-            padding: const EdgeInsetsDirectional.only(end: 4),
-            child: TextButton(
-              key: const Key('rec-today'),
-              onPressed: setToday,
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 30),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                foregroundColor: BrandColors.brand700,
-              ),
-              child: const Text(
-                'اليوم',
-                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
-              ),
-            ),
+          // م167/ب — «اليوم» أيقونة فقط داخل الحقل (يساره).
+          suffixIcon: IconButton(
+            key: const Key('rec-today'),
+            tooltip: 'اليوم',
+            visualDensity: VisualDensity.compact,
+            onPressed: setToday,
+            icon: Icon(Icons.today_rounded,
+                size: 17, color: BrandColors.brand700),
           ),
           suffixIconConstraints: const BoxConstraints(
-            minWidth: 44,
-            minHeight: 30,
+            minWidth: 36,
+            minHeight: 32,
           ),
         ),
-        child: Text(
-          _arDate(date),
-          style: const TextStyle(fontSize: 14),
-          maxLines: 1,
+        child: Center(
+          heightFactor: 1,
+          child: Text(
+            _enDate(date),
+            textDirection: TextDirection.ltr,
+            style: const TextStyle(
+                fontSize: 14.5, fontWeight: FontWeight.w800),
+            maxLines: 1,
+          ),
         ),
       ),
     );
@@ -1877,53 +1889,40 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       onChanged: (v) => setState(() => clinic = v ?? ''),
     );
 
-    final phoneNameRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: TextField(
-            key: const Key('rec-phone'),
-            controller: phoneCtl,
-            style: const TextStyle(fontSize: 14),
-            keyboardType: TextInputType.phone,
-            textDirection: TextDirection.ltr,
-            decoration: ddec('رقم الهاتف', hint: 'الرقم…'),
-            onChanged: _refreshPhoneSuggestions,
-          ),
-        ),
-        if (!showPhone2)
-          Padding(
-            padding: const EdgeInsetsDirectional.only(start: 4),
-            child: Material(
-              color: BrandColors.brand600.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(8),
-              child: InkWell(
+    // م167 — حقلان مفردان لشبكة الأرباع؛ زر الرقم الثاني suffix داخل
+    // حقل الهاتف (كان مربعاً عائماً يكسر تساوي الأعمدة).
+    final phoneField = TextField(
+      key: const Key('rec-phone'),
+      controller: phoneCtl,
+      style: const TextStyle(fontSize: 14),
+      keyboardType: TextInputType.phone,
+      textDirection: TextDirection.ltr,
+      decoration: ddec('رقم الهاتف', hint: '09XXXXXXXX').copyWith(
+        suffixIcon: showPhone2
+            ? null
+            : IconButton(
                 key: const Key('rec-phone2-add'),
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => setState(() => showPhone2 = true),
-                child: const SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: Icon(
-                    Icons.add_rounded,
-                    size: 15,
-                    color: BrandColors.brand700,
-                  ),
+                tooltip: 'رقم ثانٍ',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => setState(() => showPhone2 = true),
+                icon: Icon(
+                  Icons.add_rounded,
+                  size: 16,
+                  color: BrandColors.brand700,
                 ),
               ),
-            ),
-          ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: TextField(
-            key: const Key('rec-name'),
-            controller: nameCtl,
-            style: const TextStyle(fontSize: 14),
-            decoration: ddec('اسم المريض', hint: 'ابحث أو أدخل اسماً'),
-            onChanged: _refreshNameSuggestions,
-          ),
-        ),
-      ],
+        suffixIconConstraints:
+            const BoxConstraints(minWidth: 32, minHeight: 32),
+      ),
+      onChanged: _refreshPhoneSuggestions,
+    );
+
+    final nameField = TextField(
+      key: const Key('rec-name'),
+      controller: nameCtl,
+      style: const TextStyle(fontSize: 14),
+      decoration: ddec('اسم المريض', hint: 'ابحث أو أدخل اسماً'),
+      onChanged: _refreshNameSuggestions,
     );
 
     final phone2Row = Row(
@@ -2223,48 +2222,6 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       onTap: _openMedicalInfo,
     );
 
-    // شريحة «موعد» — توأم النسخة العمودية بمفتاحها نفسه.
-    final followChip = Material(
-      color: BrandColors.gold.withValues(alpha: .12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: BrandColors.gold.withValues(alpha: .45)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: const Key('rec-followup'),
-        onTap: () {
-          ref.read(followUpDraftProvider.notifier).state = {
-            'name': nameCtl.text.trim(),
-            'phone': phoneCtl.text.trim(),
-            'service': service.trim(),
-            // م164 — المتابعة ترث عيادة السجل.
-            'clinic': clinic,
-          };
-          widget.onSaved?.call();
-          ref.read(activeTabProvider.notifier).state = 'calendar';
-        },
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.event_rounded, size: 13, color: BrandColors.goldDark),
-              SizedBox(width: 4),
-              Text(
-                'موعد',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: BrandColors.goldDark,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
     // م146 — الدفع شريط أزرارٍ مقسّم واحد (كاش | تحويل | دين) بدل قائمةٍ
     // منسدلة + مفتاح دينٍ منفصل: أوضاعٌ متنافية تُطبَّق فوراً (النمط
     // المكتبي القياسي للاختيار الفوري من 2-5 خيارات). يربط نفس الحالة
@@ -2335,8 +2292,32 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         ),
         const SizedBox(width: 10),
         debtToggle,
+        const SizedBox(width: 10),
+        // م167/ج — «التحاليل الثلاثية» رقاقة بارزة بجانب «دين» (كانت
+        // سطراً صغيراً معزولاً وهي ميزة أساسية — ملاحظة المالك).
+        if (widget.editEntry == null && triAnalysesEnabled(config))
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: hasAnalysis
+                  ? BrandColors.green.withValues(alpha: .10)
+                  : BrandColors.surface2,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: hasAnalysis
+                    ? BrandColors.green.withValues(alpha: .50)
+                    : BrandColors.line,
+              ),
+            ),
+            child: _analToggle(config),
+          ),
         const Spacer(),
-        followChip,
+        // م167 — رقاقة المعلومات الطبية هنا (كانت يتيمةً بسطر العنوان)؛
+        // تنكمش بأمان في العروض الضيقة بدل الفيضان.
+        Flexible(
+          child: FittedBox(fit: BoxFit.scaleDown, child: medicalChip),
+        ),
       ],
     );
 
@@ -2490,14 +2471,15 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       decoration: ddec('معلومات مختصرة', hint: 'اختياري'),
     );
 
+    // م167 — زر الحفظ بنفس ارتفاع الحقول وزواياها (نظام واحد).
     final saveBtn = FilledButton.icon(
       key: const Key('rec-save'),
       onPressed: _save,
       style: FilledButton.styleFrom(
         backgroundColor: BrandColors.brand600,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        minimumSize: const Size.fromHeight(46),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       icon: const Icon(Icons.check_rounded, size: 19),
       label: Text(
@@ -2531,7 +2513,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
 
     // فاصل قسمٍ رقيق — إيقاعٌ بصري موحد بين الأقسام.
     Widget sectionGap() => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Container(
         height: 1,
         color: BrandColors.line.withValues(alpha: .45),
@@ -2560,40 +2542,27 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // ── 1) هوية المريض (زر «اليوم» صار داخل حقل التاريخ) ──
+        // ── 1) هوية المريض — شبكة أرباع متساوية تماماً (م167):
+        // التاريخ | العيادة | اسم المريض | رقم الهاتف ──
         colTitle(Icons.person_rounded, 'هوية المريض'),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: dateField),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(child: clinicField),
+            const SizedBox(width: 12),
+            Expanded(child: nameField),
+            const SizedBox(width: 12),
+            Expanded(child: phoneField),
           ],
         ),
-        const SizedBox(height: rowGap),
-        phoneNameRow,
         if (showPhone2) ...[const SizedBox(height: 8), phone2Row],
         if (suggestions.isNotEmpty) suggestionsPanel,
         sectionGap(),
 
-        // ── 2) المعالجة والقيمة — العنوان مع رقاقة «المعلومات الطبية»،
-        // وزر الأسنان الأيقوني بجانب حقل المعالجة (م147) ──
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: colTitle(
-                  Icons.medical_services_rounded,
-                  'المعالجة والقيمة',
-                  pad: false,
-                ),
-              ),
-              medicalChip,
-            ],
-          ),
-        ),
+        // ── 2) المعالجة والقيمة (الرقاقة انتقلت لشريط الدفع — م167) ──
+        colTitle(Icons.medical_services_rounded, 'المعالجة والقيمة'),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2603,12 +2572,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(child: serviceField),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   teethIconBtn,
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(child: amountField),
           ],
         ),
@@ -2618,8 +2587,8 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         // ── 3) الدفع ──
         paySegmented,
         smooth(isDebt, debtRow),
-        // التحاليل الثلاثية — الصح وشريط دفعها المصغّر في صفٍّ واحد
-        // (م146/هـ: كان قائمةً في صندوقٍ عريضٍ يبتلع السطر — ملاحظة المالك).
+        // م167/ج — الصحُّ انتقل لشريط الدفع؛ يبقى هنا شريطُ دفعِ
+        // التحليل وحده حين تكون الميزة مفعّلة ومؤشَّرة.
         if (widget.editEntry == null && triAnalysesEnabled(config))
           AnimatedSize(
             duration: const Duration(milliseconds: 180),
@@ -2629,9 +2598,18 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  SizedBox(width: 118, child: _analToggle(config)),
                   if (hasAnalysis) ...[
-                    const SizedBox(width: 0),
+                    SizedBox(
+                      width: 118,
+                      child: Text(
+                        'دفع التحليل',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: BrandColors.brandText,
+                        ),
+                      ),
+                    ),
                     SegmentedButton<String>(
                       key: const Key('rec-analysis-pay'),
                       style: SegmentedButton.styleFrom(
@@ -2664,13 +2642,13 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           ),
         sectionGap(),
 
-        // ── 4) معلومات مختصرة + الحفظ — صفٌّ واحدٌ ختامي ──
+        // ── 4) معلومات مختصرة + الحفظ — ارتفاعان متطابقان (م167) ──
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(child: notesField),
-            const SizedBox(width: 10),
-            SizedBox(width: 150, child: saveBtn),
+            const SizedBox(width: 12),
+            SizedBox(width: 158, height: 46, child: saveBtn),
           ],
         ),
       ],
@@ -2696,13 +2674,14 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     if (widget.editEntry != null || !triAnalysesEnabled(config)) {
       return const SizedBox.shrink();
     }
+    // م167/ج — مكوّن بارز بوزن «دين»: صحٌّ أكبر وخطٌّ أوضح (كان يبدو
+    // إضافةً هامشية وهو ميزة أساسية — ملاحظة المالك).
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(width: 6),
         SizedBox(
-          width: 22,
-          height: 22,
+          width: 26,
+          height: 26,
           child: Checkbox(
             key: const Key('rec-analysis-toggle'),
             value: hasAnalysis,
@@ -2719,9 +2698,13 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
             }),
           ),
         ),
-        const SizedBox(width: 3),
+        const SizedBox(width: 5),
         Text('التحاليل الثلاثية',
-            style: TextStyle(fontSize: 12, color: BrandColors.mut)),
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+              color: hasAnalysis ? BrandColors.green : BrandColors.mut,
+            )),
       ],
     );
   }
