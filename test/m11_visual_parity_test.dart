@@ -412,14 +412,9 @@ void main() {
         isA<Switch>(),
       );
 
-      // التاريخ معروض بأرقام هندية شرقية بصيغة سنة/شهر/يوم.
+      // م167/ب — التاريخ بأرقام لاتينية بصيغة سنة/شهر/يوم (قرار المالك).
       final today = getCurrentDate();
-      const east = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-      final arToday = today.split('').map((ch) {
-        final d = int.tryParse(ch);
-        return d != null ? east[d] : (ch == '-' ? '/' : ch);
-      }).join();
-      expect(find.text(arToday), findsOneWidget);
+      expect(find.text(today.replaceAll('-', '/')), findsOneWidget);
 
       // زر الرقم الثاني مربع مستقل، والنقر يظهر حقل الرقم الثاني.
       await tester.tap(
