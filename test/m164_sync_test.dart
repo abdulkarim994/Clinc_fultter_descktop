@@ -1,1 +1,126 @@
-Ly8vINmFMTY0IOKAlCDZhdiy2KfZhdmG2Kkg2KfZhNmF2YjYp9i52YrYryDYqNmG2LjYp9mFINin2YTYudmK2KfYr9in2Kog2YjYr9mI2LHYqSDYp9mE2K3Zitin2Kk6INis2YfYp9iy2KfZhiDYrdmC2YrZgtmK2KfZhgovLy8gKE9mZmxpbmUg2KvZhSBPbmxpbmUpINi52KjYsSDYp9mE2K7Yp9iv2YUg2KfZhNmF2LLZitmBIOKAlCDYrdmC2YjZhCDYp9mE2LnZitin2K/YqSDZiNin2YTYp9iz2KrYsdin2K3YqSDZiNiu2KrZhQovLy8g2KfZhNij2LHYtNmB2Kkg2KrZhtis2Ygg2KjYp9mE2YXYstin2YXZhtip2Iwg2YjYqtmG2LjZitmBINin2YTYo9ix2LTZitmBINmK2LXZhCDYp9mE2KzZh9in2LIg2KfZhNii2K7YsSDYtNin2YfYr9ip2Y4g2YLYqNix2IwKLy8vINmI2YXZiNin2LnZitivINi52YrYp9iv2KrZitmGINmE2Kcg2KrYrtiq2YTYty4KbGlicmFyeTsKCmltcG9ydCAncGFja2FnZTpkZW50YWxfY2xpbmljX2ZsdXR0ZXIvY29yZS91dGlscy9qc19jb21wYXQuZGFydCcKICAgIHNob3cganNOb3csIGpzTnVtT3IwOwppbXBvcnQgJ3BhY2thZ2U6ZGVudGFsX2NsaW5pY19mbHV0dGVyL2ZlYXR1cmVzL2FwcG9pbnRtZW50cy9hcHB0X2xpZmVjeWNsZS5kYXJ0JwogICAgc2hvdyBhcmNoaXZlZElkc1RvUHVyZ2U7CmltcG9ydCAncGFja2FnZTpmbHV0dGVyX3Rlc3QvZmx1dHRlcl90ZXN0LmRhcnQnOwoKaW1wb3J0ICdtMTY0X3N5bmNfZGV2aWNlLmRhcnQnOwoKdm9pZCBtYWluKCkgewogIGxhdGUgRmFrZVNlcnZlckJ1bmRsZSBidW5kbGU7CgogIHNldFVwKCgpID0+IGJ1bmRsZSA9IEZha2VTZXJ2ZXJCdW5kbGUoKSk7CiAgdGVhckRvd24oKCkgPT4gYnVuZGxlLmRpc3Bvc2UoKSk7CgogIHRlc3QoJ9it2YLZiNmEINmFMTY0ICjYudmK2KfYr9ipL9in2LPYqtix2KfYrdipL9iu2KrZhSDYp9mE2KPYsdi02YHYqSkg2KrZhtis2Ygg2YXZhiDYrNmH2KfYstmNINmE2KLYrtixJywgKCkgYXN5bmMgewogICAgZmluYWwgYSA9IGJ1bmRsZS5hLCBiID0gYnVuZGxlLmI7CiAgICBhLnJlcG9zLmFwcG9pbnRtZW50cy51cHNlcnRMb2NhbCh7CiAgICAgICdpZCc6ICdhcDEnLAogICAgICAnbmFtZSc6ICfZiNmE2YrYrycsCiAgICAgICdkYXRlJzogJzIwMjYtMDgtMTEnLAogICAgICAndGltZSc6ICcxMDowMCcsCiAgICAgICdzZXJ2aWNlJzogJ9mD2LTZgScsCiAgICAgICdjbGluaWMnOiAn2KfZhNi12YHZiNipJywKICAgICAgJ2NsaW5pY19pZCc6ICdjLXNhZndhJywKICAgICAgJ3N0YXR1cyc6ICdjb21wbGV0ZWQnLAogICAgICAnYXJjaGl2ZWRPbic6ICcyMDI2LTA4LTExJywKICAgICAgJ2R1cmF0aW9uTWluJzogNDUsCiAgICAgICdfdCc6ICdhJywKICAgIH0pOwogICAgYS5yZXBvcy5hcHBvaW50bWVudHMudXBzZXJ0TG9jYWwoewogICAgICAnaWQnOiAnYnIxJywKICAgICAgJ25hbWUnOiAn2LrYr9in2KEnLAogICAgICAnZGF0ZSc6ICcyMDI2LTA4LTExJywKICAgICAgJ3RpbWUnOiAnMTM6MDAnLAogICAgICAnaXNCcmVhayc6IDEsCiAgICAgICdkdXJhdGlvbk1pbic6IDMwLAogICAgICAnY2xpbmljJzogJ9in2YTYtdmB2YjYqScsCiAgICAgICdzdGF0dXMnOiAncGVuZGluZycsCiAgICAgICdfdCc6ICdhJywKICAgIH0pOwogICAgYXdhaXQgYnVuZGxlLmNvbnZlcmdlKCk7CgogICAgZmluYWwgb25CID0gYi5yZXBvcy5hcHBvaW50bWVudHMuZ2V0QnlJZCgnYXAxJykhOwogICAgZXhwZWN0KG9uQlsnY2xpbmljJ10sICfYp9mE2LXZgdmI2KknKTsKICAgIGV4cGVjdChvbkJbJ2NsaW5pY19pZCddLCAnYy1zYWZ3YScpOwogICAgZXhwZWN0KG9uQlsnc3RhdHVzJ10sICdjb21wbGV0ZWQnKTsKICAgIGV4cGVjdChvbkJbJ2FyY2hpdmVkT24nXSwgJzIwMjYtMDgtMTEnLAogICAgICAgIHJlYXNvbjogJ9iu2KrZhSDYp9mE2KPYsdi02YHYqSAo2YPYqtmE2KkgZGF0YSkg2YrZhtis2YgnKTsKICAgIGV4cGVjdChqc051bU9yMChvbkJbJ2R1cmF0aW9uTWluJ10pLnRvSW50KCksIDQ1KTsKCiAgICBmaW5hbCBickIgPSBiLnJlcG9zLmFwcG9pbnRtZW50cy5nZXRCeUlkKCdicjEnKSE7CiAgICBleHBlY3QoanNOdW1PcjAoYnJCWydpc0JyZWFrJ10pLnRvSW50KCksIDEsCiAgICAgICAgcmVhc29uOiAn2LnZhNmFINin2YTYp9iz2KrYsdin2K3YqSDYp9mE2LHZgtmF2Yog2YrZhtis2YgnKTsKICB9KTsKCiAgdGVzdCgn2KrZhti42YrZgSDYp9mE2KPYsdi02YrZgSDYqNi52K8g2YrZiNmF2YrZhiDZiti12YQg2KfZhNis2YfYp9iyINin2YTYotiu2LEg2LTYp9mH2K/YqdmOINmC2KjYsScsICgpIGFzeW5jIHsKICAgIGZpbmFsIGEgPSBidW5kbGUuYSwgYiA9IGJ1bmRsZS5iOwogICAgYS5yZXBvcy5hcHBvaW50bWVudHMudXBzZXJ0TG9jYWwoewogICAgICAnaWQnOiAnb2xkMScsCiAgICAgICduYW1lJzogJ9mC2K/ZitmFJywKICAgICAgJ2RhdGUnOiAnMjAyNi0wOC0wMScsCiAgICAgICdjbGluaWMnOiAn2KfZhNi12YHZiNipJywKICAgICAgJ3N0YXR1cyc6ICdjb21wbGV0ZWQnLAogICAgICAnYXJjaGl2ZWRPbic6ICcyMDI2LTA4LTAxJywKICAgICAgJ190JzogJ2EnLAogICAgfSk7CiAgICBhd2FpdCBidW5kbGUuY29udmVyZ2UoKTsKICAgIGV4cGVjdChiLnJlcG9zLmFwcG9pbnRtZW50cy5nZXRCeUlkKCdvbGQxJyksIGlzTm90TnVsbCk7CgogICAgLy8g2KfZhNiq2YbYuNmK2YEg2LnZhNmJINijICjZhtmB2LMg2YXYs9in2LEg2KfZhNi02KfYtNipOiBhcmNoaXZlZElkc1RvUHVyZ2Ug2KvZhSBkZWxldGUpLgogICAgZmluYWwgaWRzID0KICAgICAgICBhcmNoaXZlZElkc1RvUHVyZ2UoYS5yZXBvcy5hcHBvaW50bWVudHMuZ2V0QWxsKCksICcyMDI2LTA4LTExJyk7CiAgICBleHBlY3QoaWRzLCBbJ29sZDEnXSk7CiAgICBmb3IgKGZpbmFsIGlkIGluIGlkcykgewogICAgICBhLnJlcG9zLmFwcG9pbnRtZW50cy5kZWxldGUoaWQpOwogICAgfQogICAgYXdhaXQgYnVuZGxlLmNvbnZlcmdlKCk7CgogICAgZXhwZWN0KGEucmVwb3MuYXBwb2ludG1lbnRzLmdldEJ5SWQoJ29sZDEnKSwgaXNOdWxsKTsKICAgIGV4cGVjdChiLnJlcG9zLmFwcG9pbnRtZW50cy5nZXRCeUlkKCdvbGQxJyksIGlzTnVsbCwKICAgICAgICByZWFzb246ICfYp9mE2K3YsNmBINmI2LXZhCDYqCDYudio2LEg2KfZhNmF2LLYp9mF2YbYqSAo2LTYp9mH2K/YqSDZgtio2LEg2YTYpyDYtdmBKScpOwogIH0pOwoKICB0ZXN0KCfYudmK2KfYr9iq2KfZhiDYudmE2Ykg2KzZh9in2LLZitmGIE9mZmxpbmUg2KvZhSBPbmxpbmUg4oCUINmE2Kcg2KfYrtiq2YTYp9i3INmI2YTYpyDZgdmC2K8nLCAoKSBhc3luYyB7CiAgICBmaW5hbCBhID0gYnVuZGxlLmEsIGIgPSBidW5kbGUuYjsKICAgIC8vINmD2YTZjNmRINmK2LnZhdmEIE9mZmxpbmU6INijINmK2K3YrNiyINmE2YTYtdmB2YjYqSDZiNioINmE2YPYp9ix2YrYstmF2Kcg2KjZhtmB2LMg2KfZhNmK2YjZhSDZiNin2YTZiNmC2KouCiAgICBhLnJlcG9zLmFwcG9pbnRtZW50cy51cHNlcnRMb2NhbCh7CiAgICAgICdpZCc6ICdhLXNhZndhJywKICAgICAgJ25hbWUnOiAn2YXYsdmK2LYg2KMnLAogICAgICAnZGF0ZSc6ICcyMDI2LTA4LTEyJywKICAgICAgJ3RpbWUnOiAnMDk6MDAnLAogICAgICAnY2xpbmljJzogJ9in2YTYtdmB2YjYqScsCiAgICAgICdjbGluaWNfaWQnOiAnYy1zYWZ3YScsCiAgICAgICdzdGF0dXMnOiAncGVuZGluZycsCiAgICAgICdfbW9kJzoganNOb3coKSwKICAgICAgJ190JzogJ2EnLAogICAgfSk7CiAgICBiLnJlcG9zLmFwcG9pbnRtZW50cy51cHNlcnRMb2NhbCh7CiAgICAgICdpZCc6ICdiLWthcml6bWEnLAogICAgICAnbmFtZSc6ICfZhdix2YrYtiDYqCcsCiAgICAgICdkYXRlJzogJzIwMjYtMDgtMTInLAogICAgICAndGltZSc6ICcwOTowMCcsCiAgICAgICdjbGluaWMnOiAn2YPYp9ix2YrYstmF2KcnLAogICAgICAnY2xpbmljX2lkJzogJ2Mta2FyaXptYScsCiAgICAgICdzdGF0dXMnOiAncGVuZGluZycsCiAgICAgICdfbW9kJzoganNOb3coKSwKICAgICAgJ190JzogJ2EnLAogICAgfSk7CiAgICBhd2FpdCBidW5kbGUuY29udmVyZ2UoKTsKCiAgICBmb3IgKGZpbmFsIGQgaW4gW2EsIGJdKSB7CiAgICAgIGZpbmFsIGFsbCA9IGQucmVwb3MuYXBwb2ludG1lbnRzLmdldEFsbCgpOwogICAgICBleHBlY3QoYWxsLCBoYXNMZW5ndGgoMiksIHJlYXNvbjogJ9in2YTYtdmB2KfZhiDZhdi52KfZiyDYudmE2YkgJHtkLm5hbWV9Jyk7CiAgICAgIGV4cGVjdCgKICAgICAgICAgIGFsbC5zaW5nbGVXaGVyZSgocikgPT4gclsnaWQnXSA9PSAnYS1zYWZ3YScpWydjbGluaWMnXSwgJ9in2YTYtdmB2YjYqScpOwogICAgICBleHBlY3QoYWxsLnNpbmdsZVdoZXJlKChyKSA9PiByWydpZCddID09ICdiLWthcml6bWEnKVsnY2xpbmljJ10sCiAgICAgICAgICAn2YPYp9ix2YrYstmF2KcnKTsKICAgIH0KICB9KTsKfQo=
+/// م164 — مزامنة المواعيد بنظام العيادات ودورة الحياة: جهازان حقيقيان
+/// (Offline ثم Online) عبر الخادم المزيف — حقول العيادة والاستراحة وختم
+/// الأرشفة تنجو بالمزامنة، وتنظيف الأرشيف يصل الجهاز الآخر شاهدةَ قبر،
+/// ومواعيد عيادتين لا تختلط.
+library;
+
+import 'package:dental_clinic_flutter/core/utils/js_compat.dart'
+    show jsNow, jsNumOr0;
+import 'package:dental_clinic_flutter/features/appointments/appt_lifecycle.dart'
+    show archivedIdsToPurge;
+import 'package:flutter_test/flutter_test.dart';
+
+import 'm164_sync_device.dart';
+
+void main() {
+  late FakeServerBundle bundle;
+
+  setUp(() => bundle = FakeServerBundle());
+  tearDown(() => bundle.dispose());
+
+  test('حقول م164 (عيادة/استراحة/ختم الأرشفة) تنجو من جهازٍ لآخر', () async {
+    final a = bundle.a, b = bundle.b;
+    a.repos.appointments.upsertLocal({
+      'id': 'ap1',
+      'name': 'وليد',
+      'date': '2026-08-11',
+      'time': '10:00',
+      'service': 'كشف',
+      'clinic': 'الصفوة',
+      'clinic_id': 'c-safwa',
+      'status': 'completed',
+      'archivedOn': '2026-08-11',
+      'durationMin': 45,
+      '_t': 'a',
+    });
+    a.repos.appointments.upsertLocal({
+      'id': 'br1',
+      'name': 'غداء',
+      'date': '2026-08-11',
+      'time': '13:00',
+      'isBreak': 1,
+      'durationMin': 30,
+      'clinic': 'الصفوة',
+      'status': 'pending',
+      '_t': 'a',
+    });
+    await bundle.converge();
+
+    final onB = b.repos.appointments.getById('ap1')!;
+    expect(onB['clinic'], 'الصفوة');
+    expect(onB['clinic_id'], 'c-safwa');
+    expect(onB['status'], 'completed');
+    expect(onB['archivedOn'], '2026-08-11',
+        reason: 'ختم الأرشفة (كتلة data) ينجو');
+    expect(jsNumOr0(onB['durationMin']).toInt(), 45);
+
+    final brB = b.repos.appointments.getById('br1')!;
+    expect(jsNumOr0(brB['isBreak']).toInt(), 1,
+        reason: 'علم الاستراحة الرقمي ينجو');
+  });
+
+  test('تنظيف الأرشيف بعد يومين يصل الجهاز الآخر شاهدةَ قبر', () async {
+    final a = bundle.a, b = bundle.b;
+    a.repos.appointments.upsertLocal({
+      'id': 'old1',
+      'name': 'قديم',
+      'date': '2026-08-01',
+      'clinic': 'الصفوة',
+      'status': 'completed',
+      'archivedOn': '2026-08-01',
+      '_t': 'a',
+    });
+    await bundle.converge();
+    expect(b.repos.appointments.getById('old1'), isNotNull);
+
+    // التنظيف على أ (نفس مسار الشاشة: archivedIdsToPurge ثم delete).
+    final ids =
+        archivedIdsToPurge(a.repos.appointments.getAll(), '2026-08-11');
+    expect(ids, ['old1']);
+    for (final id in ids) {
+      a.repos.appointments.delete(id);
+    }
+    await bundle.converge();
+
+    expect(a.repos.appointments.getById('old1'), isNull);
+    expect(b.repos.appointments.getById('old1'), isNull,
+        reason: 'الحذف وصل ب عبر المزامنة (شاهدة قبر لا صف)');
+  });
+
+  test('عيادتان على جهازين Offline ثم Online — لا اختلاط ولا فقد', () async {
+    final a = bundle.a, b = bundle.b;
+    // كلٌّ يعمل Offline: أ يحجز للصفوة وب لكاريزما بنفس اليوم والوقت.
+    a.repos.appointments.upsertLocal({
+      'id': 'a-safwa',
+      'name': 'مريض أ',
+      'date': '2026-08-12',
+      'time': '09:00',
+      'clinic': 'الصفوة',
+      'clinic_id': 'c-safwa',
+      'status': 'pending',
+      '_mod': jsNow(),
+      '_t': 'a',
+    });
+    b.repos.appointments.upsertLocal({
+      'id': 'b-karizma',
+      'name': 'مريض ب',
+      'date': '2026-08-12',
+      'time': '09:00',
+      'clinic': 'كاريزما',
+      'clinic_id': 'c-karizma',
+      'status': 'pending',
+      '_mod': jsNow(),
+      '_t': 'a',
+    });
+    await bundle.converge();
+
+    for (final d in [a, b]) {
+      final all = d.repos.appointments.getAll();
+      expect(all, hasLength(2), reason: 'الصفان معاً على ${d.name}');
+      expect(
+          all.singleWhere((r) => r['id'] == 'a-safwa')['clinic'], 'الصفوة');
+      expect(all.singleWhere((r) => r['id'] == 'b-karizma')['clinic'],
+          'كاريزما');
+    }
+  });
+}

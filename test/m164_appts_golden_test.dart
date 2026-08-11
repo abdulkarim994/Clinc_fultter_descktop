@@ -1,1 +1,251 @@
-Ly8vINmFMTY0IOKAlCDZhNmC2LfYp9iq2Ywg2YTZhNmF2LHYp9is2LnYqSAoR09MREVOUz0xKTog2LTYp9i02Kkg2KfZhNit2KzZiNiy2KfYqiDYp9mE2KzYr9mK2K/YqSDZhNmE2YfYp9iq2YEKLy8vICjYsdmC2KfYptmCINin2YTYudmK2KfYr9in2KogKyDYtNix2YrYtyDYp9mE2KPZitin2YUgKyBUaW1lbGluZSDYqNiu2LcgwqvYp9mE2KLZhsK7INmI2KfZhNin2LPYqtix2KfYrdipCi8vLyDZiNin2YTYo9ix2LTZitmBKdiMINmF2LnYp9mE2KzZjyDYp9mE2KXYttin2YHYqdiMINmI2LHZgtipINin2YTYpdis2LHYp9ih2KfYqiDYp9mE2LPYsdmK2LnYqdiMINmI2KrYqNmI2YrYqNin2Kog2KfZhNi52YrYp9iv2KfYqgovLy8g2LnZhNmJINiz2LfYrSDYp9mE2YXZg9iq2KguCmxpYnJhcnk7CgppbXBvcnQgJ2RhcnQ6aW8nOwppbXBvcnQgJ2RhcnQ6dHlwZWRfZGF0YScgc2hvdyBCeXRlRGF0YTsKCmltcG9ydCAncGFja2FnZTpkZW50YWxfY2xpbmljX2ZsdXR0ZXIvYXBwL3Byb3ZpZGVycy5kYXJ0JzsKaW1wb3J0ICdwYWNrYWdlOmRlbnRhbF9jbGluaWNfZmx1dHRlci9jb3JlL3V0aWxzL2pzX2NvbXBhdC5kYXJ0JwogICAgc2hvdyBnZXRDdXJyZW50RGF0ZTsKaW1wb3J0ICdwYWNrYWdlOmRlbnRhbF9jbGluaWNfZmx1dHRlci9mZWF0dXJlcy9hcHBvaW50bWVudHMvYXBwb2ludG1lbnRzX3RhYi5kYXJ0JzsKaW1wb3J0ICdwYWNrYWdlOmRlbnRhbF9jbGluaWNfZmx1dHRlci9mZWF0dXJlcy9kZXNrdG9wL2Rlc2t0b3BfZ2F0ZS5kYXJ0JwogICAgc2hvdyBkZWJ1Z0ZvcmNlRGVza3RvcFVpOwppbXBvcnQgJ3BhY2thZ2U6ZGVudGFsX2NsaW5pY19mbHV0dGVyL21haW4uZGFydCc7CmltcG9ydCAncGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQnOwppbXBvcnQgJ3BhY2thZ2U6Zmx1dHRlci9zZXJ2aWNlcy5kYXJ0JwogICAgc2hvdyBFdmVudENoYW5uZWwsIEZvbnRMb2FkZXIsIE1ldGhvZENoYW5uZWw7CmltcG9ydCAncGFja2FnZTpmbHV0dGVyX3JpdmVycG9kL2ZsdXR0ZXJfcml2ZXJwb2QuZGFydCc7CmltcG9ydCAncGFja2FnZTpmbHV0dGVyX3JpdmVycG9kL21pc2MuZGFydCcgc2hvdyBPdmVycmlkZTsKaW1wb3J0ICdwYWNrYWdlOmZsdXR0ZXJfdGVzdC9mbHV0dGVyX3Rlc3QuZGFydCc7CgppbXBvcnQgJ3N0YWZmX3Rlc3Rfc2Vzc2lvbi5kYXJ0JyBzaG93IHN0YWZmQWRtaW5TZXNzaW9uOwoKZmluYWwgX2dvbGRlbnMgPSBQbGF0Zm9ybS5lbnZpcm9ubWVudC5jb250YWluc0tleSgnR09MREVOUycpOwoKRnV0dXJlPHZvaWQ+IF9sb2FkQXBwRm9udHMoKSBhc3luYyB7CiAgRnV0dXJlPHZvaWQ+IGxvYWQoU3RyaW5nIGZhbWlseSwgTGlzdDxTdHJpbmc+IGZpbGVzKSBhc3luYyB7CiAgICBmaW5hbCBsb2FkZXIgPSBGb250TG9hZGVyKGZhbWlseSk7CiAgICBmb3IgKGZpbmFsIGYgaW4gZmlsZXMpIHsKICAgICAgbG9hZGVyLmFkZEZvbnQoRnV0dXJlLnZhbHVlKAogICAgICAgICAgQnl0ZURhdGEudmlldyhGaWxlKCdhc3NldHMvZm9udHMvJGYnKS5yZWFkQXNCeXRlc1N5bmMoKS5idWZmZXIpKSk7CiAgICB9CiAgICBhd2FpdCBsb2FkZXIubG9hZCgpOwogIH0KCiAgYXdhaXQgbG9hZCgnUW9tcmEnLAogICAgICBbJ1FvbXJhLVJlZ3VsYXIudHRmJywgJ1FvbXJhLU1lZGl1bS50dGYnLCAnUW9tcmEtQm9sZC50dGYnXSk7CiAgYXdhaXQgbG9hZCgKICAgICAgJ0NhaXJvJywgWydDYWlyby1SZWd1bGFyLnR0ZicsICdDYWlyby1TZW1pQm9sZC50dGYnLCAnQ2Fpcm8tQm9sZC50dGYnXSk7CiAgZmluYWwgcm9vdCA9IFBsYXRmb3JtLmVudmlyb25tZW50WydGTFVUVEVSX1JPT1QnXTsKICBpZiAocm9vdCAhPSBudWxsKSB7CiAgICBmaW5hbCBmID0gRmlsZSgKICAgICAgICAnJHJvb3QvYmluL2NhY2hlL2FydGlmYWN0cy9tYXRlcmlhbF9mb250cy9NYXRlcmlhbEljb25zLVJlZ3VsYXIub3RmJyk7CiAgICBpZiAoZi5leGlzdHNTeW5jKCkpIHsKICAgICAgZmluYWwgbCA9IEZvbnRMb2FkZXIoJ01hdGVyaWFsSWNvbnMnKTsKICAgICAgbC5hZGRGb250KEZ1dHVyZS52YWx1ZShCeXRlRGF0YS52aWV3KGYucmVhZEFzQnl0ZXNTeW5jKCkuYnVmZmVyKSkpOwogICAgICBhd2FpdCBsLmxvYWQoKTsKICAgIH0KICB9Cn0KCnZvaWQgbWFpbigpIHsKICBmaW5hbCBiaW5kaW5nID0gVGVzdFdpZGdldHNGbHV0dGVyQmluZGluZy5lbnN1cmVJbml0aWFsaXplZCgpOwogIGxhdGUgRGlyZWN0b3J5IHRtcDsKICBzZXRVcEFsbCgoKSBhc3luYyB7CiAgICBhd2FpdCBfbG9hZEFwcEZvbnRzKCk7CiAgICBiaW5kaW5nLmRlZmF1bHRCaW5hcnlNZXNzZW5nZXIuc2V0TW9ja1N0cmVhbUhhbmRsZXIoCiAgICAgIGNvbnN0IEV2ZW50Q2hhbm5lbCgnZGV2LmZsdXR0ZXJjb21tdW5pdHkucGx1cy9jb25uZWN0aXZpdHlfc3RhdHVzJyksCiAgICAgIE1vY2tTdHJlYW1IYW5kbGVyLmlubGluZSgKICAgICAgICBvbkxpc3RlbjogKGFyZ3MsIGV2ZW50cykgPT4gZXZlbnRzLnN1Y2Nlc3MoY29uc3QgWyd3aWZpJ10pLAogICAgICApLAogICAgKTsKICAgIGJpbmRpbmcuZGVmYXVsdEJpbmFyeU1lc3Nlbmdlci5zZXRNb2NrTWV0aG9kQ2FsbEhhbmRsZXIoCiAgICAgIGNvbnN0IE1ldGhvZENoYW5uZWwoJ2Rldi5mbHV0dGVyY29tbXVuaXR5LnBsdXMvY29ubmVjdGl2aXR5JyksCiAgICAgIChjYWxsKSBhc3luYyA9PiBjb25zdCBbJ3dpZmknXSwKICAgICk7CiAgfSk7CiAgc2V0VXAoKCkgPT4gdG1wID0gRGlyZWN0b3J5LnN5c3RlbVRlbXAuY3JlYXRlVGVtcFN5bmMoJ20xNjRnXycpKTsKICB0ZWFyRG93bigoKSB7CiAgICBkZWJ1Z0ZvcmNlRGVza3RvcFVpID0gbnVsbDsKICAgIHRtcC5kZWxldGVTeW5jKHJlY3Vyc2l2ZTogdHJ1ZSk7CiAgfSk7CgogIE1hcDxTdHJpbmcsIE9iamVjdD8+IGNvbmZpZygpID0+IHsKICAgICAgICAnY2VudGVyTmFtZSc6ICfYudmK2KfYr9ipINin2YTYtdmB2YjYqScsCiAgICAgICAgJ2NsaW5pY3MnOiBbJ9in2YTYtdmB2YjYqScsICfZg9in2LHZitiy2YXYpyddLAogICAgICAgICdzZXJ2aWNlcyc6IFsn2K3YtNmIJywgJ9iq2LHZg9mK2KjYp9iqJ10sCiAgICAgICAgJ3BheW1lbnRzJzogWyfZg9in2LQnLCAn2KrYrdmI2YrZhCddLAogICAgICAgICd3b3JrZGF5U3RhcnQnOiAnMDk6MDAnLAogICAgICAgICd3b3JrZGF5RW5kJzogJzE3OjAwJywKICAgICAgfTsKCiAgTGlzdDxPdmVycmlkZT4gb3YoKSA9PiBbCiAgICAgICAgc3RhZmZBZG1pblNlc3Npb24oKSwKICAgICAgICBkYkRpclByb3ZpZGVyLm92ZXJyaWRlV2l0aFZhbHVlKHRtcC5wYXRoKSwKICAgICAgXTsKCiAgdm9pZCBzZWVkKFByb3ZpZGVyQ29udGFpbmVyIGMpIHsKICAgIGZpbmFsIHJlcG9zID0gYy5yZWFkKHJlcG9zUHJvdmlkZXIpOwogICAgZmluYWwgdG9kYXkgPSBnZXRDdXJyZW50RGF0ZSgpOwogICAgZmluYWwgdG9tb3Jyb3cgPSAoKSB7CiAgICAgIGZpbmFsIGQgPSBEYXRlVGltZS5wYXJzZSgnJHt0b2RheX1UMDA6MDA6MDAnKQogICAgICAgICAgLmFkZChjb25zdCBEdXJhdGlvbihkYXlzOiAxKSk7CiAgICAgIHJldHVybiAnJHtkLnllYXIudG9TdHJpbmcoKS5wYWRMZWZ0KDQsICcwJyl9LScKICAgICAgICAgICcke2QubW9udGgudG9TdHJpbmcoKS5wYWRMZWZ0KDIsICcwJyl9LScKICAgICAgICAgICcke2QuZGF5LnRvU3RyaW5nKCkucGFkTGVmdCgyLCAnMCcpfSc7CiAgICB9KCk7CiAgICB2b2lkIGFwcHQoU3RyaW5nIGlkLCBTdHJpbmcgbmFtZSwgU3RyaW5nIHRpbWUsIFN0cmluZyBzZXJ2aWNlLAogICAgICAgIFN0cmluZyBzdGF0dXMsIFN0cmluZyBjbGluaWMsCiAgICAgICAge2ludD8gZHVyLCBpbnQgaXNCcmVhayA9IDAsIFN0cmluZz8gYXJjaGl2ZWRPbiwgU3RyaW5nPyBkYXRlfSkgewogICAgICByZXBvcy5hcHBvaW50bWVudHMudXBzZXJ0TG9jYWwoewogICAgICAgICdpZCc6IGlkLAogICAgICAgICduYW1lJzogbmFtZSwKICAgICAgICAncGhvbmUnOiAnMDkxMjM0NTY3OCcsCiAgICAgICAgJ2RhdGUnOiBkYXRlID8/IHRvZGF5LAogICAgICAgICd0aW1lJzogdGltZSwKICAgICAgICAnc2VydmljZSc6IHNlcnZpY2UsCiAgICAgICAgJ3N0YXR1cyc6IHN0YXR1cywKICAgICAgICAnY2xpbmljJzogY2xpbmljLAogICAgICAgICdjbGluaWNfaWQnOiAnYy0kY2xpbmljJywKICAgICAgICAnZHVyYXRpb25NaW4nOiA/ZHVyLAogICAgICAgIGlmIChpc0JyZWFrID09IDEpICdpc0JyZWFrJzogMSwKICAgICAgICAnYXJjaGl2ZWRPbic6ID9hcmNoaXZlZE9uLAogICAgICAgICdfdCc6ICdhJywKICAgICAgfSk7CiAgICB9CgogICAgYXBwdCgnYTEnLCAn2KPYrdmF2K8g2YXYrdmF2K8nLCAnMDk6MDAnLCAn2KrZhti42YrZgSDZhNir2KknLCAnY29uZmlybWVkJywgJ9in2YTYtdmB2YjYqScpOwogICAgYXBwdCgnYTInLCAn2LPYp9ix2Kkg2LnZhNmKJywgJzA5OjMwJywgJ9it2LTZiNipJywgJ3dhaXRpbmcnLCAn2KfZhNi12YHZiNipJyk7CiAgICBhcHB0KCdiMScsICfYp9iz2KrYsdin2K3YqScsICcxMDowMCcsICcnLCAncGVuZGluZycsICfYp9mE2LXZgdmI2KknLAogICAgICAgIGR1cjogMzAsIGlzQnJlYWs6IDEpOwogICAgYXBwdCgnYTMnLCAn2YXYrdmF2K8g2KPYrdmF2K8nLCAnMTA6MzAnLCAn2LnZhNin2Kwg2LnYtdioJywgJ3BlbmRpbmcnLCAn2KfZhNi12YHZiNipJywKICAgICAgICBkdXI6IDYwKTsKICAgIGFwcHQoJ2E0JywgJ9mE2YrZhNmJINit2LPZhicsICcxMzowMCcsICfYqtix2YPZitio2KfYqicsICdpbl90cmVhdG1lbnQnLCAn2KfZhNi12YHZiNipJyk7CiAgICBhcHB0KCdkb25lMScsICfYrtin2YTYryDZitmI2LPZgScsICcwODozMCcsICfZg9i02YEnLCAnY29tcGxldGVkJywgJ9in2YTYtdmB2YjYqScsCiAgICAgICAgYXJjaGl2ZWRPbjogZ2V0Q3VycmVudERhdGUoKSk7CiAgICBhcHB0KCduczEnLCAn2YXZh9inINiz2LnZitivJywgJzA4OjAwJywgJ9mD2LTZgScsICdub19zaG93JywgJ9in2YTYtdmB2YjYqScsCiAgICAgICAgYXJjaGl2ZWRPbjogZ2V0Q3VycmVudERhdGUoKSk7CiAgICBhcHB0KCdrMScsICfYudmF2LEg2YHYqtit2YonLCAnMTE6MDAnLCAn2YPYtNmBJywgJ3BlbmRpbmcnLCAn2YPYp9ix2YrYstmF2KcnKTsKICAgIGFwcHQoJ2YxJywgJ9mH2K/ZiSDYs9in2YTZhScsICcwOTowMCcsICfZhdiq2KfYqNi52KknLCAncGVuZGluZycsICfYp9mE2LXZgdmI2KknLAogICAgICAgIGRhdGU6IHRvbW9ycm93KTsKICB9CgogIEZ1dHVyZTxQcm92aWRlckNvbnRhaW5lcj4gYm9vdChXaWRnZXRUZXN0ZXIgdCwKICAgICAge1NpemUgc2l6ZSA9IGNvbnN0IFNpemUoNDIwLCAxMDUwKX0pIGFzeW5jIHsKICAgIHQudmlldy5waHlzaWNhbFNpemUgPSBzaXplOwogICAgdC52aWV3LmRldmljZVBpeGVsUmF0aW8gPSAxLjA7CiAgICBhZGRUZWFyRG93bih0LnZpZXcucmVzZXQpOwogICAgZmluYWwgYzAgPSBQcm92aWRlckNvbnRhaW5lcihvdmVycmlkZXM6IG92KCkpOwogICAgZmluYWwgYXV0aCA9IGMwLnJlYWQoYXV0aFNlcnZpY2VQcm92aWRlcik7CiAgICBhd2FpdCBhdXRoLnJlZ2lzdGVyKCdkb2NAY2xpbmljLmx5JywgJ3NlY3JldDEyJyk7CiAgICBhd2FpdCBhdXRoLmxvZ2luKCdkb2NAY2xpbmljLmx5JywgJ3NlY3JldDEyJywgcmVtZW1iZXI6IHRydWUpOwogICAgYzAucmVhZChyZXBvc1Byb3ZpZGVyKS5zZXR0aW5ncy5zZXQoJ2FwcC5jb25maWcnLCBjb25maWcoKSk7CiAgICBzZWVkKGMwKTsKICAgIGMwLmRpc3Bvc2UoKTsKICAgIHJldHVybiBQcm92aWRlckNvbnRhaW5lcihvdmVycmlkZXM6IG92KCkpOwogIH0KCiAgRnV0dXJlPHZvaWQ+IHNob3QoV2lkZ2V0VGVzdGVyIHQsIFN0cmluZyBuYW1lKSA9PiBleHBlY3RMYXRlcigKICAgICAgZmluZC5ieVR5cGUoTWF0ZXJpYWxBcHApLCBtYXRjaGVzR29sZGVuRmlsZSgnZ29sZGVucy8kbmFtZS5wbmcnKSk7CgogIEZ1dHVyZTx2b2lkPiBwdW1wUGhvbmUoV2lkZ2V0VGVzdGVyIHQsIFByb3ZpZGVyQ29udGFpbmVyIGMpIGFzeW5jIHsKICAgIGF3YWl0IHQucHVtcFdpZGdldChVbmNvbnRyb2xsZWRQcm92aWRlclNjb3BlKAogICAgICBjb250YWluZXI6IGMsCiAgICAgIGNoaWxkOiBNYXRlcmlhbEFwcCgKICAgICAgICBkZWJ1Z1Nob3dDaGVja2VkTW9kZUJhbm5lcjogZmFsc2UsCiAgICAgICAgdGhlbWU6IFRoZW1lRGF0YShmb250RmFtaWx5OiAnQ2Fpcm8nLCB1c2VNYXRlcmlhbDM6IHRydWUpLAogICAgICAgIGhvbWU6IGNvbnN0IERpcmVjdGlvbmFsaXR5KAogICAgICAgICAgdGV4dERpcmVjdGlvbjogVGV4dERpcmVjdGlvbi5ydGwsCiAgICAgICAgICBjaGlsZDogU2NhZmZvbGQoYm9keTogQXBwb2ludG1lbnRzVGFiKCkpLAogICAgICAgICksCiAgICAgICksCiAgICApKTsKICAgIGF3YWl0IHQucHVtcChjb25zdCBEdXJhdGlvbihtaWxsaXNlY29uZHM6IDQwMCkpOwogIH0KCiAgdGVzdFdpZGdldHMoJ9mFMTY0IOKAlCDYp9mE2YfYp9iq2YE6IFRpbWVsaW5lINin2YTYudmK2KfYr9ipINmF2Lkg2KfZhNin2LPYqtix2KfYrdipINmI2KfZhNij2LHYtNmK2YEnLAogICAgICAodCkgYXN5bmMgewogICAgZmluYWwgYyA9IGF3YWl0IGJvb3QodCk7CiAgICBhd2FpdCBwdW1wUGhvbmUodCwgYyk7CiAgICAvLyDYp9iu2KrYsSDYudmK2KfYr9ipINin2YTYtdmB2YjYqS4KICAgIGF3YWl0IHQudGFwKGZpbmQuYnlLZXkoY29uc3QgS2V5KCdhcHB0LWNsaW5pYy3Yp9mE2LXZgdmI2KknKSkpOwogICAgYXdhaXQgdC5wdW1wQW5kU2V0dGxlKCk7CiAgICBhd2FpdCBzaG90KHQsICdtMTY0X3Bob25lX3RpbWVsaW5lJyk7CiAgfSwgc2tpcDogIV9nb2xkZW5zKTsKCiAgdGVzdFdpZGdldHMoJ9mFMTY0IOKAlCDYp9mE2YfYp9iq2YE6INmF2LnYp9mE2Kwg2KfZhNil2LbYp9mB2KkgKNi52YrYp9iv2Kkv2KrYp9ix2YrYri/Yo9mI2YLYp9iqL9mF2LHZiti2KScsCiAgICAgICh0KSBhc3luYyB7CiAgICBmaW5hbCBjID0gYXdhaXQgYm9vdCh0LCBzaXplOiBjb25zdCBTaXplKDQyMCwgMTE1MCkpOwogICAgYXdhaXQgcHVtcFBob25lKHQsIGMpOwogICAgYXdhaXQgdC50YXAoZmluZC5ieUtleShjb25zdCBLZXkoJ2FwcHQtY2xpbmljLdin2YTYtdmB2YjYqScpKSk7CiAgICBhd2FpdCB0LnB1bXBBbmRTZXR0bGUoKTsKICAgIGF3YWl0IHQudGFwKGZpbmQuYnlLZXkoY29uc3QgS2V5KCdhcHB0LWFkZC10b2dnbGUnKSkpOwogICAgYXdhaXQgdC5wdW1wQW5kU2V0dGxlKCk7CiAgICBhd2FpdCBzaG90KHQsICdtMTY0X3Bob25lX3dpemFyZCcpOwogIH0sIHNraXA6ICFfZ29sZGVucyk7CgogIHRlc3RXaWRnZXRzKCfZhTE2NCDigJQg2KfZhNmH2KfYqtmBOiDZiNix2YLYqSDYp9mE2KXYrNix2KfYodin2Kog2KfZhNiz2LHZiti52KknLCAodCkgYXN5bmMgewogICAgZmluYWwgYyA9IGF3YWl0IGJvb3QodCwgc2l6ZTogY29uc3QgU2l6ZSg0MjAsIDExNTApKTsKICAgIGF3YWl0IHB1bXBQaG9uZSh0LCBjKTsKICAgIGF3YWl0IHQudGFwKGZpbmQuYnlLZXkoY29uc3QgS2V5KCdhcHB0LWNsaW5pYy3Yp9mE2LXZgdmI2KknKSkpOwogICAgYXdhaXQgdC5wdW1wQW5kU2V0dGxlKCk7CiAgICBhd2FpdCB0LnRhcChmaW5kLmJ5S2V5KGNvbnN0IEtleSgnYXBwdC1yb3ctYTInKSkpOwogICAgYXdhaXQgdC5wdW1wQW5kU2V0dGxlKCk7CiAgICBhd2FpdCBzaG90KHQsICdtMTY0X3Bob25lX2FjdGlvbnMnKTsKICB9LCBza2lwOiAhX2dvbGRlbnMpOwoKICB0ZXN0V2lkZ2V0cygn2YUxNjUg4oCUINiu2YXYsyDYudmK2KfYr9in2Ko6INin2YTYsdij2LMg2KfZhNmF2LbYutmI2Lcg2KjYp9mE2LLYsSDYp9mE2YXZhtiz2K/ZhCcsICh0KSBhc3luYyB7CiAgICBmaW5hbCBjID0gYXdhaXQgYm9vdCh0KTsKICAgIC8vINiu2YXYsyDYudmK2KfYr9in2KogKNmI2KfZgti5INin2YTZhdin2YTZgykg4oCUINiq2Y/Zg9iq2Kgg2YHZiNmCINin2YTYpdi52K/Yp9iv2KfYqiDZgtio2YQg2KfZhNi22K4uCiAgICBmaW5hbCBjMCA9IFByb3ZpZGVyQ29udGFpbmVyKG92ZXJyaWRlczogb3YoKSk7CiAgICBjMC5yZWFkKHJlcG9zUHJvdmlkZXIpLnNldHRpbmdzLnNldCgnYXBwLmNvbmZpZycsIHsKICAgICAgLi4uY29uZmlnKCksCiAgICAgICdjbGluaWNzJzogWyfYp9mE2LXZgdmI2KknLCAn2YPYp9ix2YrYstmF2KcnLCAn2K8u2LnYqNiv2KfZhNmB2KrYp9itINin2YTYr9mE2YrZhdmKJywgJ9ivLti52KjYr9in2YTZg9ix2YrZhScsICfYry7ZhdmE2KfYsCDYsdis2KgnXSwKICAgIH0pOwogICAgYzAuZGlzcG9zZSgpOwogICAgYXdhaXQgcHVtcFBob25lKHQsIGMpOwogICAgYXdhaXQgdC50YXAoZmluZC5ieUtleShjb25zdCBLZXkoJ2FwcHQtY2xpbmljLXBpbGwnKSkpOwogICAgYXdhaXQgdC5wdW1wQW5kU2V0dGxlKCk7CiAgICBhd2FpdCBzaG90KHQsICdtMTY1X3Bob25lX2NsaW5pY19zaGVldCcpOwogICAgYXdhaXQgdC50YXAoZmluZC5ieUtleShjb25zdCBLZXkoJ2FwcHQtY2xpbmljLdin2YTYtdmB2YjYqScpKSk7CiAgICBhd2FpdCB0LnB1bXBBbmRTZXR0bGUoKTsKICAgIGF3YWl0IHNob3QodCwgJ20xNjVfcGhvbmVfY29tcGFjdCcpOwogIH0sIHNraXA6ICFfZ29sZGVucyk7CgogIHRlc3RXaWRnZXRzKCfZhTE2NCDigJQg2KfZhNmD2YXYqNmK2YjYqtixOiDYqtio2YjZitio2KfYqiDYp9mE2LnZitin2K/Yp9iqINmB2YjZgiDYp9mE2KzYr9mI2YTYqScsICh0KSBhc3luYyB7CiAgICBkZWJ1Z0ZvcmNlRGVza3RvcFVpID0gdHJ1ZTsKICAgIHQudmlldy5waHlzaWNhbFNpemUgPSBjb25zdCBTaXplKDE2MDAsIDEwMDApOwogICAgdC52aWV3LmRldmljZVBpeGVsUmF0aW8gPSAxLjA7CiAgICBhZGRUZWFyRG93bih0LnZpZXcucmVzZXQpOwogICAgZmluYWwgYzAgPSBQcm92aWRlckNvbnRhaW5lcihvdmVycmlkZXM6IG92KCkpOwogICAgZmluYWwgYXV0aCA9IGMwLnJlYWQoYXV0aFNlcnZpY2VQcm92aWRlcik7CiAgICBhd2FpdCBhdXRoLnJlZ2lzdGVyKCdkb2NAY2xpbmljLmx5JywgJ3NlY3JldDEyJyk7CiAgICBhd2FpdCBhdXRoLmxvZ2luKCdkb2NAY2xpbmljLmx5JywgJ3NlY3JldDEyJywgcmVtZW1iZXI6IHRydWUpOwogICAgYzAucmVhZChyZXBvc1Byb3ZpZGVyKS5zZXR0aW5ncy5zZXQoJ2FwcC5jb25maWcnLCBjb25maWcoKSk7CiAgICBzZWVkKGMwKTsKICAgIGMwLmRpc3Bvc2UoKTsKICAgIGF3YWl0IHQucHVtcFdpZGdldCgKICAgICAgICBQcm92aWRlclNjb3BlKG92ZXJyaWRlczogb3YoKSwgY2hpbGQ6IGNvbnN0IERlbnRhbEFwcCgpKSk7CiAgICBhd2FpdCB0LnB1bXAoKTsKICAgIGF3YWl0IHQucHVtcChjb25zdCBEdXJhdGlvbihtaWxsaXNlY29uZHM6IDMwMCkpOwogICAgLy8g2KXYutmE2KfZgiDYpdi02LnYp9ixIMKr2YXZiNin2LnZitivINin2YTZitmI2YXCuyDYp9mE2YXZhtio2KvZgiDYudmG2K8g2KfZhNmB2KrYrSAo2YrYrdis2Kgg2KfZhNmG2YLYsSkuCiAgICBpZiAoZmluZC5ieUtleShjb25zdCBLZXkoJ2FwcHQtbm90aWYtb2snKSkuZXZhbHVhdGUoKS5pc05vdEVtcHR5KSB7CiAgICAgIGF3YWl0IHQudGFwKGZpbmQuYnlLZXkoY29uc3QgS2V5KCdhcHB0LW5vdGlmLW9rJykpKTsKICAgICAgYXdhaXQgdC5wdW1wQW5kU2V0dGxlKCk7CiAgICB9CiAgICBhd2FpdCB0LnRhcChmaW5kLmJ5S2V5KGNvbnN0IEtleSgnZGVzay10YWItY2FsZW5kYXInKSksCiAgICAgICAgd2FybklmTWlzc2VkOiBmYWxzZSk7CiAgICBhd2FpdCB0LnB1bXAoY29uc3QgRHVyYXRpb24obWlsbGlzZWNvbmRzOiA1MDApKTsKICAgIGF3YWl0IHQucHVtcEFuZFNldHRsZSgpOwogICAgZXhwZWN0KGZpbmQuYnlLZXkoY29uc3QgS2V5KCdhcHB0LXdlZWstdmlldycpKSwgZmluZHNPbmVXaWRnZXQsCiAgICAgICAgcmVhc29uOiAn2LTYp9i02Kkg2KfZhNit2KzZiNiy2KfYqiDYp9mE2YXZg9iq2KjZitipINmF2LnYsdmI2LbYqScpOwogICAgLy8g2KrYqNmI2YrYqCDYudmK2KfYr9ipINin2YTYtdmB2YjYqS4KICAgIGF3YWl0IHQudGFwKGZpbmQuYnlLZXkoY29uc3QgS2V5KCdhcHB0LWRlc2stY2xpbmljLdin2YTYtdmB2YjYqScpKSwKICAgICAgICB3YXJuSWZNaXNzZWQ6IGZhbHNlKTsKICAgIGF3YWl0IHQucHVtcEFuZFNldHRsZSgpOwogICAgYXdhaXQgc2hvdCh0LCAnbTE2NF9kZXNrdG9wX3RhYnMnKTsKICB9LCBza2lwOiAhX2dvbGRlbnMpOwp9Cg==
+/// م164 — لقطاتٌ للمراجعة (GOLDENS=1): شاشة الحجوزات الجديدة للهاتف
+/// (رقائق العيادات + شريط الأيام + Timeline بخط «الآن» والاستراحة
+/// والأرشيف)، معالجُ الإضافة، ورقة الإجراءات السريعة، وتبويبات العيادات
+/// على سطح المكتب.
+library;
+
+import 'dart:io';
+import 'dart:typed_data' show ByteData;
+
+import 'package:dental_clinic_flutter/app/providers.dart';
+import 'package:dental_clinic_flutter/core/utils/js_compat.dart'
+    show getCurrentDate;
+import 'package:dental_clinic_flutter/features/appointments/appointments_tab.dart';
+import 'package:dental_clinic_flutter/features/desktop/desktop_gate.dart'
+    show debugForceDesktopUi;
+import 'package:dental_clinic_flutter/main.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'
+    show EventChannel, FontLoader, MethodChannel;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter_test/flutter_test.dart';
+
+import 'staff_test_session.dart' show staffAdminSession;
+
+final _goldens = Platform.environment.containsKey('GOLDENS');
+
+Future<void> _loadAppFonts() async {
+  Future<void> load(String family, List<String> files) async {
+    final loader = FontLoader(family);
+    for (final f in files) {
+      loader.addFont(Future.value(
+          ByteData.view(File('assets/fonts/$f').readAsBytesSync().buffer)));
+    }
+    await loader.load();
+  }
+
+  await load('Qomra',
+      ['Qomra-Regular.ttf', 'Qomra-Medium.ttf', 'Qomra-Bold.ttf']);
+  await load(
+      'Cairo', ['Cairo-Regular.ttf', 'Cairo-SemiBold.ttf', 'Cairo-Bold.ttf']);
+  final root = Platform.environment['FLUTTER_ROOT'];
+  if (root != null) {
+    final f = File(
+        '$root/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+    if (f.existsSync()) {
+      final l = FontLoader('MaterialIcons');
+      l.addFont(Future.value(ByteData.view(f.readAsBytesSync().buffer)));
+      await l.load();
+    }
+  }
+}
+
+void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory tmp;
+  setUpAll(() async {
+    await _loadAppFonts();
+    binding.defaultBinaryMessenger.setMockStreamHandler(
+      const EventChannel('dev.fluttercommunity.plus/connectivity_status'),
+      MockStreamHandler.inline(
+        onListen: (args, events) => events.success(const ['wifi']),
+      ),
+    );
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('dev.fluttercommunity.plus/connectivity'),
+      (call) async => const ['wifi'],
+    );
+  });
+  setUp(() => tmp = Directory.systemTemp.createTempSync('m164g_'));
+  tearDown(() {
+    debugForceDesktopUi = null;
+    tmp.deleteSync(recursive: true);
+  });
+
+  Map<String, Object?> config() => {
+        'centerName': 'عيادة الصفوة',
+        'clinics': ['الصفوة', 'كاريزما'],
+        'services': ['حشو', 'تركيبات'],
+        'payments': ['كاش', 'تحويل'],
+        'workdayStart': '09:00',
+        'workdayEnd': '17:00',
+      };
+
+  List<Override> ov() => [
+        staffAdminSession(),
+        dbDirProvider.overrideWithValue(tmp.path),
+      ];
+
+  void seed(ProviderContainer c) {
+    final repos = c.read(reposProvider);
+    final today = getCurrentDate();
+    final tomorrow = () {
+      final d = DateTime.parse('${today}T00:00:00')
+          .add(const Duration(days: 1));
+      return '${d.year.toString().padLeft(4, '0')}-'
+          '${d.month.toString().padLeft(2, '0')}-'
+          '${d.day.toString().padLeft(2, '0')}';
+    }();
+    void appt(String id, String name, String time, String service,
+        String status, String clinic,
+        {int? dur, int isBreak = 0, String? archivedOn, String? date}) {
+      repos.appointments.upsertLocal({
+        'id': id,
+        'name': name,
+        'phone': '0912345678',
+        'date': date ?? today,
+        'time': time,
+        'service': service,
+        'status': status,
+        'clinic': clinic,
+        'clinic_id': 'c-$clinic',
+        'durationMin': ?dur,
+        if (isBreak == 1) 'isBreak': 1,
+        'archivedOn': ?archivedOn,
+        '_t': 'a',
+      });
+    }
+
+    appt('a1', 'أحمد محمد', '09:00', 'تنظيف لثة', 'confirmed', 'الصفوة');
+    appt('a2', 'سارة علي', '09:30', 'حشوة', 'waiting', 'الصفوة');
+    appt('b1', 'استراحة', '10:00', '', 'pending', 'الصفوة',
+        dur: 30, isBreak: 1);
+    appt('a3', 'محمد أحمد', '10:30', 'علاج عصب', 'pending', 'الصفوة',
+        dur: 60);
+    appt('a4', 'ليلى حسن', '13:00', 'تركيبات', 'in_treatment', 'الصفوة');
+    appt('done1', 'خالد يوسف', '08:30', 'كشف', 'completed', 'الصفوة',
+        archivedOn: getCurrentDate());
+    appt('ns1', 'مها سعيد', '08:00', 'كشف', 'no_show', 'الصفوة',
+        archivedOn: getCurrentDate());
+    appt('k1', 'عمر فتحي', '11:00', 'كشف', 'pending', 'كاريزما');
+    appt('f1', 'هدى سالم', '09:00', 'متابعة', 'pending', 'الصفوة',
+        date: tomorrow);
+  }
+
+  Future<ProviderContainer> boot(WidgetTester t,
+      {Size size = const Size(420, 1050)}) async {
+    t.view.physicalSize = size;
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(t.view.reset);
+    final c0 = ProviderContainer(overrides: ov());
+    final auth = c0.read(authServiceProvider);
+    await auth.register('doc@clinic.ly', 'secret12');
+    await auth.login('doc@clinic.ly', 'secret12', remember: true);
+    c0.read(reposProvider).settings.set('app.config', config());
+    seed(c0);
+    c0.dispose();
+    return ProviderContainer(overrides: ov());
+  }
+
+  Future<void> shot(WidgetTester t, String name) => expectLater(
+      find.byType(MaterialApp), matchesGoldenFile('goldens/$name.png'));
+
+  Future<void> pumpPhone(WidgetTester t, ProviderContainer c) async {
+    await t.pumpWidget(UncontrolledProviderScope(
+      container: c,
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(fontFamily: 'Cairo', useMaterial3: true),
+        home: const Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(body: AppointmentsTab()),
+        ),
+      ),
+    ));
+    await t.pump(const Duration(milliseconds: 400));
+  }
+
+  testWidgets('م164 — الهاتف: Timeline العيادة مع الاستراحة والأرشيف',
+      (t) async {
+    final c = await boot(t);
+    await pumpPhone(t, c);
+    // اختر عيادة الصفوة.
+    await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
+    await t.pumpAndSettle();
+    await shot(t, 'm164_phone_timeline');
+  }, skip: !_goldens);
+
+  testWidgets('م164 — الهاتف: معالج الإضافة (عيادة/تاريخ/أوقات/مريض)',
+      (t) async {
+    final c = await boot(t, size: const Size(420, 1150));
+    await pumpPhone(t, c);
+    await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('appt-add-toggle')));
+    await t.pumpAndSettle();
+    await shot(t, 'm164_phone_wizard');
+  }, skip: !_goldens);
+
+  testWidgets('م164 — الهاتف: ورقة الإجراءات السريعة', (t) async {
+    final c = await boot(t, size: const Size(420, 1150));
+    await pumpPhone(t, c);
+    await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('appt-row-a2')));
+    await t.pumpAndSettle();
+    await shot(t, 'm164_phone_actions');
+  }, skip: !_goldens);
+
+  testWidgets('م165 — خمس عيادات: الرأس المضغوط بالزر المنسدل', (t) async {
+    final c = await boot(t);
+    // خمس عيادات (واقع المالك) — تُكتب فوق الإعدادات قبل الضخ.
+    final c0 = ProviderContainer(overrides: ov());
+    c0.read(reposProvider).settings.set('app.config', {
+      ...config(),
+      'clinics': ['الصفوة', 'كاريزما', 'د.عبدالفتاح الدليمي', 'د.عبدالكريم', 'د.ملاذ رجب'],
+    });
+    c0.dispose();
+    await pumpPhone(t, c);
+    await t.tap(find.byKey(const Key('appt-clinic-pill')));
+    await t.pumpAndSettle();
+    await shot(t, 'm165_phone_clinic_sheet');
+    await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
+    await t.pumpAndSettle();
+    await shot(t, 'm165_phone_compact');
+  }, skip: !_goldens);
+
+  testWidgets('م164 — الكمبيوتر: تبويبات العيادات فوق الجدولة', (t) async {
+    debugForceDesktopUi = true;
+    t.view.physicalSize = const Size(1600, 1000);
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(t.view.reset);
+    final c0 = ProviderContainer(overrides: ov());
+    final auth = c0.read(authServiceProvider);
+    await auth.register('doc@clinic.ly', 'secret12');
+    await auth.login('doc@clinic.ly', 'secret12', remember: true);
+    c0.read(reposProvider).settings.set('app.config', config());
+    seed(c0);
+    c0.dispose();
+    await t.pumpWidget(
+        ProviderScope(overrides: ov(), child: const DentalApp()));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 300));
+    // إغلاق إشعار «مواعيد اليوم» المنبثق عند الفتح (يحجب النقر).
+    if (find.byKey(const Key('appt-notif-ok')).evaluate().isNotEmpty) {
+      await t.tap(find.byKey(const Key('appt-notif-ok')));
+      await t.pumpAndSettle();
+    }
+    await t.tap(find.byKey(const Key('desk-tab-calendar')),
+        warnIfMissed: false);
+    await t.pump(const Duration(milliseconds: 500));
+    await t.pumpAndSettle();
+    expect(find.byKey(const Key('appt-week-view')), findsOneWidget,
+        reason: 'شاشة الحجوزات المكتبية معروضة');
+    // تبويب عيادة الصفوة.
+    await t.tap(find.byKey(const Key('appt-desk-clinic-الصفوة')),
+        warnIfMissed: false);
+    await t.pumpAndSettle();
+    await shot(t, 'm164_desktop_tabs');
+  }, skip: !_goldens);
+}
