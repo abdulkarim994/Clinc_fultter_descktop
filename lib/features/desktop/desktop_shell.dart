@@ -27,8 +27,13 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../records/add_record_screen.dart' show openAddRecordSheet;
+import 'desktop_prefs.dart' show desktopPrefsProvider, saveDesktopPref;
 import 'widgets/add_record_dock.dart'
-    show AddRecordSidePanel, addRecordDockProvider;
+    show
+        AddRecordSidePanel,
+        addRecordDockPosProvider,
+        addRecordDockProvider,
+        addRecordPanelWidth;
 import '../settings/settings_screen.dart';
 import '../shell/app_shell.dart' show LocalModeBanner;
 import '../staff/staff_account_screen.dart' show StaffAccountScreen;
@@ -210,24 +215,69 @@ class DesktopShell extends ConsumerWidget {
                     // حافة البداية (يمين RTL) ملاصقاً للشريط الجانبي
                     // بارتفاع مساحة العمل كاملاً.
                     Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Container(
-                              color: BrandColors.paper,
-                              child: body,
+                      // م167/ج — اللوح قابل للسحب من رأسه: موضعه الحر في
+                      // مزوّدٍ (يُحفظ في تفضيلات الجهاز) بقصٍّ ذكي يمنع
+                      // خروجه؛ null = المرسى الافتراضي (بداية RTL).
+                      child: LayoutBuilder(builder: (ctx, cons) {
+                        final panelW = addRecordPanelWidth(
+                            MediaQuery.sizeOf(ctx));
+                        // الموضع المحفوظ من جلسات سابقة (dock.pos = "x,y").
+                        Offset? savedPos() {
+                          final raw =
+                              '${ref.read(desktopPrefsProvider)['dock.pos'] ?? ''}';
+                          final parts = raw.split(',');
+                          if (parts.length != 2) return null;
+                          final x = double.tryParse(parts[0]);
+                          final y = double.tryParse(parts[1]);
+                          return (x == null || y == null)
+                              ? null
+                              : Offset(x, y);
+                        }
+
+                        final anchor = Offset(
+                            cons.maxWidth - panelW - 10, 10);
+                        final live = ref.watch(addRecordDockPosProvider);
+                        final pos = live ?? savedPos() ?? anchor;
+                        final clamped = Offset(
+                          pos.dx.clamp(80.0 - panelW,
+                              (cons.maxWidth - 80).clamp(0.0, 1e6)),
+                          pos.dy.clamp(
+                              0.0, (cons.maxHeight - 60).clamp(0.0, 1e6)),
+                        );
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Container(
+                                color: BrandColors.paper,
+                                child: body,
+                              ),
                             ),
-                          ),
-                          if (dock != null)
-                            // م146/و: بطاقة عائمة بهوامش — لا تمدد رأسياً؛
-                            // ارتفاعها يعانق محتواها بحد أقصى مساحة العمل.
-                            PositionedDirectional(
-                              start: 10,
-                              top: 10,
-                              child: AddRecordSidePanel(request: dock),
-                            ),
-                        ],
-                      ),
+                            if (dock != null)
+                              Positioned(
+                                left: clamped.dx,
+                                top: clamped.dy,
+                                child: AddRecordSidePanel(
+                                  request: dock,
+                                  onDrag: (delta) => ref
+                                          .read(addRecordDockPosProvider
+                                              .notifier)
+                                          .state =
+                                      clamped + delta,
+                                  onDragEnd: () {
+                                    final p = ref.read(
+                                            addRecordDockPosProvider) ??
+                                        clamped;
+                                    saveDesktopPref(
+                                        ref,
+                                        'dock.pos',
+                                        '${p.dx.round()},${p.dy.round()}',
+                                        immediate: true);
+                                  },
+                                ),
+                              ),
+                          ],
+                        );
+                      }),
                     ),
                   ],
                 ),
