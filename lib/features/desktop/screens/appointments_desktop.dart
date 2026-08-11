@@ -672,29 +672,73 @@ class _DesktopAppointmentsScreenState
       },
     );
 
+    // م166 — زر ملء الشاشة (F11): الجدول الأسبوعي على كامل النافذة.
+    final fullscreenBtn = IconButton(
+      key: const Key('appt-desk-fullscreen'),
+      tooltip: 'ملء الشاشة (F11)',
+      visualDensity: VisualDensity.compact,
+      onPressed: () => _openFullscreen(centerName, currency),
+      icon: Icon(Icons.fullscreen_rounded,
+          size: 20, color: BrandColors.brand700),
+    );
+
     if (view == _ApptView.week) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SwitcherBar(switcher: switcher, center: clinicTabs),
-          Expanded(
-            child: WeeklyScheduler(
-              key: const Key('appt-week-view'),
-              actions: _actions(centerName, currency),
-              clinicFilter: _clinicFilter,
-            ),
+      // F11 يفتح ملء الشاشة (لا حقول نصية في عرض الأسبوع — آمن للتركيز).
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.f11): () =>
+              _openFullscreen(centerName, currency),
+        },
+        child: Focus(
+          autofocus: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SwitcherBar(
+                  switcher: Row(mainAxisSize: MainAxisSize.min, children: [
+                    switcher,
+                    const SizedBox(width: 4),
+                    fullscreenBtn,
+                  ]),
+                  center: clinicTabs),
+              Expanded(
+                child: WeeklyScheduler(
+                  key: const Key('appt-week-view'),
+                  actions: _actions(centerName, currency),
+                  clinicFilter: _clinicFilter,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       );
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SwitcherBar(switcher: switcher, center: clinicTabs),
+        _SwitcherBar(
+            switcher: Row(mainAxisSize: MainAxisSize.min, children: [
+              switcher,
+              const SizedBox(width: 4),
+              fullscreenBtn,
+            ]),
+            center: clinicTabs),
         Expanded(child: _buildListView(centerName, currency)),
       ],
     );
+  }
+
+  /// م166 — مسار ملء الشاشة: الجدولة الأسبوعية على كامل نافذة البرنامج
+  /// (بلا شريط جانبي ولا رأس) مع شريطٍ رفيع فيه الخروج وتبويبات العيادات.
+  /// الخروج بزر ✕ أو Esc أو F11.
+  void _openFullscreen(String centerName, String currency) {
+    Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => _FullscreenSchedule(
+        actions: _actions(centerName, currency),
+      ),
+    ));
   }
 
   /// جسم عرض القائمة (master/detail) — محفوظٌ حرفياً كما كان (يحفظ ميزة
@@ -784,6 +828,102 @@ class _DesktopAppointmentsScreenState
       masterWidth: 440,
       master: master,
       detail: detailWidget,
+    );
+  }
+}
+
+// ── م166: الجدولة الأسبوعية بملء الشاشة ──────────────────────────────────────
+
+/// شاشة ملء النافذة: شريط رفيع (خروج + تبويبات العيادات) + الجدولة ممتدة.
+/// تقرأ فلتر العيادة من تفضيلات الجهاز نفسها فتبقى متزامنة مع الشاشة الأم.
+class _FullscreenSchedule extends ConsumerStatefulWidget {
+  const _FullscreenSchedule({required this.actions});
+
+  final ApptActions actions;
+
+  @override
+  ConsumerState<_FullscreenSchedule> createState() =>
+      _FullscreenScheduleState();
+}
+
+class _FullscreenScheduleState extends ConsumerState<_FullscreenSchedule> {
+  @override
+  Widget build(BuildContext context) {
+    ref.watch(apptRevProvider);
+    ref.watch(desktopPrefsProvider);
+    final cfg = ref.watch(appConfigProvider);
+    final clinicFilter =
+        '${ref.read(desktopPrefsProvider)[_kClinicKey] ?? ''}';
+
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).pop(),
+        const SingleActivator(LogicalKeyboardKey.f11): () =>
+            Navigator.of(context).pop(),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: BrandColors.surface,
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // الشريط الرفيع: خروج + عنوان + تبويبات العيادات.
+                Container(
+                  color: BrandColors.surface,
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
+                  child: Row(children: [
+                    IconButton(
+                      key: const Key('appt-desk-fullscreen-exit'),
+                      tooltip: 'خروج من ملء الشاشة (Esc)',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(Icons.fullscreen_exit_rounded,
+                          size: 22, color: BrandColors.brand700),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text('جدول المواعيد — ملء الشاشة',
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: BrandColors.goldDark)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: _ClinicTabs(
+                            clinics: clinicsOf(cfg),
+                            selected: clinicFilter,
+                            hasUnassigned: hasUnassignedClinic(ref
+                                .watch(reposProvider)
+                                .appointments
+                                .getAll()),
+                            onChanged: (v) {
+                              saveDesktopPref(ref, _kClinicKey, v,
+                                  immediate: true);
+                              setState(() {});
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ]),
+                ),
+                Expanded(
+                  child: WeeklyScheduler(
+                    key: const Key('appt-week-view-full'),
+                    actions: widget.actions,
+                    clinicFilter: clinicFilter,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
