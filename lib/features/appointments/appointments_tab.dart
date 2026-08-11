@@ -1513,7 +1513,8 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
     final dur = jsNumOr0(src['durationMin']).toInt();
     final durationCtl =
         TextEditingController(text: dur > 0 ? '$dur' : (isBreak ? '30' : ''));
-    var suggestions = <String>[];
+    // م167/ب — اقتراحات صفّية (اسم + هاتف) بنمط «زيارة جديدة».
+    var suggestions = <JMap>[];
 
     showModalBottomSheet<void>(
       context: context,
@@ -1550,6 +1551,32 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
           final prosthetics = repos.prosthetics.getAll();
           final debts = repos.debts.getAll();
           final appointments = repos.appointments.getAll();
+
+          // م167/ب — اقتراحات مرضى العيادة المختارة فقط (قرار المالك):
+          // عند تعدد العيادات واختيار عيادةٍ تُفلتر المصادر الثلاثة بها؛
+          // عيادة واحدة ⇒ كل المرضى (توافق خلفي مع الصفوف القديمة).
+          List<JMap> clinicSuggest(String q) {
+            final qt = q.trim();
+            if (qt.length < 2) return const [];
+            final strict = clinics.length > 1 &&
+                wClinic.isNotEmpty &&
+                wClinic != kNoClinic;
+            bool inClinic(JMap r) =>
+                !strict ||
+                '${jsOr(r['clinic'], jsOr(r['clinic_id'], ''))}' == wClinic;
+            final seen = <String>{};
+            final out = <JMap>[];
+            for (final r in [...records, ...prosthetics, ...appointments]) {
+              final nm = '${r['name'] ?? ''}';
+              if (nm.isEmpty || !inClinic(r) || !fuzzyMatch(qt, nm)) {
+                continue;
+              }
+              if (!seen.add(nm)) continue;
+              out.add({'name': nm, 'phone': '${r['phone'] ?? ''}'});
+              if (out.length >= 5) break;
+            }
+            return out;
+          }
 
           // صفوف يوم/عيادة الهدف — لتعطيل الأوقات المشغولة في الشبكة.
           // بعيادة واحدة لا فلترة (القديم بلا عيادة يحجب وقته أيضاً).
@@ -1892,8 +1919,7 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
                             decoration: const InputDecoration(
                                 isDense: true, labelText: 'اسم المريض *'),
                             onChanged: (v) => setSheet(() {
-                              suggestions = apptNameSuggestions(
-                                  v, records, prosthetics);
+                              suggestions = clinicSuggest(v);
                             }),
                           ),
                         ),
@@ -1915,26 +1941,30 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
                             color: BrandColors.gold.withValues(alpha: .06),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                                 color: BrandColors.gold
                                     .withValues(alpha: .25)),
                           ),
-                          child: Wrap(spacing: 6, runSpacing: 4, children: [
-                            for (final s in suggestions)
-                              ActionChip(
-                                key: Key('appt-suggest-$s'),
-                                label: Text(s,
-                                    style: const TextStyle(fontSize: 11)),
-                                visualDensity: VisualDensity.compact,
-                                onPressed: () => setSheet(() {
+                          child: Column(children: [
+                            for (final sg in suggestions)
+                              InkWell(
+                                key: Key('appt-suggest-${sg['name']}'),
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => setSheet(() {
+                                  final s = '${sg['name']}';
                                   nameCtl.text = s;
+                                  // م167/ب — الاختيار يغلق اللوحة فوراً
+                                  // (مصدر اقتراح واحد نشط).
                                   suggestions = [];
-                                  final phone = phoneForName(s,
-                                      records: records,
-                                      prosthetics: prosthetics,
-                                      debts: debts,
-                                      appointments: appointments);
+                                  var phone = '${sg['phone'] ?? ''}';
+                                  if (phone.isEmpty) {
+                                    phone = phoneForName(s,
+                                        records: records,
+                                        prosthetics: prosthetics,
+                                        debts: debts,
+                                        appointments: appointments);
+                                  }
                                   if (phone.isNotEmpty) {
                                     phoneCtl.text = phone;
                                   }
@@ -1954,6 +1984,25 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
                                     }
                                   }
                                 }),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 6),
+                                  child: Row(children: [
+                                    Expanded(
+                                      child: Text('${sg['name']}',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700)),
+                                    ),
+                                    if ('${sg['phone'] ?? ''}'.isNotEmpty)
+                                      Text('${sg['phone']}',
+                                          textDirection: TextDirection.ltr,
+                                          style: TextStyle(
+                                              fontSize: 11,
+                                              color: BrandColors.mut2)),
+                                  ]),
+                                ),
                               ),
                           ]),
                         ),
