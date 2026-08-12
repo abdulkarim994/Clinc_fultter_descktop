@@ -58,6 +58,8 @@ void main() {
           },
         },
         'clinics': ['ع1'],
+        // م168 — تفعيل التحاليل الثلاثية: صفوف tr2-*-anal تظهر بالتفعيل فقط.
+        'analyses3': {'enabled': true, 'price': 50, 'repeatMonths': 6},
         'services': ['حشو', 'تركيبات'],
         'payments': ['كاش', 'تحويل'],
         'labTypes': [
