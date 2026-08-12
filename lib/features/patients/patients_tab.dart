@@ -28,6 +28,9 @@ import '../finance/analyses_registry.dart'
 import '../settings/analyses3.dart' show triHasVisibleHistory;
 // م170 — بطاقات العيادات المؤرشفة (عرض تاريخي).
 import '../settings/clinic_admin.dart' show archivedClinicsOf;
+import '../appointments/appointments_tab.dart'
+    show apptBookDraftProvider;
+import '../shell/app_shell.dart' show activeTabProvider;
 import 'quick_visit_sheet.dart' show showQuickVisitSheet;
 import '../staff/staff_gate.dart' show gateStaff, staffAllowed;
 
@@ -877,6 +880,17 @@ class _ClinicPatientsScreenState
     );
   }
 
+  /// م171 — «حجز موعد» لمريضٍ من السجلات: مسودة {اسم/هاتف/عيادة} ثم فتح
+  /// تبويب المواعيد ليفتح معالجه معبأً (والقفز لاحقاً بالنقر على موعده).
+  void _bookAppt(ClinicPatientRow p) {
+    ref.read(apptBookDraftProvider.notifier).state = {
+      'name': p.agg.name,
+      'phone': p.agg.phone,
+      'clinic': widget.clinicName,
+    };
+    ref.read(activeTabProvider.notifier).state = 'calendar';
+  }
+
   // ── لوحة الإجراءات السريعة ──
   void _openMore(ClinicPatientRow p) {
     final name = p.agg.name;
@@ -926,6 +940,10 @@ class _ClinicPatientsScreenState
             ),
             action(Key('act-visit-$name'), Icons.add_rounded,
                 'زيارة جديدة', () => _addVisit(p)),
+            // م171 — «حجز موعد» من لوحة إجراءات المريض (طلب المالك).
+            if (staffAllowed('records.add'))
+              action(Key('act-book-$name'), Icons.event_available_rounded,
+                  'حجز موعد', () => _bookAppt(p)),
             action(Key('act-profile-$name'),
                 Icons.description_rounded, 'السجل الكامل',
                 () => _openProfile(name, identity: p.agg.identity)),
