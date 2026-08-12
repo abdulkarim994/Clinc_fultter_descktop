@@ -7,6 +7,7 @@
 /// بأزرار الحفظ عبر settings.set (يُختم HLC ويُدمج بنيوياً عند المزامنة).
 library;
 
+import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -52,6 +53,12 @@ import '../auth/lock_prefs.dart';
 import '../auth/pin_setup.dart';
 import '../notifications/notification_center.dart'
     show showUpdateButtonPref, setShowUpdateButtonPref;
+import 'clinic_admin.dart'
+    show
+        clinicDeleteInventory,
+        copyClinicRates,
+        deleteClinicCascade,
+        renameClinicNewOnly;
 import 'analyses3.dart'
     show
         kTriAnalysesCfgKey,
@@ -1338,35 +1345,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           style: const TextStyle(fontSize: 12.5),
                         ),
                         actions: [
-                          IconButton(
-                            key: Key('clinic-rename-$i'),
-                            tooltip: 'إعادة تسمية',
-                            visualDensity: VisualDensity.compact,
-                            icon: Icon(
-                              Icons.edit_rounded,
-                              size: 14,
-                              color: BrandColors.brandIcon,
-                            ),
-                            onPressed: () => setState(() {
-                              editingClinicIdx = i;
-                              renameClinicCtl.text = clinics[i];
-                            }),
-                          ),
-                          IconButton(
-                            key: Key('clinic-del-$i'),
-                            visualDensity: VisualDensity.compact,
-                            icon: Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: BrandColors.red.withValues(alpha: .10),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.close_rounded,
-                              size: 13, color: BrandColors.red),
-                        ),
-                            onPressed: () =>
-                                _removeItem(const ['clinics'], clinics[i]),
+                          // م170 — قائمة ⋮ تجمع التعديل والحذف (يسار الاسم
+                          // في RTL — قرار المالك) بدل زرين متناثرين.
+                          PopupMenuButton<String>(
+                            key: Key('clinic-menu-$i'),
+                            tooltip: 'خيارات العيادة',
+                            icon: Icon(Icons.more_vert_rounded,
+                                size: 17, color: BrandColors.mut),
+                            onSelected: (v) {
+                              if (v == 'rename') {
+                                setState(() {
+                                  editingClinicIdx = i;
+                                  renameClinicCtl.text = clinics[i];
+                                });
+                              } else if (v == 'delete') {
+                                _confirmDeleteClinic(clinics[i]);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              PopupMenuItem(
+                                key: Key('clinic-rename-$i'),
+                                value: 'rename',
+                                child: const Text('تعديل الاسم',
+                                    style: TextStyle(fontSize: 12)),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clinic-del-$i'),
+                                value: 'delete',
+                                child: const Text('حذف العيادة نهائياً',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: BrandColors.red)),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -1452,8 +1463,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           child: const Icon(Icons.close_rounded,
                               size: 13, color: BrandColors.red),
                         ),
-                        onPressed: () =>
-                            _removeItem(const ['services'], services[i]),
+                        // م170 — تنبيه تأكيد (قرار المالك): الحذف من
+                        // قائمة الاختيار فقط والسجلات التاريخية تبقى
+                        // باسم المعالجة (سلامة التاريخ المالي).
+                        onPressed: () => _confirmDeleteService(services[i]),
                       ),
                   ],
                 ),
@@ -1908,6 +1921,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  /// م170 — تنبيه تأكيد حذف معالجة: تُحذف من قائمة الاختيار نهائياً،
+  /// والسجلات التاريخية التي تحملها تبقى كما هي (قرار المالك — لا مساس
+  /// بالدخل التاريخي في الخزينة والأرباح).
+  void _confirmDeleteService(String service) {
+    showDialog<void>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text('حذف معالجة «$service»؟',
+            style: const TextStyle(fontSize: 14)),
+        content: const Text(
+          'ستُحذف المعالجة نهائياً من قائمة الاختيار في نماذج الإدخال '
+          '(على هذا الجهاز وكل الأجهزة).\n\n'
+          'السجلات القديمة التي تحمل اسمها تبقى محفوظة كما هي — '
+          'لا يُمس الدخل التاريخي في الخزينة والأرباح.',
+          style: TextStyle(fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            key: const Key('svc-del-confirm'),
+            style: FilledButton.styleFrom(
+                backgroundColor: BrandColors.red,
+                foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(dCtx);
+              _removeItem(const ['services'], service);
+              _snack('حُذفت معالجة «$service» من قائمة الاختيار — '
+                  'السجلات القديمة باقية');
+            },
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _confirmRenameClinic(int idx, List<String> clinics) {
     final newName = renameClinicCtl.text.trim();
     final oldName = clinics[idx];
@@ -1919,11 +1971,165 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _snack('هذا الاسم موجود بالفعل');
       return;
     }
-    renameClinicCascade(ref.read(reposProvider), oldName, newName);
+    // م170 — خياران حقيقيان (قرار المالك): كامل السجل، أو الجديدة فقط
+    // (أرشفة الاسم القديم — يبقى عرضاً تاريخياً ويختفي من الإدخال).
+    showDialog<void>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('نطاق تعديل الاسم', style: TextStyle(fontSize: 14)),
+        content: Text(
+          '«$oldName» ← «$newName»\n\n'
+          '• كامل السجل: كل السجلات القديمة تُنقل للاسم الجديد.\n'
+          '• الجديدة فقط: القديمة تبقى باسم «$oldName» (عرضاً تاريخياً في '
+          'السجلات والمالية) وكل الجديد على «$newName».',
+          style: const TextStyle(fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dCtx),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            key: const Key('clinic-rename-newonly'),
+            onPressed: () {
+              Navigator.pop(dCtx);
+              _applyRenameNewOnly(oldName, newName);
+            },
+            child: const Text('الجديدة فقط'),
+          ),
+          FilledButton(
+            key: const Key('clinic-rename-all'),
+            onPressed: () {
+              Navigator.pop(dCtx);
+              _applyRenameAll(oldName, newName);
+            },
+            child: const Text('كامل السجل'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// م170 — «كامل السجل»: الكنس القائم + نسخ نسب الطبيب للاسم الجديد.
+  void _applyRenameAll(String oldName, String newName) {
+    final repos = ref.read(reposProvider);
+    renameClinicCascade(repos, oldName, newName);
+    final v = repos.settings.get('app.config');
+    final cfg = v is Map ? Map<String, Object?>.from(v) : <String, Object?>{};
+    repos.settings.set('app.config', copyClinicRates(cfg, oldName, newName));
     ref.read(configRevProvider.notifier).state++;
     ref.read(patientsRevProvider.notifier).state++;
     setState(() => editingClinicIdx = null);
-    _snack('تم تغيير الاسم: $oldName ← $newName');
+    _snack('تم تغيير الاسم لكامل السجل: $oldName ← $newName');
+  }
+
+  /// م170 — «الجديدة فقط»: أرشفة الاسم القديم (عرضٌ تاريخي) والجديد نشط.
+  void _applyRenameNewOnly(String oldName, String newName) {
+    final ok =
+        renameClinicNewOnly(ref.read(reposProvider), oldName, newName);
+    if (!ok) {
+      _snack('تعذر التعديل — تحقق من الاسم');
+      return;
+    }
+    ref.read(configRevProvider.notifier).state++;
+    ref.read(patientsRevProvider.notifier).state++;
+    setState(() => editingClinicIdx = null);
+    _snack('الجديد على «$newName» — وسجل «$oldName» القديم محفوظ للعرض');
+  }
+
+  /// م170 — حوار الحذف الخطير: جردٌ فعلي بالأرقام + كتابة اسم العيادة
+  /// شرطاً + توضيح بقاء السجل المالي التاريخي (قرار المالك).
+  void _confirmDeleteClinic(String clinic) {
+    final repos = ref.read(reposProvider);
+    final inv = clinicDeleteInventory(repos, _readConfig(), clinic);
+    final confirmCtl = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (dCtx) => StatefulBuilder(
+        builder: (dCtx, setD) => AlertDialog(
+          title: Text('حذف عيادة «$clinic» نهائياً؟',
+              style: const TextStyle(fontSize: 14, color: BrandColors.red)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'سيُحذف نهائياً من هذا الجهاز والسحابة وكل الأجهزة:\n'
+                  '• ${inv.records} سجل مريض'
+                  '${inv.analyses > 0 ? ' (+ ${inv.analyses} تحليلاً ثلاثياً)' : ''}\n'
+                  '• ${inv.pros} تركيبة\n'
+                  '• ${inv.debts} دين\n'
+                  '• ${inv.appts} موعد حجز\n'
+                  '• ${inv.xrays} صورة أشعة (تُحذف من التخزين السحابي فعلياً)\n'
+                  '• بيانات ${inv.patients} مريض وخططهم العلاجية وإعداداتهم\n\n'
+                  '✅ السجل المالي التاريخي (الخزينة والأرباح الشهرية) '
+                  'سيبقى محفوظاً كما هو.\n\n'
+                  '⛔ لا يمكن التراجع عن هذا الحذف إطلاقاً.',
+                  style: const TextStyle(fontSize: 12.5),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('clinic-del-confirm-input'),
+                  controller: confirmCtl,
+                  autofocus: true,
+                  style: const TextStyle(fontSize: 12.5),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    labelText: 'اكتب اسم العيادة للتأكيد',
+                    hintText: clinic,
+                    border: const OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setD(() {}),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dCtx),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              key: const Key('clinic-del-confirm-btn'),
+              style: FilledButton.styleFrom(
+                  backgroundColor: BrandColors.red,
+                  foregroundColor: Colors.white),
+              onPressed: confirmCtl.text.trim() == clinic
+                  ? () {
+                      Navigator.pop(dCtx);
+                      _executeDeleteClinic(clinic);
+                    }
+                  : null,
+              child: const Text('حذف نهائي'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// تنفيذ الحذف: تجميد اللقطة المالية ثم الكنس الشامل + تصريف طابور R2.
+  void _executeDeleteClinic(String clinic) {
+    final repos = ref.read(reposProvider);
+    final meter = ref.read(storageMeterProvider);
+    final touched = deleteClinicCascade(
+      repos,
+      clinic: clinic,
+      db: ref.read(localDbProvider),
+      meter: meter,
+    );
+    ref.read(configRevProvider.notifier).state++;
+    ref.read(patientsRevProvider.notifier).state++;
+    // متصل ⇒ تصريف طابور حذف R2 فوراً وتبليغ الخادم بالقياس الجديد.
+    if (ref.read(syncContextProvider).isOnline()) {
+      unawaited(
+          ref.read(xrayUploadQueueProvider)?.drainNow() ?? Future.value());
+    }
+    unawaited(meter.reportUp());
+    setState(() {});
+    _snack('حُذفت عيادة «$clinic» نهائياً ($touched صفاً) — '
+        'السجل المالي التاريخي محفوظ');
   }
 
   // ═══ 3) نسب الطبيب لكل عيادة ═══
