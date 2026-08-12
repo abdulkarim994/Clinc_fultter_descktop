@@ -164,7 +164,8 @@ void main() {
       await tester.tap(find.byKey(const Key('psec-appts')));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.byKey(const Key('pp-appt-fut1')), findsOneWidget);
-      expect(find.byKey(const Key('pp-appt-book')), findsOneWidget);
+      // م172 — زر الحجز صار الزر العائم الدائري السفلي.
+      expect(find.byKey(const Key('pp-fab-book')), findsOneWidget);
       final target = ymd(day0().add(const Duration(days: 5)));
       expect(find.textContaining(target.replaceAll('-', '/')),
           findsOneWidget);
@@ -179,8 +180,10 @@ void main() {
         (tester) async {
       final c = await bootPhoneProfile(tester);
       await tester.tap(find.byKey(const Key('psec-appts')));
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.byKey(const Key('pp-appt-book')));
+      // حركة تبديل الزر العائم (تكبير) تحتاج استقراراً قبل النقر.
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('pp-fab-book')),
+          warnIfMissed: false);
       await tester.pump(const Duration(milliseconds: 300));
       final draft = c.read(apptBookDraftProvider);
       expect(draft, isNotNull);
