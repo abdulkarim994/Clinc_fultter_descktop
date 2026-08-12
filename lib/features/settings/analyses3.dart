@@ -42,6 +42,79 @@ num triRepeatMonths(Map<String, Object?> cfg) {
   return num.tryParse('$v') ?? 6;
 }
 
+// ═══ م168 — الاختفاء الشامل عند الإيقاف: تاريخ الإيقاف ودوال الرؤية ═══════
+
+/// م168 — تاريخ إيقاف الميزة YYYY-MM-DD: يختمه مفتاح الإعدادات لحظة
+/// الانتقال مفعّل→متوقف (عبر [triCfgWrite])، ويُمحى عند إعادة التفعيل.
+/// '' = لا تاريخ مسجل (لم تُفعَّل قط، أو إعدادٌ سابق لم168).
+String triDisabledOn(Map<String, Object?> cfg) {
+  final v = '${_tri(cfg)['disabledOn'] ?? ''}'.trim();
+  return v == 'null' ? '' : v;
+}
+
+/// م168 — رؤية بيانات التحاليل في واجهات العرض (عمود اليوم/السجلات/
+/// المالية) لتاريخ [ymd] بصيغة YYYY-MM-DD (المقارنة المعجمية = الزمنية):
+/// • الميزة مفعّلة ⇒ ظاهرة دائماً.
+/// • متوقفة بتاريخٍ مسجل ⇒ تظهر للتواريخ ≤ تاريخ الإيقاف حصراً (البيانات
+///   التاريخية تبقى ظاهرة — ويوم الإيقاف نفسه آخر يومٍ تاريخي كي لا
+///   يختفي ما سُجل صباح ذلك اليوم)، وتختفي كلياً بعده.
+/// • متوقفة بلا تاريخ ⇒ مخفية كلياً (الافتراضي الآمن — القيمة 0/الغياب).
+/// عناصر التفاعل (إضافة/حذف/نموذج الزيارة/الخيارات) لا تستعمل هذه الدالة
+/// — حارسها [triAnalysesEnabled] وحده فتختفي فور الإيقاف.
+bool triVisibleOnDate(Map<String, Object?> cfg, String ymd) {
+  if (triAnalysesEnabled(cfg)) return true;
+  final off = triDisabledOn(cfg);
+  if (off.isEmpty || ymd.isEmpty) return false;
+  return ymd.compareTo(off) <= 0;
+}
+
+/// م168 — رؤية شهرٍ YYYY-MM كامل = رؤية أول أيامه: شهرٌ فيه أي يومٍ
+/// تاريخي يبقى ظاهراً بمجاميعه في الخزينة، والأشهر التالية تختفي.
+bool triVisibleInMonth(Map<String, Object?> cfg, String month) =>
+    triVisibleOnDate(cfg, '$month-01');
+
+/// م168 — هل يوجد تاريخُ تحاليلَ ظاهرٌ؟ (مدخل «سجل التحاليل» في السجلات):
+/// مفعّلة ⇒ نعم؛ متوقفة ⇒ فقط إن وُجد صفُّ تحليلٍ بتاريخٍ ≤ تاريخ الإيقاف
+/// — فالبيانات القديمة تبقى وصولة للعرض ولا يظهر مدخلٌ فارغ بلا تاريخ.
+bool triHasVisibleHistory(
+  Map<String, Object?> cfg,
+  Iterable<Map<String, Object?>> records,
+) {
+  if (triAnalysesEnabled(cfg)) return true;
+  final off = triDisabledOn(cfg);
+  if (off.isEmpty) return false;
+  for (final r in records) {
+    if (!_isTri(r['isAnalysis'])) continue;
+    final d = '${r['date'] ?? ''}'.trim();
+    if (d.isNotEmpty && d != 'null' && d.compareTo(off) <= 0) return true;
+  }
+  return false;
+}
+
+/// م168 — بناء كتلة إعداد التحاليل عند أي كتابةٍ من الإعدادات — مصدرٌ
+/// واحدٌ يدير disabledOn: التفعيل يمحوه، والانتقال مفعّل→متوقف يختمه
+/// بتاريخ اليوم [today]، وأي كتابةٍ أخرى (سعر/مدة) تحافظ عليه كما هو.
+Map<String, Object?> triCfgWrite(
+  Map<String, Object?> cfg, {
+  required num price,
+  required bool enabled,
+  required num repeatMonths,
+  required String today,
+}) {
+  final next = <String, Object?>{
+    ..._tri(cfg),
+    'price': price,
+    'enabled': enabled,
+    'repeatMonths': repeatMonths,
+  };
+  if (enabled) {
+    next.remove('disabledOn');
+  } else if (triAnalysesEnabled(cfg)) {
+    next['disabledOn'] = today;
+  }
+  return next;
+}
+
 bool _isTri(Object? v) =>
     v == true || v == 1 || v == '1' || v == 'true';
 
