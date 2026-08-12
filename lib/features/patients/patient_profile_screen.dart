@@ -7,6 +7,7 @@ library;
 
 import 'dart:async' show unawaited;
 import 'dart:math' as math;
+import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,7 +40,7 @@ import '../xrays/xray_camera_screen.dart' show XrayCameraScreen;
 import '../xrays/xray_section.dart';
 import '../xrays/xray_store.dart' show xrayKeysFor;
 import '../appointments/appointments_tab.dart'
-    show apptBookDraftProvider, apptGoDayProvider;
+    show BookingFullScreen, apptBookDraftProvider, apptGoDayProvider;
 import '../shell/app_shell.dart' show activeTabProvider;
 import '../appointments/appt_lifecycle.dart'
     show apptStatusColor, apptStatusLabel, patientUpcomingAppointments;
@@ -2475,35 +2476,43 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
     );
   }
 
-  /// م172 — فتح الكاميرا الداخلية: كل لقطةٍ تُحفظ فوراً في مسار رفع
-  /// الأشعة نفسه (عبر متحكم القسم) — لا تطبيق الكاميرا الأساسي.
-  void _openInAppCamera() {
+  /// م173 — فتح الكاميرا الداخلية (قرار المالك الجديد): اللقطات تُحفظ
+  /// مؤقتاً داخل جلسة التصوير، ثم شاشة المراجعة تعيد **المحدَّد فقط**
+  /// فيُرفع بمسار رفع الأشعة نفسه — والباقي يُتجاهل نهائياً.
+  Future<void> _openInAppCamera() async {
     if (!gateStaff(context, 'records.add')) return;
-    Navigator.of(context).push(
+    final shots = await Navigator.of(context).push<List<(String, Uint8List)>>(
       MaterialPageRoute(
-        builder: (_) => XrayCameraScreen(
-          patientName: name,
-          onCapture: (fileName, bytes) =>
-              _xrayCtl.addCaptured([(fileName, bytes)]),
-        ),
+        builder: (_) => XrayCameraScreen(patientName: name),
       ),
     );
+    if (shots == null || shots.isEmpty) return;
+    await _xrayCtl.addCaptured(shots);
   }
 
-  /// م171 — «حجز موعد» من بطاقة المريض: مسودة {اسم/هاتف/عيادة} ثم فتح
-  /// تبويب المواعيد ليفتح معالجه/نموذجه معبأً.
+  /// م173 — «حجز موعد» من بطاقة المريض (قرار المالك): نافذة بملء الشاشة
+  /// تستضيف شاشة الحجز بمسودةٍ معبأة {اسم/هاتف/عيادة} — والرجوع يعيد
+  /// للبطاقة نفسها (لا تبديل تبويب الصدفة). الكمبيوتر كما كان.
   void _bookAppointment() {
-    ref.read(apptBookDraftProvider.notifier).state = {
-      'name': name,
-      'phone': _medPhone(),
-      'clinic': clinic,
-    };
     if (isDesktopUi(context)) {
+      ref.read(apptBookDraftProvider.notifier).state = {
+        'name': name,
+        'phone': _medPhone(),
+        'clinic': clinic,
+      };
       ref.read(desktopTabProvider.notifier).state = 'calendar';
-    } else {
-      Navigator.of(context).popUntil((r) => r.isFirst);
-      ref.read(activeTabProvider.notifier).state = 'calendar';
+      return;
     }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => BookingFullScreen(preset: {
+          'name': name,
+          'phone': _medPhone(),
+          'clinic': clinic,
+        }),
+      ),
+    );
   }
 
   /// م147 — آخر زيارة قائمة للمريض: توأم بناء allEntries في build حرفياً
