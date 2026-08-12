@@ -257,6 +257,9 @@ class _TreasuryDetailScreenState
     extends ConsumerState<_TreasuryDetailScreen> {
   bool _prosTab = false;
 
+  /// م173 — مقبض رجوع جدول التركيبات (يغلق تفاصيل الحالة المفتوحة).
+  final _prosBack = ProsTableBackHandle();
+
   @override
   Widget build(BuildContext context) {
     ref.watch(financeRevProvider);
@@ -297,7 +300,17 @@ class _TreasuryDetailScreenState
     final doctorPct =
         jsNumOr0(jsOr(ref.watch(appConfigProvider)['doctorPct'], 50));
 
-    return Scaffold(
+    // م173 — زر رجوع النظام تسلسلاً (قرار المالك): تفاصيل حالة تركيبٍ
+    // مفتوحة تُغلق أولاً، ثم تبويب «التركيبات» يعود إلى «الحركات»، ثم
+    // رجوعٌ آخر يغادر لشاشة الخزينة.
+    return PopScope(
+      canPop: !_prosTab,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_prosBack.handleBack()) return; // أُغلقت تفاصيل الحالة.
+        setState(() => _prosTab = false); // التركيبات ⇒ الحركات.
+      },
+      child: Scaffold(
       appBar: AppBar(
         centerTitle: true,
         title: Text('$title — ${widget.month}',
@@ -364,6 +377,7 @@ class _TreasuryDetailScreenState
               month: widget.month,
               clinic: clinic,
               dense: true,
+              backHandle: _prosBack,
             )
           else
             TreasuryMovesTable(
@@ -376,6 +390,7 @@ class _TreasuryDetailScreenState
               doctorPct: doctorPct,
             ),
         ],
+      ),
       ),
     );
   }

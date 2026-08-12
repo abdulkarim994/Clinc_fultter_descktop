@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/js_compat.dart';
+import '../shell/app_shell.dart' show activeTabProvider;
 import 'debts_section.dart';
 import 'profits_section.dart';
 import 'statement_section.dart';
@@ -77,28 +78,38 @@ bool financeSectionAllowed(String id) {
 }
 
 /// م108 — شاشة قسمٍ مالي مدفوعة بترويسة رجوع (توأم شاشات «إضافي»).
-class FinanceSectionScreen extends StatelessWidget {
+/// م173 — زر رجوع النظام منها يعود **للرئيسية** مباشرةً (قرار المالك):
+/// بعد انغلاق الشاشة يُضبط تبويب الصدفة على الرئيسية — تسلسلٌ متوقع
+/// (الخزينة ⇒ رجوع ⇒ الرئيسية) بدل التقطع بين القوائم.
+class FinanceSectionScreen extends ConsumerWidget {
   const FinanceSectionScreen({super.key, required this.id});
 
   final String id;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final item = _finItems.firstWhere((e) => e.id == id,
         orElse: () => _finItems.first);
-    return Scaffold(
-      backgroundColor: BrandColors.paper,
-      appBar: AppBar(
-        title: Text(item.title),
-        backgroundColor: BrandColors.brand,
-        foregroundColor: BrandColors.goldLight,
-      ),
-      body: switch (id) {
-        'debts' => const DebtsSection(),
-        'profits' => const ProfitsSection(),
-        'statement' => const StatementSection(),
-        _ => const TreasurySection(),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          ref.read(activeTabProvider.notifier).state = 'home';
+        }
       },
+      child: Scaffold(
+        backgroundColor: BrandColors.paper,
+        appBar: AppBar(
+          title: Text(item.title),
+          backgroundColor: BrandColors.brand,
+          foregroundColor: BrandColors.goldLight,
+        ),
+        body: switch (id) {
+          'debts' => const DebtsSection(),
+          'profits' => const ProfitsSection(),
+          'statement' => const StatementSection(),
+          _ => const TreasurySection(),
+        },
+      ),
     );
   }
 }

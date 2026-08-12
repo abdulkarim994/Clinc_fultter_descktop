@@ -11,7 +11,7 @@ import 'dart:io';
 
 import 'package:dental_clinic_flutter/app/providers.dart';
 import 'package:dental_clinic_flutter/features/appointments/appointments_tab.dart'
-    show apptBookDraftProvider;
+    show BookingFullScreen;
 import 'package:dental_clinic_flutter/features/desktop/desktop_gate.dart';
 import 'package:dental_clinic_flutter/features/patients/patient_profile_screen.dart'
     hide JMap;
@@ -147,15 +147,16 @@ void main() {
 
     testWidgets('المواعيد: «حجز موعد» دائري بدل المربع المزال',
         (tester) async {
-      final c = await bootProfile(tester);
+      await bootProfile(tester);
       await goSection(tester, 'appts');
       expect(find.byKey(const Key('pp-fab-book')), findsOneWidget);
       expect(find.byKey(const Key('pp-appt-book')), findsNothing,
           reason: 'زر المربع أزيل (قرار المالك)');
       await tester.tap(find.byKey(const Key('pp-fab-book')),
           warnIfMissed: false);
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(c.read(apptBookDraftProvider), isNotNull);
+      await tester.pumpAndSettle();
+      // م173 — الزر يفتح شاشة الحجز الكاملة (لا مسودة مزوّد بعد الآن).
+      expect(find.byType(BookingFullScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

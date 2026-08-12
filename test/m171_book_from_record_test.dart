@@ -12,7 +12,7 @@ import 'dart:io';
 
 import 'package:dental_clinic_flutter/app/providers.dart';
 import 'package:dental_clinic_flutter/features/appointments/appointments_tab.dart'
-    show apptBookDraftProvider, apptGoDayProvider;
+    show BookingFullScreen, apptBookDraftProvider, apptGoDayProvider;
 import 'package:dental_clinic_flutter/features/appointments/appt_lifecycle.dart'
     show patientUpcomingAppointments;
 import 'package:dental_clinic_flutter/features/desktop/desktop_gate.dart';
@@ -176,19 +176,33 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('«حجز موعد» من التبويب يبذر مسودة الحجز باسم المريض',
+    testWidgets(
+        'م173 — «حجز موعد» يفتح شاشة الحجز الكاملة معبأةً والرجوع يعيد للبطاقة',
         (tester) async {
-      final c = await bootPhoneProfile(tester);
+      await bootPhoneProfile(tester);
       await tester.tap(find.byKey(const Key('psec-appts')));
       // حركة تبديل الزر العائم (تكبير) تحتاج استقراراً قبل النقر.
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('pp-fab-book')),
           warnIfMissed: false);
-      await tester.pump(const Duration(milliseconds: 300));
-      final draft = c.read(apptBookDraftProvider);
-      expect(draft, isNotNull);
-      expect(draft!['name'], 'سالم المريض');
-      expect(draft['clinic'], 'ع1');
+      await tester.pumpAndSettle();
+      // نافذة كاملة الشاشة (BookingFullScreen) ومعالج الموعد معبأ بالاسم.
+      expect(find.byType(BookingFullScreen), findsOneWidget);
+      expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('appt-name')))
+              .controller!
+              .text,
+          'سالم المريض');
+      // إغلاق المعالج ثم رجوع الشاشة — يعود لبطاقة المريض نفسها.
+      await tester.tap(find.byKey(const Key('appt-cancel')),
+          warnIfMissed: false);
+      await tester.pumpAndSettle();
+      final nav = tester.state<NavigatorState>(find.byType(Navigator).first);
+      nav.maybePop();
+      await tester.pumpAndSettle();
+      expect(find.byType(BookingFullScreen), findsNothing);
+      expect(find.byType(PatientProfileScreen), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

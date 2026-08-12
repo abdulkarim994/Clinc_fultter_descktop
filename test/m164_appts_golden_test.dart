@@ -170,7 +170,9 @@ void main() {
       (t) async {
     final c = await boot(t);
     await pumpPhone(t, c);
-    // اختر عيادة الصفوة.
+    // م173 — اختيار العيادة صار عبر محدد الرأس الكبير (ورقة سفلية).
+    await t.tap(find.byKey(const Key('appt-clinic-pill')));
+    await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
     await t.pumpAndSettle();
     await shot(t, 'm164_phone_timeline');
@@ -180,6 +182,8 @@ void main() {
       (t) async {
     final c = await boot(t, size: const Size(420, 1150));
     await pumpPhone(t, c);
+    await t.tap(find.byKey(const Key('appt-clinic-pill')));
+    await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('appt-add-toggle')));
@@ -190,6 +194,8 @@ void main() {
   testWidgets('م164 — الهاتف: ورقة الإجراءات السريعة', (t) async {
     final c = await boot(t, size: const Size(420, 1150));
     await pumpPhone(t, c);
+    await t.tap(find.byKey(const Key('appt-clinic-pill')));
+    await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('appt-row-a2')));
@@ -218,6 +224,8 @@ void main() {
   testWidgets('م166 — الهاتف: شاشة اليوم الكاملة', (t) async {
     final c = await boot(t, size: const Size(420, 900));
     await pumpPhone(t, c);
+    await t.tap(find.byKey(const Key('appt-clinic-pill')));
+    await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('appt-clinic-الصفوة')));
     await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('appt-day-open')));
