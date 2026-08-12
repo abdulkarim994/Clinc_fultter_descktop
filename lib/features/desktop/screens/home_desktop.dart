@@ -47,6 +47,9 @@ import '../../records/day_close_store.dart'
     show DayCloseStore, confirmClosedDayWrite;
 import '../../records/home_logic.dart' hide JMap;
 import '../../records/pay_breakdown_dialog.dart' show MixedPayCell;
+// م168 — حارسا الرؤية المركزيان للتحاليل الثلاثية (اختفاء شامل عند الإيقاف).
+import '../../settings/analyses3.dart'
+    show triAnalysesEnabled, triVisibleOnDate;
 import '../../staff/staff_gate.dart'
     show gateStaff, requestAdminSignature, staffAllowed;
 import '../../staff/staff_session.dart' show kCurrentStaff, staffIsAdmin;
@@ -178,6 +181,11 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     // التحاليل محروسةٌ خارج الجدول والمالية). يُبنى من كل السجلات مباشرة.
     final analIndex = buildAnalysisIndex(records);
     final today = getCurrentDate();
+    // م168 — رؤية التحاليل مركزياً: عمود «التحاليل» وفلترها يظهران حتى
+    // يوم الإيقاف (عرض تاريخي) ويختفيان كلياً بعده؛ ومع الإخفاء يُعامل
+    // الفلتر كأنه «الكل» فلا تُحجب صفوفٌ بحالةٍ قديمةٍ عالقة.
+    final triSee = triVisibleOnDate(ref.watch(appConfigProvider), today);
+    final effAnalFilter = triSee ? _analFilter : _AnalFilter.all;
     // م151 — كل تحليلٍ يُنسب لصفٍّ **واحد** بالضبط (المرتبط بمعرّفه، والقديم
     // بلا ربطٍ على أقدم صفوف مريضه): ✓ واحدة لكل مريضٍ أجرى التحليل لا لكل
     // صفوفه. تُبنى من صفوف اليوم كلها فلا تقفز العلامة مع تبديل الفلاتر.
@@ -195,10 +203,11 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       cutoffHour: kPeriodCutoffHour,
     );
     // نظام «التحاليل» — فلتر ما-بعد فوق الدالة النقية (لا تُعدَّل هي).
+    // م168 — عبر effAnalFilter (يؤول إلى «الكل» عند إخفاء الميزة).
     bool analOk(LedgerRow r) {
-      if (_analFilter == _AnalFilter.all) return true;
+      if (effAnalFilter == _AnalFilter.all) return true;
       final links = analOf(r);
-      switch (_analFilter) {
+      switch (effAnalFilter) {
         case _AnalFilter.none:
           return links.isEmpty;
         case _AnalFilter.cash:
@@ -234,7 +243,9 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
     // خانات المال حسب وضع فلتر التحاليل (مواصفة المالك م151):
     //  «الكل» = الإيراد + التحاليل مرةً واحدة؛ «تحاليل كاش/تحويل/إجمالي
     //  التحاليل» = قيم التحاليل وحدها؛ «بلا تحاليل» = الإيراد العادي فقط.
-    final tot = switch (_analFilter) {
+    // م168 — عبر effAnalFilter: عند الإخفاء يبقى الحساب على وضع «الكل»
+    // (الإيراد + التحاليل مرةً واحدة) فلا يتغير أي إجمالي مالي.
+    final tot = switch (effAnalFilter) {
       _AnalFilter.all => totalsWithAnalyses(tot0, anal),
       _AnalFilter.none => tot0,
       _AnalFilter.cash =>
@@ -298,7 +309,8 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
             emptyHint: all.isEmpty
                 ? 'اضغط «زيارة جديدة» أو Ctrl+N لإضافة زيارة أو دفعة.'
                 : 'جرّب تعديل البحث أو الفلاتر.',
-            toolbarLeading: _filtersBar(clinicOpts, payOpts),
+            // م168 — تمرير رؤية التحاليل لشريط الفلاتر (إخفاء فلترها).
+            toolbarLeading: _filtersBar(clinicOpts, payOpts, triSee),
             toolbarTrailing: _dayActions(),
             rowTagOf: (r) => tags[_rowKey(r)],
             onTagRows: (list, tag) =>
@@ -452,6 +464,9 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
               // نظام «التحاليل» — عمودٌ بين «المتبقي» و«معلومات مختصرة»:
               // علامة صحٍّ (بلا أي قيمةٍ مالية) خضراء للكاش وذهبية للتحويل،
               // وتلميحٌ بالاسم/القيمة/الطريقة. غير قابلٍ للفرز.
+              // م168 — يختفي العمود كلياً عند إخفاء الميزة (triSee) —
+              // والجدول يعيد توزيع أعمدته تلقائياً بلا فراغ.
+              if (triSee)
               DeskCol<LedgerRow>(
                 id: 'analysis',
                 label: 'التحاليل',
@@ -544,7 +559,8 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
 
   // ── شريط الفلاتر (توأم فلاتر الهاتف بمظهر مكتبي مضغوط) ──
 
-  Widget _filtersBar(List<String> clinicOpts, List<String> payOpts) {
+  Widget _filtersBar(
+      List<String> clinicOpts, List<String> payOpts, bool triSee) {
     Widget seg(String label, LedgerPeriod? p) {
       final on = _period == p;
       return Padding(
@@ -588,6 +604,8 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
           ),
           const SizedBox(width: 4),
           // نظام «التحاليل» — مجموعة فلتر التحاليل (جميع/كاش/تحويل/بدون).
+          // م168 — تختفي كلياً بفاصلها (بلا مساحة) عند إخفاء الميزة.
+          if (triSee) ...[
           PopupMenuButton<_AnalFilter>(
             key: const Key('desk-anal-filter'),
             tooltip: 'فلتر التحاليل',
@@ -625,6 +643,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
             ),
           ),
           const SizedBox(width: 4),
+          ],
           FilterChip(
             key: const Key('desk-expenses-toggle'),
             avatar: Icon(
@@ -767,7 +786,9 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
       // م147 — بند «إضافة التحاليل»: يظهر للصفوف غير المصروفية التي لا
       // تحاليل لها (وللموظفين ذوي صلاحية records.add)، يفتح نافذة كاش/تحويل
       // ويكتب صفاً معزولاً بسعر الإعدادات (سلوك «زيارة جديدة» حرفياً).
-      if (!row.isExpense &&
+      // م168 — التفاعل بالتفعيل وحده: الإيقاف يخفي البند فوراً وكلياً.
+      if (triAnalysesEnabled(ref.read(appConfigProvider)) &&
+          !row.isExpense &&
           row.id.isNotEmpty &&
           getAnalOf(row).isEmpty &&
           staffAllowed('records.add'))
@@ -779,7 +800,9 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         ),
       // بند «حذف التحاليل» — يظهر فقط للصفوف غير المصروفية التي لها تحاليل
       // وللموظفين ذوي صلاحية records.delete. دخلٌ مخبري معزول لا يمس الزيارة.
-      if (!row.isExpense &&
+      // م168 — التفاعل بالتفعيل وحده: الإيقاف يخفي البند فوراً وكلياً.
+      if (triAnalysesEnabled(ref.read(appConfigProvider)) &&
+          !row.isExpense &&
           getAnalOf(row).isNotEmpty &&
           staffAllowed('records.delete'))
         CtxItem(

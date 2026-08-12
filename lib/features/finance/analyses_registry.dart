@@ -24,7 +24,8 @@ import '../../core/utils/js_compat.dart';
 import '../print/print_service.dart' show loadPdfBrand, printOrSharePdf;
 import '../print/reports.dart' show simpleTablePdf;
 import '../print/treatment_tables.dart' show formatNumber;
-import '../settings/analyses3.dart' show kTriAnalysesName;
+// م168 — بعد الإيقاف يصير السجل عرضاً تاريخياً فقط (بلا تعديل/حذف).
+import '../settings/analyses3.dart' show kTriAnalysesName, triAnalysesEnabled;
 import '../staff/staff_gate.dart' show staffAllowed;
 import 'analyses_filter.dart'
     show currentMonthTotal, filterAnalysesRows;
@@ -373,8 +374,10 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
       fontSize: 11, fontWeight: FontWeight.w800, color: BrandColors.mut2);
 
   Widget _table(List<_JMap> rows, String cur, String Function(Object?) n) {
-    final canEdit = staffAllowed('records.edit');
-    final canDel = staffAllowed('records.delete');
+    // م168 — التعديل/الحذف بالتفعيل وحده: بعد الإيقاف عرضٌ تاريخي فقط.
+    final triOn = triAnalysesEnabled(ref.read(appConfigProvider));
+    final canEdit = triOn && staffAllowed('records.edit');
+    final canDel = triOn && staffAllowed('records.delete');
     // م155 — إجمالي الظاهر بعد الفلاتر لصفّ الختام داخل الجدول.
     num visibleSum = 0;
     for (final r in rows) {
@@ -534,8 +537,10 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
 
   List<Widget> _denseTiles(
       List<_JMap> rows, String cur, String Function(Object?) n) {
-    final canEdit = staffAllowed('records.edit');
-    final canDel = staffAllowed('records.delete');
+    // م168 — التعديل/الحذف بالتفعيل وحده: بعد الإيقاف عرضٌ تاريخي فقط.
+    final triOn = triAnalysesEnabled(ref.read(appConfigProvider));
+    final canEdit = triOn && staffAllowed('records.edit');
+    final canDel = triOn && staffAllowed('records.delete');
     return [
       for (final r in rows)
         Card(

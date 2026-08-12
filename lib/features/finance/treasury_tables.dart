@@ -1508,6 +1508,7 @@ class TreasuryTotalsTable extends ConsumerWidget {
     required this.expTotal,
     this.det = true,
     this.dense = false,
+    this.showAnal = true,
   });
 
   final String month;
@@ -1527,6 +1528,11 @@ class TreasuryTotalsTable extends ConsumerWidget {
   final num expTotal;
   final bool det;
   final bool dense;
+
+  /// م168 — إظهار صف «إيراد التحاليل الثلاثية»: يخفيه المنادي كلياً
+  /// (بفاصله — بلا فراغ) للأشهر التالية لإيقاف الميزة. القيم الممرَّرة
+  /// لا تتغير فحساب الصافي كما هو حرفياً (لا مساس بالمنطق المالي).
+  final bool showAnal;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1614,10 +1620,13 @@ class TreasuryTotalsTable extends ConsumerWidget {
             row('التركيبات (المدفوع)', prosCash, prosXfer,
                 prosCash + prosXfer,
                 color: BrandColors.goldDark, key: const Key('tr2-tot-pros')),
-            Divider(height: 1, color: BrandColors.line),
-            row('إيراد التحاليل الثلاثية', analCash, analXfer,
-                analCash + analXfer,
-                color: BrandColors.green, key: const Key('tr2-tot-anal')),
+            // م168 — الصف وفاصله يختفيان معاً عند إخفاء الميزة للشهر.
+            if (showAnal) ...[
+              Divider(height: 1, color: BrandColors.line),
+              row('إيراد التحاليل الثلاثية', analCash, analXfer,
+                  analCash + analXfer,
+                  color: BrandColors.green, key: const Key('tr2-tot-anal')),
+            ],
             Divider(height: 1, color: BrandColors.line),
             row('المصروفات', expCash, expXfer, expTotal,
                 color: BrandColors.red, key: const Key('tr2-tot-exp')),
