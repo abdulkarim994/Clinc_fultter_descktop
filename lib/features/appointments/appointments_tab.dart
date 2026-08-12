@@ -53,8 +53,13 @@ final apptBookDraftProvider = StateProvider<JMap?>((ref) => null);
 /// م164 — العيادة المختارة في شاشة الحجوزات (تبقى عبر التنقل بين التبويبات).
 final apptClinicProvider = StateProvider<String>((ref) => '');
 
+/// م173 — التبويب المفتوح في شاشة الحجز (0 الجدول، 1 أرشيف اليوم،
+/// 2 القادمة) — يبقى عبر مغادرة التبويب والعودة إليه خلال الجلسة.
+final apptViewTabProvider = StateProvider<int>((ref) => 0);
+
 class AppointmentsTab extends ConsumerStatefulWidget {
-  const AppointmentsTab({super.key, this.dayOnly = false, this.initialDay});
+  const AppointmentsTab(
+      {super.key, this.dayOnly = false, this.initialDay, this.bookPreset});
 
   /// م166 — وضع «يوم فقط»: جدول اليوم + زرا الإضافة والاستراحة فقط
   /// (بلا رأس ولا شريط أيام ولا أرشيف ولا قادمة) — لشاشة اليوم الكاملة.
@@ -63,8 +68,37 @@ class AppointmentsTab extends ConsumerStatefulWidget {
   /// اليوم الابتدائي (شاشة اليوم الكاملة تمرر يومها).
   final String? initialDay;
 
+  /// م173 — مسودة حجزٍ تُفتح بها فوراً (شاشة الحجز الكاملة من بطاقة
+  /// المريض): {name, phone, clinic} — تمريرٌ مباشر لا عبر المزوّد كي لا
+  /// تخطفها نسخة التبويب الحية خلف البطاقة.
+  final JMap? bookPreset;
+
   @override
   ConsumerState<AppointmentsTab> createState() => _AppointmentsTabState();
+}
+
+/// م173 — شاشة الحجز الكاملة (قرار المالك): «حجز موعد» من بطاقة المريض
+/// أو ثلاث نقاطها يفتح نافذةً بملء الشاشة تستضيف واجهة الحجز نفسها
+/// بمسودة معبأة — والرجوع/الإغلاق يعيد لبطاقة المريض حيث كانت.
+class BookingFullScreen extends StatelessWidget {
+  const BookingFullScreen({super.key, this.preset});
+
+  /// مسودة {name, phone, clinic} — null يفتح الشاشة بلا معالج.
+  final JMap? preset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: BrandColors.paper,
+      appBar: AppBar(
+        title: const Text('الحجز',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+        backgroundColor: BrandColors.brand,
+        foregroundColor: BrandColors.goldLight,
+      ),
+      body: AppointmentsTab(bookPreset: preset),
+    );
+  }
 }
 
 /// م166 — شاشة اليوم الكاملة (هاتف): كل مواعيد يومٍ لعيادةٍ بشاشة مستقلة
@@ -96,15 +130,50 @@ class DayScheduleScreen extends ConsumerWidget {
   }
 }
 
-class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
+class _AppointmentsTabState extends ConsumerState<AppointmentsTab>
+    with SingleTickerProviderStateMixin {
   String selectedDay = '';
+
+  /// م173 — متحكم التبويبات الثلاثة (الجدول/أرشيف اليوم/القادمة) بمؤشر
+  /// منزلق وسحبٍ أفقي — الفهرس يُحفظ في المزوّد ليبقى خلال الجلسة.
+  late final TabController _tabCtl;
+
+  /// م173 — فلتر أرشيف اليوم (all/completed/cancelled/no_show).
+  String _archFilter = 'all';
 
   @override
   void initState() {
     super.initState();
     selectedDay = widget.initialDay ?? getCurrentDate();
+    _tabCtl = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex:
+          widget.dayOnly ? 0 : ref.read(apptViewTabProvider).clamp(0, 2),
+    );
+    _tabCtl.addListener(() {
+      if (!widget.dayOnly && !_tabCtl.indexIsChanging) {
+        ref.read(apptViewTabProvider.notifier).state = _tabCtl.index;
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // م173 — مسودة شاشة الحجز الكاملة (من بطاقة المريض): فتح المعالج
+      // معبأً مباشرةً — تمريرٌ مباشر بلا مزوّد.
+      final bp = widget.bookPreset;
+      if (bp != null) {
+        final clinic = '${bp['clinic'] ?? ''}';
+        if (clinic.isNotEmpty) {
+          ref.read(apptClinicProvider.notifier).state = clinic;
+        }
+        if (jsTruthy(bp['name'])) {
+          _openWizard(preset: {
+            'name': bp['name'],
+            'phone': bp['phone'],
+            'clinic': clinic,
+          });
+        }
+      }
       // م166 — شاشة اليوم لا تنظف الأرشيف ولا تخطف مسودة المتابعة.
       if (widget.dayOnly) return;
       _purgeOldArchive();
@@ -115,11 +184,19 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
     });
   }
 
+  @override
+  void dispose() {
+    _tabCtl.dispose();
+    super.dispose();
+  }
+
   /// م171 — الهبوط على يوم الحجز القادم من مربع مواعيد بطاقة المريض.
   void _consumeGoDay() {
     final go = ref.read(apptGoDayProvider);
     if (go.isEmpty || !mounted) return;
     ref.read(apptGoDayProvider.notifier).state = '';
+    // م173 — يوم الهبوط يخص الجدول: يُفتح تبويبه أياً كان المفتوح.
+    _tabCtl.index = 0;
     setState(() => selectedDay = go);
   }
 
@@ -358,59 +435,177 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
       );
     }
 
-    return ListView(
+    // ── م173 — واجهة الحجز الجديدة (قرار المالك): رأسٌ بعنوان «الحجز»
+    // يميناً ومحدد عيادةٍ كبير يساراً، وشريط ثلاثة تبويبات بمؤشر منزلق
+    // (جدول المواعيد/أرشيف اليوم/المواعيد القادمة) بسحبٍ أفقي بينها —
+    // كلُّ قسمٍ في تبويبه المستقل بدل قائمةٍ واحدة متراصة. ──
+    return Column(
       key: const Key('appointments-tab'),
+      children: [
+        _headerBar(clinics, clinic, apptMap, today),
+        _tabsBar(archived.length, upcoming.length),
+        Expanded(
+          child: TabBarView(
+            controller: _tabCtl,
+            children: [
+              _scheduleTabView(needClinic, clinics, apptMap, filterKey,
+                  active, debts, centerName, currency, today),
+              _archiveTabView(needClinic, clinics, archived),
+              _upcomingTabView(needClinic, clinics, upcoming, clinic),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// م173 — رأس شاشة الحجز: العنوان الكبير يميناً واختيار العيادة بخطٍّ
+  /// كبير يساراً (بدل السطر الصغير) — ينقر فيفتح ورقة الاختيار.
+  Widget _headerBar(List<String> clinics, String clinic,
+      Map<String, List<JMap>> apptMap, String today) {
+    final none = clinic.isEmpty;
+    final label = none
+        ? 'اختر العيادة'
+        : clinic == kNoClinic
+            ? 'غير محددة'
+            : clinic;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      child: Row(children: [
+        const Icon(Icons.event_note_rounded,
+            size: 19, color: BrandColors.goldDark),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text('الحجز',
+              style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: BrandColors.brandText)),
+        ),
+        if (clinics.length == 1)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 190),
+            child: Text(clinics.first,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w900,
+                    color: BrandColors.brand700)),
+          )
+        else
+          InkWell(
+            key: const Key('appt-clinic-pill'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: _openClinicSheet,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 170),
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w900,
+                          color: none
+                              ? BrandColors.goldDark
+                              : BrandColors.brand700)),
+                ),
+                Icon(Icons.expand_more_rounded,
+                    size: 19,
+                    color: none
+                        ? BrandColors.goldDark
+                        : BrandColors.brand700),
+              ]),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  /// م173 — شريط التبويبات الثلاثة بمؤشرٍ منزلق بهوية التطبيق (توأم
+  /// تبويبات بطاقة المريض في الصورة المرجعية): النشط أخضر العلامة بخطٍّ
+  /// سفلي منزلق، وغير النشط باهت — مع عدّادين للأرشيف والقادمة.
+  Widget _tabsBar(int archCount, int upCount) {
+    Widget tab(Key key, String label, int? count) => Tab(
+          key: key,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+              child: Text(label,
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            if (count != null && count > 0) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: BrandColors.gold.withValues(alpha: .18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: BrandColors.gold.withValues(alpha: .45)),
+                ),
+                child: Text('$count',
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: BrandColors.goldDark)),
+              ),
+            ],
+          ]),
+        );
+    return Container(
+      decoration: BoxDecoration(
+        color: BrandColors.surface,
+        border: Border(
+            bottom: BorderSide(color: BrandColors.line, width: .8)),
+      ),
+      child: TabBar(
+        controller: _tabCtl,
+        labelColor: BrandColors.brand700,
+        unselectedLabelColor: BrandColors.mut,
+        labelStyle:
+            const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w900),
+        unselectedLabelStyle:
+            const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+        indicatorColor: BrandColors.brand600,
+        indicatorWeight: 3,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        tabs: [
+          tab(const Key('appt-tab-schedule'), 'جدول المواعيد', null),
+          tab(const Key('appt-tab-archive'), 'أرشيف اليوم', archCount),
+          tab(const Key('appt-tab-upcoming'), 'المواعيد القادمة', upCount),
+        ],
+      ),
+    );
+  }
+
+  /// م173 — تبويب «جدول المواعيد»: شريط الأيام وأزرار الإضافة وجدول
+  /// اليوم فقط (الأرشيف والقادمة انتقلا لتبويبيهما).
+  Widget _scheduleTabView(
+      bool needClinic,
+      List<String> clinics,
+      Map<String, List<JMap>> apptMap,
+      String filterKey,
+      List<JMap> active,
+      List<JMap> debts,
+      String centerName,
+      String currency,
+      String today) {
+    return ListView(
+      key: const Key('appt-view-schedule'),
       // م165 — هوامش مشدودة: استغلال أفضل لعرض الهاتف.
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 84),
       children: [
-        // ── م165: بطاقة رأس واحدة مدمجة — العنوان + محدد العيادات
-        // الديناميكي + شريط الأيام + الأزرار (كانت بطاقتين وتكرارين) ──
         Card(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  const Icon(Icons.event_note_rounded,
-                      size: 16, color: BrandColors.goldDark),
-                  const SizedBox(width: 6),
-                  const Expanded(
-                    child: Text('جدول المواعيد',
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: BrandColors.goldDark)),
-                  ),
-                  // م165 — المحدد المتدرج: عيادة واحدة اسمٌ فقط، ≥4 زر
-                  // منسدل بورقة سفلية؛ (2–3 رقائق سطرية أسفل العنوان).
-                  if (clinics.length == 1)
-                    Text(clinics.first,
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: BrandColors.mut))
-                  else if (clinics.length >= 4)
-                    _clinicPill(clinic, apptMap, today),
-                ]),
-                if (clinics.length > 1 && clinics.length <= 3) ...[
-                  const SizedBox(height: 6),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(children: [
-                      for (final c in clinics)
-                        Padding(
-                          padding:
-                              const EdgeInsetsDirectional.only(end: 5),
-                          child: _clinicChip(c, clinic),
-                        ),
-                      if (hasUnassignedClinic(appointments))
-                        _clinicChip(kNoClinic, clinic, label: 'غير محددة'),
-                    ]),
-                  ),
-                ],
-                const SizedBox(height: 7),
                 Row(children: [
                   Expanded(
                     child: Text(
@@ -570,42 +765,147 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
           ),
         ),
 
-        // ── أرشيف اليوم ──
-        if (archived.isNotEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    const Icon(Icons.inventory_2_outlined,
-                        size: 14, color: BrandColors.goldDark),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text('أرشيف اليوم (${archived.length})',
-                          key: const Key('appt-archive-title'),
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: BrandColors.goldDark)),
-                    ),
-                    Flexible(
-                      child: Text('يُحذف تلقائياً بعد يومين',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 10, color: BrandColors.mut2)),
-                    ),
-                  ]),
-                  const SizedBox(height: 6),
-                  for (final a in archived) _archivedRow(a),
+      ],
+    );
+  }
+
+  /// م173 — تبويب «أرشيف اليوم»: القسم المنقول من القائمة المتراصة إلى
+  /// تبويبه المستقل، مع شرائح تصفيةٍ بالحالة (الكل/مكتمل/ملغى/لم يحضر).
+  Widget _archiveTabView(
+      bool needClinic, List<String> clinics, List<JMap> archived) {
+    if (needClinic) {
+      return ListView(
+        key: const Key('appt-view-archive'),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 84),
+        children: [Card(child: _clinicPrompt(clinics))],
+      );
+    }
+    final rows = [
+      for (final a in archived)
+        if (_archFilter == 'all' || normApptStatus(a['status']) == _archFilter)
+          a,
+    ];
+    Widget filterChip(String value, String label) {
+      final on = _archFilter == value;
+      return InkWell(
+        key: Key('appt-arch-f-$value'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => setState(() => _archFilter = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: on
+                ? BrandColors.goldDark
+                : BrandColors.gold.withValues(alpha: .1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: on
+                    ? BrandColors.goldDark
+                    : BrandColors.gold.withValues(alpha: .4)),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: on ? Colors.white : BrandColors.goldDark)),
+        ),
+      );
+    }
+
+    return ListView(
+      key: const Key('appt-view-archive'),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 84),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.inventory_2_outlined,
+                      size: 14, color: BrandColors.goldDark),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('أرشيف اليوم (${archived.length})',
+                        key: const Key('appt-archive-title'),
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: BrandColors.goldDark)),
+                  ),
+                  Flexible(
+                    child: Text('يُحذف تلقائياً بعد يومين',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 10, color: BrandColors.mut2)),
+                  ),
+                ]),
+                if (archived.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(children: [
+                      filterChip('all', 'الكل'),
+                      const SizedBox(width: 5),
+                      filterChip('completed', 'مكتمل'),
+                      const SizedBox(width: 5),
+                      filterChip('cancelled', 'ملغى'),
+                      const SizedBox(width: 5),
+                      filterChip('no_show', 'لم يحضر'),
+                    ]),
+                  ),
                 ],
-              ),
+                const SizedBox(height: 6),
+                if (archived.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Center(
+                      child: Text('لا مواعيد مؤرشفة اليوم',
+                          style: TextStyle(
+                              fontSize: 11.5, color: BrandColors.mut2)),
+                    ),
+                  )
+                else if (rows.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Center(
+                      child: Text('لا صفوف بهذه الحالة',
+                          style: TextStyle(
+                              fontSize: 11.5, color: BrandColors.mut2)),
+                    ),
+                  )
+                else
+                  for (final a in rows) _archivedRow(a),
+              ],
             ),
           ),
+        ),
+      ],
+    );
+  }
 
-        // ── المواعيد القادمة (للعيادة المختارة) — م165: الفارغة سطرٌ واحد ──
+  /// م173 — تبويب «المواعيد القادمة»: القائمة منقولةً لتبويبها مجمعةً
+  /// بالأيام برؤوس تواريخ — والنقر يقفز ليوم الحجز في تبويب الجدول.
+  Widget _upcomingTabView(bool needClinic, List<String> clinics,
+      List<JMap> upcoming, String clinic) {
+    if (needClinic) {
+      return ListView(
+        key: const Key('appt-view-upcoming'),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 84),
+        children: [Card(child: _clinicPrompt(clinics))],
+      );
+    }
+    // تجميعٌ بالتاريخ (القائمة أصلاً مرتبة تصاعدياً بالتاريخ فالوقت).
+    final days = <String, List<JMap>>{};
+    for (final a in upcoming) {
+      days.putIfAbsent('${a['date']}', () => []).add(a);
+    }
+    return ListView(
+      key: const Key('appt-view-upcoming'),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 84),
+      children: [
         Card(
           child: Padding(
             padding: const EdgeInsets.all(10),
@@ -627,20 +927,46 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
                           style: TextStyle(
                               fontSize: 11, color: BrandColors.mut2)),
                     ),
-                  ])
-                else ...[
-                  const Text('المواعيد القادمة',
-                      style: TextStyle(
-                          fontSize: 12.5, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 5),
-                ],
-                if (upcoming.isNotEmpty)
-                  for (final a in upcoming)
+                  ]),
+                for (final e in days.entries) ...[
+                  // ── رأس اليوم: التاريخ + اسم اليوم + عدّاد ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 7, 2, 4),
+                    child: Row(children: [
+                      Icon(Icons.calendar_today_rounded,
+                          size: 12,
+                          color: dayDiff(e.key) == 0
+                              ? const Color(0xFFF59E0B)
+                              : BrandColors.brand600),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${e.key} (${dayLabel(e.key)})',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                            color: dayDiff(e.key) == 0
+                                ? const Color(0xFFB45309)
+                                : BrandColors.brand700,
+                          ),
+                        ),
+                      ),
+                      Text('${e.value.length}',
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: BrandColors.mut)),
+                    ]),
+                  ),
+                  for (final a in e.value)
                     InkWell(
                       key: Key('upcoming-${a['id']}'),
                       borderRadius: BorderRadius.circular(10),
-                      onTap: () =>
-                          setState(() => selectedDay = '${a['date']}'),
+                      // النقر يقفز ليوم الحجز في تبويب الجدول (م173).
+                      onTap: () {
+                        setState(() => selectedDay = '${a['date']}');
+                        _tabCtl.animateTo(0);
+                      },
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 2),
                         padding: const EdgeInsets.symmetric(
@@ -663,15 +989,15 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
                                 // م165ب — أغمق للقراءة والتوقيت أبرز.
                                 Text.rich(
                                   TextSpan(children: [
-                                    TextSpan(text: '${a['date']}'),
                                     if (jsTruthy(a['time']))
                                       TextSpan(
-                                        text:
-                                            ' — ${to12h('${a['time']}')}',
+                                        text: to12h('${a['time']}'),
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w800,
                                             color: BrandColors.brand700),
-                                      ),
+                                      )
+                                    else
+                                      const TextSpan(text: 'بلا وقت'),
                                     TextSpan(
                                         text:
                                             ' — ${jsOr(a['service'], '—')}'
@@ -686,21 +1012,12 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
                               ],
                             ),
                           ),
-                          Text(
-                            dayLabel('${a['date']}'),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: dayDiff('${a['date']}') == 0
-                                  ? const Color(0xFFF59E0B)
-                                  : dayDiff('${a['date']}') <= 2
-                                      ? const Color(0xFF15604A)
-                                      : const Color(0xFF94A3B8),
-                            ),
-                          ),
+                          Icon(Icons.arrow_back_ios_new_rounded,
+                              size: 11, color: BrandColors.faint),
                         ]),
                       ),
                     ),
+                ],
               ],
             ),
           ),
@@ -714,114 +1031,6 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
-  // ── رقاقة عيادة ──
-  Widget _clinicChip(String value, String selected, {String? label}) {
-    final on = value == selected;
-    return InkWell(
-      key: Key('appt-clinic-$value'),
-      borderRadius: BorderRadius.circular(18),
-      onTap: () =>
-          ref.read(apptClinicProvider.notifier).state = on ? '' : value,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-        decoration: BoxDecoration(
-          color: on
-              ? BrandColors.brand600
-              : BrandColors.brand600.withValues(alpha: .07),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-              color: on
-                  ? BrandColors.brand600
-                  : BrandColors.brand600.withValues(alpha: .25)),
-        ),
-        child: Text(
-          label ?? value,
-          style: TextStyle(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w800,
-            color: on ? Colors.white : BrandColors.brand700,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// م165 — زر المحدد المنسدل (≥4 عيادات): العيادة الحالية + عدّاد
-  /// مواعيد يومها + سهم — يفتح ورقةً سفلية سريعة بالاختيار بنقرة.
-  Widget _clinicPill(
-      String clinic, Map<String, List<JMap>> apptMap, String today) {
-    final none = clinic.isEmpty;
-    final label = none
-        ? 'اختر العيادة'
-        : clinic == kNoClinic
-            ? 'غير محددة'
-            : clinic;
-    final count = none
-        ? 0
-        : filterByClinic([...?apptMap[today]], clinic)
-            .where((a) => !isBreakRow(a) && !isTerminalStatus(a['status']))
-            .length;
-    return Material(
-      color: none
-          ? BrandColors.gold.withValues(alpha: .14)
-          : BrandColors.brand600.withValues(alpha: .09),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-            color: none
-                ? BrandColors.gold
-                : BrandColors.brand600.withValues(alpha: .3)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        key: const Key('appt-clinic-pill'),
-        onTap: _openClinicSheet,
-        child: Padding(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.medical_services_rounded,
-                size: 13,
-                color:
-                    none ? BrandColors.goldDark : BrandColors.brand700),
-            const SizedBox(width: 5),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 150),
-              child: Text(label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w800,
-                      color: none
-                          ? BrandColors.goldDark
-                          : BrandColors.brand700)),
-            ),
-            if (!none && count > 0) ...[
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                decoration: BoxDecoration(
-                  color: BrandColors.brand600,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text('$count',
-                    style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-              ),
-            ],
-            const SizedBox(width: 2),
-            Icon(Icons.expand_more_rounded,
-                size: 15,
-                color:
-                    none ? BrandColors.goldDark : BrandColors.brand700),
-          ]),
-        ),
-      ),
-    );
-  }
 
   /// م165 — ورقة اختيار العيادة السريعة: اسم + عدّاد مواعيد اليوم لكل
   /// عيادة (و«غير محددة» عند وجود قديم) — اختيارٌ بنقرة ثم تُغلق.
