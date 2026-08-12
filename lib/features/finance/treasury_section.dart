@@ -27,6 +27,9 @@ import '../staff/staff_gate.dart' show staffAllowed;
 import 'analyses_filter.dart' show monthAnalysesRows, monthAnalysesTotals;
 // م168 — رؤية الشهر المركزية للتحاليل (اختفاء شامل بعد تاريخ الإيقاف).
 import '../settings/analyses3.dart' show triVisibleInMonth;
+// م170 — العيادات المؤرشفة (عرض تاريخي) واللقطات المجمدة للمحذوفة.
+import '../settings/clinic_admin.dart'
+    show FrozenRow, archivedClinicsOf, frozenRowsForMonth, frozenTotalsForMonth;
 import 'finance_screen.dart' show financeRevProvider;
 import 'treasury_logic.dart';
 import 'treasury_tables.dart';
@@ -69,7 +72,18 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
     final t = treasuryTotals(s);
     // م168 — رؤية التحاليل لهذا الشهر: الأشهر التاريخية (حتى شهر
     // الإيقاف) تبقى ببطاقتها وقيمها، والتالية تختفي كلياً بلا فراغ.
-    final triSee = triVisibleInMonth(ref.watch(appConfigProvider), s.month);
+    final cfg170 = ref.watch(appConfigProvider);
+    final triSee = triVisibleInMonth(cfg170, s.month);
+    // م170 — العيادات المؤرشفة ذات نشاطٍ بالشهر (صفوفها التاريخية باقية)
+    // + صفوف العيادات المحذوفة من لقطاتها المجمدة (عرضٌ فقط).
+    final archivedActive = [
+      for (final a in archivedClinicsOf(cfg170))
+        if (clinicCash(s, a) + clinicXfer(s, a) + clinicProsTotalPaid(s, a) !=
+            0)
+          a,
+    ];
+    final frozenRows = frozenRowsForMonth(cfg170, s.month);
+    final frozenTot = frozenTotalsForMonth(cfg170, s.month);
 
     return ListView(
       key: const Key('treasury-main'),
@@ -104,13 +118,15 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
           // ── وضع «الإجمالي»: الجدول الواحد ────────────────────────────
           TreasuryTotalsTable(
             month: s.month,
-            clinicsCash: t.cash,
-            clinicsXfer: t.xfer,
+            // م170 — مجاميع الشهر تشمل لقطات العيادات المحذوفة المجمدة
+            // (السجل المالي التاريخي يبقى بأرقامه حرفياً — قرار المالك).
+            clinicsCash: t.cash + frozenTot.cash,
+            clinicsXfer: t.xfer + frozenTot.xfer,
             // م156 — التركيبات المدفوعة موزعة كاش/تحويل بصفٍّ مستقل.
-            prosCash: prosPaidByMethod(s.pros, s.pdPays).cash,
-            prosXfer: prosPaidByMethod(s.pros, s.pdPays).xfer,
-            analCash: anal.cash,
-            analXfer: anal.transfer,
+            prosCash: prosPaidByMethod(s.pros, s.pdPays).cash + frozenTot.prosCash,
+            prosXfer: prosPaidByMethod(s.pros, s.pdPays).xfer + frozenTot.prosXfer,
+            analCash: anal.cash + frozenTot.analCash,
+            analXfer: anal.transfer + frozenTot.analXfer,
             expCash: ex.cash,
             expXfer: ex.xfer,
             expTotal: ex.total,
@@ -130,6 +146,34 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
                   ? '${n(clinicCash(s, cli) + clinicXfer(s, cli) + clinicProsTotalPaid(s, cli))} $cur'
                   : '—',
               onTap: () => _openDetail(context, s, 'c:$cli'),
+            ),
+            const SizedBox(height: 8),
+          ],
+          // م170 — العيادات المؤرشفة (اسمٌ قديم بعد تعديلٍ «للجديد فقط»):
+          // صفوفها التاريخية باقية فتعرض كأي عيادة — عرضٌ تاريخي.
+          for (final cli in archivedActive) ...[
+            TreasuryMasterRow(
+              key: Key('tr2-row-$cli'),
+              icon: Icons.history_rounded,
+              label: '$cli (مؤرشفة)',
+              value: det
+                  ? '${n(clinicCash(s, cli) + clinicXfer(s, cli) + clinicProsTotalPaid(s, cli))} $cur'
+                  : '—',
+              onTap: () => _openDetail(context, s, 'c:$cli'),
+            ),
+            const SizedBox(height: 8),
+          ],
+          // م170 — العيادات المحذوفة: قيم اللقطة المجمدة (عرضٌ فقط —
+          // البيانات نفسها حُذفت فعلياً، والمال التاريخي محفوظ).
+          for (final f in frozenRows) ...[
+            TreasuryMasterRow(
+              key: Key('tr2-row-frozen-${f.clinic}'),
+              icon: Icons.lock_outline_rounded,
+              label: '${f.clinic} 🔒 (محذوفة)',
+              value: det
+                  ? '${n(jsNumOr0(f.fields['cash']) + jsNumOr0(f.fields['xfer']) + jsNumOr0(f.fields['prosCash']) + jsNumOr0(f.fields['prosXfer']))} $cur'
+                  : '—',
+              onTap: () => _showFrozenDetail(context, f, cur),
             ),
             const SizedBox(height: 8),
           ],
@@ -156,6 +200,34 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
           ),
         ],
       ],
+    );
+  }
+
+  /// م170 — تفاصيل لقطةٍ مجمدة لعيادةٍ محذوفة: أرقام الشهر للعرض فقط.
+  void _showFrozenDetail(BuildContext context, FrozenRow f, String cur) {
+    final n = formatNumber;
+    num v(String k) => jsNumOr0(f.fields[k]);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${f.clinic} — سجل مالي مجمد',
+            style: const TextStyle(fontSize: 14)),
+        content: Text(
+          'عيادة محذوفة — بياناتها زالت نهائياً وسجلها المالي محفوظ:\n\n'
+          '• إيراد كاش: ${n(v('cash'))} $cur\n'
+          '• إيراد تحويل: ${n(v('xfer'))} $cur\n'
+          '• تركيبات (كاش/تحويل): ${n(v('prosCash'))} / ${n(v('prosXfer'))} $cur\n'
+          '• تحاليل ثلاثية (كاش/تحويل): ${n(v('analCash'))} / ${n(v('analXfer'))} $cur\n'
+          '• أرباح: الإيراد ${n(v('revenue'))} — الطبيب ${n(v('doctor'))} — '
+          'العيادة ${n(v('clinicShare'))} $cur',
+          style: const TextStyle(fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إغلاق')),
+        ],
+      ),
     );
   }
 
