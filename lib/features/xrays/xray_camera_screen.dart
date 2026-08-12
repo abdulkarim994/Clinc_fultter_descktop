@@ -24,10 +24,17 @@ import 'xray_review_screen.dart';
 typedef XrayShot = (String, Uint8List);
 
 class XrayCameraScreen extends StatefulWidget {
-  const XrayCameraScreen({super.key, required this.patientName});
+  const XrayCameraScreen(
+      {super.key, required this.patientName, this.debugPreview});
 
   /// اسم المريض — لعنوان الشاشة وتسمية اللقطات.
   final String patientName;
+
+  /// م173/د — منفذ اختبارٍ فقط: بديل المعاينة لبيئة الاختبارات (لا
+  /// عتاد كاميرا فيها) كي يُختبر تخطيط الشاشة هندسياً — لا يغيّر سلوك
+  /// الإنتاج إطلاقاً (null دائماً خارج الاختبارات).
+  @visibleForTesting
+  final Widget? debugPreview;
 
   @override
   State<XrayCameraScreen> createState() => _XrayCameraScreenState();
@@ -50,7 +57,8 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
   @override
   void initState() {
     super.initState();
-    _init();
+    // م173/د — في وضع الاختبار (معاينة بديلة) لا عتاد كاميرا يُفتح.
+    if (widget.debugPreview == null) _init();
   }
 
   Future<void> _init() async {
@@ -62,12 +70,15 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
       }
       // الخلفية أولاً (تصوير الأشعة/المستندات) وإلا أول المتاح.
       final backIdx = _cams.indexWhere(
-          (c) => c.lensDirection == CameraLensDirection.back);
+        (c) => c.lensDirection == CameraLensDirection.back,
+      );
       await _useCamera(backIdx < 0 ? 0 : backIdx);
     } on CameraException catch (e) {
-      setState(() => _error = e.code == 'CameraAccessDenied'
-          ? 'رُفض إذن الكاميرا — امنح التطبيق الوصول للكاميرا من إعدادات النظام'
-          : 'تعذر فتح الكاميرا (${e.code})');
+      setState(
+        () => _error = e.code == 'CameraAccessDenied'
+            ? 'رُفض إذن الكاميرا — امنح التطبيق الوصول للكاميرا من إعدادات النظام'
+            : 'تعذر فتح الكاميرا (${e.code})',
+      );
     } catch (_) {
       setState(() => _error = 'تعذر فتح الكاميرا على هذا الجهاز');
     }
@@ -109,9 +120,11 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
     } on CameraException catch (e) {
       await ctl.dispose();
       if (mounted) {
-        setState(() => _error = e.code == 'CameraAccessDenied'
-            ? 'رُفض إذن الكاميرا — امنح التطبيق الوصول للكاميرا من إعدادات النظام'
-            : 'تعذر فتح الكاميرا (${e.code})');
+        setState(
+          () => _error = e.code == 'CameraAccessDenied'
+              ? 'رُفض إذن الكاميرا — امنح التطبيق الوصول للكاميرا من إعدادات النظام'
+              : 'تعذر فتح الكاميرا (${e.code})',
+        );
       }
     }
   }
@@ -136,9 +149,8 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
   }
 
   void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          duration: const Duration(milliseconds: 900),
-          content: Text(msg)));
+    SnackBar(duration: const Duration(milliseconds: 900), content: Text(msg)),
+  );
 
   @override
   void dispose() {
@@ -203,8 +215,10 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
           TextButton(
             key: const Key('xray-cam-leave-ok'),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('تجاهل وخروج',
-                style: TextStyle(color: BrandColors.red)),
+            child: const Text(
+              'تجاهل وخروج',
+              style: TextStyle(color: BrandColors.red),
+            ),
           ),
         ],
       ),
@@ -291,9 +305,10 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('تصوير مباشر',
-                  style:
-                      TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+              const Text(
+                'تصوير مباشر',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+              ),
               Text(
                 widget.patientName,
                 style: const TextStyle(fontSize: 11, color: Colors.white70),
@@ -308,18 +323,24 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
                   child: Container(
                     key: const Key('xray-cam-counter'),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: BrandColors.gold.withValues(alpha: .2),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                          color: BrandColors.gold.withValues(alpha: .5)),
+                        color: BrandColors.gold.withValues(alpha: .5),
+                      ),
                     ),
-                    child: Text('${_session.length} لقطة',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: BrandColors.gold)),
+                    child: Text(
+                      '${_session.length} لقطة',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: BrandColors.gold,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -328,13 +349,19 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
               TextButton.icon(
                 key: const Key('xray-cam-done'),
                 onPressed: _finishSession,
-                icon: const Icon(Icons.check_circle_rounded,
-                    size: 18, color: BrandColors.gold),
-                label: const Text('تم',
-                    style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w900,
-                        color: BrandColors.gold)),
+                icon: const Icon(
+                  Icons.check_circle_rounded,
+                  size: 18,
+                  color: BrandColors.gold,
+                ),
+                label: const Text(
+                  'تم',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w900,
+                    color: BrandColors.gold,
+                  ),
+                ),
               ),
           ],
         ),
@@ -345,54 +372,75 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.no_photography_rounded,
-                          size: 42,
-                          color: Colors.white.withValues(alpha: .6)),
+                      Icon(
+                        Icons.no_photography_rounded,
+                        size: 42,
+                        color: Colors.white.withValues(alpha: .6),
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         _error!,
                         key: const Key('xray-cam-error'),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                            color: Colors.white70, fontSize: 13),
+                          color: Colors.white70,
+                          fontSize: 13,
+                        ),
                       ),
                     ],
                   ),
                 ),
               )
-            : ctl == null
-                ? const Center(
-                    child:
-                        CircularProgressIndicator(color: Colors.white54))
-                : Stack(
-                    alignment: Alignment.bottomCenter,
-                    children: [
-                      // م173 — المعاينة بملء الشاشة (كانت شريطاً علوياً).
-                      Positioned.fill(child: _coverPreview(ctl)),
-                      // مؤشر التكبير — يظهر فقط بعد تجاوز 1x.
-                      if (_zoom > _zoomMin + .05)
-                        PositionedDirectional(
-                          top: 10,
-                          start: 12,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${_zoom.toStringAsFixed(1)}x',
-                              key: const Key('xray-cam-zoom'),
-                              style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white),
+            : (ctl == null && widget.debugPreview == null)
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.white54),
+              )
+            // م173/د — **السبب الجذري للشريط الصغير** (لقطات المالك
+            // من 2171→2173): Stack المرن يأخذ ارتفاع ابنه الوحيد غير
+            // المثبت (شريط الأزرار السفلي) — فتنكمش الحاوية كلها
+            // والمعاينة Positioned.fill تتبعها (الدليل: أزرار
+            // الالتقاط كانت تظهر داخل الشريط الصغير بأسفله).
+            // الحل: SizedBox.expand يجبر الحاوية على ملء الشاشة،
+            // وشريط الأزرار صار طبقةً مثبتةً بأسفلها.
+            : SizedBox.expand(
+                child: Stack(
+                  children: [
+                    // م173 — المعاينة بملء الشاشة (كانت شريطاً علوياً)
+                    // — وفي الاختبارات بديلها الهندسي debugPreview.
+                    Positioned.fill(
+                        child: widget.debugPreview ?? _coverPreview(ctl!)),
+                    // مؤشر التكبير — يظهر فقط بعد تجاوز 1x.
+                    if (_zoom > _zoomMin + .05)
+                      PositionedDirectional(
+                        top: 10,
+                        start: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${_zoom.toStringAsFixed(1)}x',
+                            key: const Key('xray-cam-zoom'),
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
                             ),
                           ),
                         ),
-                      // ── الشريط السفلي: مصغرات الجلسة + صف الأزرار ──
-                      Container(
+                      ),
+                    // ── الشريط السفلي: مصغرات الجلسة + صف الأزرار —
+                    // م173/د: مثبتٌ بأسفل الحاوية (لا يحدد حجمها). ──
+                    PositionedDirectional(
+                      start: 0,
+                      end: 0,
+                      bottom: 0,
+                      child: Container(
                         padding: const EdgeInsets.only(top: 12, bottom: 22),
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
@@ -413,56 +461,61 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
                                   key: const Key('xray-cam-strip'),
                                   scrollDirection: Axis.horizontal,
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 10),
+                                    horizontal: 10,
+                                  ),
                                   itemCount: _session.length,
                                   itemBuilder: (_, i) {
                                     final idx = _session.length - 1 - i;
                                     final shot = _session[idx];
                                     return Padding(
-                                      padding:
-                                          const EdgeInsetsDirectional.only(
-                                              end: 6),
-                                      child: Stack(children: [
-                                        InkWell(
-                                          key: Key('xray-cam-thumb-$idx'),
-                                          onTap: () =>
-                                              _previewShot(shot.$2),
-                                          child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            child: Image.memory(
-                                              shot.$2,
-                                              width: 56,
-                                              height: 56,
-                                              fit: BoxFit.cover,
-                                              gaplessPlayback: true,
+                                      padding: const EdgeInsetsDirectional.only(
+                                        end: 6,
+                                      ),
+                                      child: Stack(
+                                        children: [
+                                          InkWell(
+                                            key: Key('xray-cam-thumb-$idx'),
+                                            onTap: () => _previewShot(shot.$2),
+                                            child: ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: Image.memory(
+                                                shot.$2,
+                                                width: 56,
+                                                height: 56,
+                                                fit: BoxFit.cover,
+                                                gaplessPlayback: true,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                        PositionedDirectional(
-                                          top: 0,
-                                          end: 0,
-                                          child: InkWell(
-                                            key: Key(
-                                                'xray-cam-thumb-del-$idx'),
-                                            onTap: () => setState(() =>
-                                                _session.removeAt(idx)),
-                                            child: Container(
-                                              padding:
-                                                  const EdgeInsets.all(2),
-                                              decoration:
-                                                  const BoxDecoration(
-                                                color: Colors.black87,
-                                                shape: BoxShape.circle,
+                                          PositionedDirectional(
+                                            top: 0,
+                                            end: 0,
+                                            child: InkWell(
+                                              key: Key(
+                                                'xray-cam-thumb-del-$idx',
                                               ),
-                                              child: const Icon(
+                                              onTap: () => setState(
+                                                () => _session.removeAt(idx),
+                                              ),
+                                              child: Container(
+                                                padding: const EdgeInsets.all(
+                                                  2,
+                                                ),
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.black87,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
                                                   Icons.close_rounded,
                                                   size: 13,
-                                                  color: Colors.white),
+                                                  color: Colors.white,
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ]),
+                                        ],
+                                      ),
                                     );
                                   },
                                 ),
@@ -491,12 +544,14 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                          color: BrandColors.gold,
-                                          width: 3.5),
+                                        color: BrandColors.gold,
+                                        width: 3.5,
+                                      ),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: BrandColors.gold
-                                              .withValues(alpha: .45),
+                                          color: BrandColors.gold.withValues(
+                                            alpha: .45,
+                                          ),
                                           blurRadius: 16,
                                         ),
                                       ],
@@ -512,11 +567,11 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
                                         ),
                                         child: _busy
                                             ? const Padding(
-                                                padding:
-                                                    EdgeInsets.all(14),
+                                                padding: EdgeInsets.all(14),
                                                 child:
                                                     CircularProgressIndicator(
-                                                        strokeWidth: 2.5),
+                                                      strokeWidth: 2.5,
+                                                    ),
                                               )
                                             : null,
                                       ),
@@ -535,8 +590,10 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
@@ -559,8 +616,12 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
 
 /// زر أداةٍ دائري صغير على شريط الالتقاط (فلاش/تبديل) بهوية التطبيق.
 class _RoundTool extends StatelessWidget {
-  const _RoundTool(
-      {super.key, required this.icon, this.onTap, this.active = false});
+  const _RoundTool({
+    super.key,
+    required this.icon,
+    this.onTap,
+    this.active = false,
+  });
 
   final IconData icon;
   final VoidCallback? onTap;
@@ -581,15 +642,18 @@ class _RoundTool extends StatelessWidget {
               ? BrandColors.gold.withValues(alpha: .25)
               : Colors.white.withValues(alpha: .08),
           border: Border.all(
-              color: active
-                  ? BrandColors.gold
-                  : Colors.white.withValues(alpha: enabled ? .35 : .15)),
-        ),
-        child: Icon(icon,
-            size: 21,
             color: active
                 ? BrandColors.gold
-                : Colors.white.withValues(alpha: enabled ? .9 : .35)),
+                : Colors.white.withValues(alpha: enabled ? .35 : .15),
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 21,
+          color: active
+              ? BrandColors.gold
+              : Colors.white.withValues(alpha: enabled ? .9 : .35),
+        ),
       ),
     );
   }
