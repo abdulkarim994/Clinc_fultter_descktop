@@ -35,6 +35,7 @@ import '../records/tooth_report_dialog.dart'
     show showToothReportDialog, activeTeeth, teethKeysOf;
 import 'audit_log.dart' show appendAudit, hasAudit;
 import 'audit_trail.dart' show AuditAction, recordAudit;
+import '../xrays/xray_camera_screen.dart' show XrayCameraScreen;
 import '../xrays/xray_section.dart';
 import '../xrays/xray_store.dart' show xrayKeysFor;
 import '../appointments/appointments_tab.dart'
@@ -103,6 +104,9 @@ class PatientProfileScreen extends ConsumerStatefulWidget {
 class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
   String get name => widget.patientName;
   String get clinic => widget.clinic;
+
+  /// م172 — متحكم قسم الأشعة: يربط زرَّي «رفع/تصوير» العائمين بمساره.
+  final _xrayCtl = XraySectionController();
 
   /// قسم الملف النشط — activeSection (visits|debts|xrays|plan).
   String activeSection = 'visits';
@@ -1577,6 +1581,7 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
                         patientName: name,
                         clinic: widget.clinic,
                         phone: _medPhone(),
+                        controller: _xrayCtl, // م172
                       ),
                     ),
 
@@ -1590,15 +1595,11 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
           ),
         ],
       ),
-      // م58/م59 — الدائرة العائمة الخاصة بالمريض: خضراء بتدرج العلامة،
-      // لمعان منزلق دورياً وتوهج نابض، على **يسار** الشاشة (endFloat في
-      // RTL). تفتح ورقة الزيارة السريعة؛ و«الخيارات الكاملة» داخلها
-      // تسلك مسار الرئيسية القديم نفسه.
-      floatingActionButton: ShinyFab(
-        key: const Key('pp-add-visit'),
-        tooltip: 'إضافة زيارة',
-        onTap: _openQuickVisit,
-      ),
+      // م58/م59 — الدائرة العائمة الخاصة بالمريض (هوية ShinyFab).
+      // م172 — صارت **سياقيةً بحسب التبويب** (قرار المالك): الزيارات «+»،
+      // الديون «تسجيل دفعة» ذهبيةً إن وُجد دينٌ مفتوح، المواعيد «حجز
+      // موعد»، الأشعة زرا «تصوير/رفع» متراصان، وخطة العلاج بلا زر.
+      floatingActionButton: _contextFab(activeDebts),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
@@ -2297,25 +2298,8 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // زر الحجز السريع — يفتح معالج المواعيد معبأً بالمريض.
-        if (staffAllowed('records.add'))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: OutlinedButton.icon(
-              key: const Key('pp-appt-book'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: BrandColors.goldDark,
-                side: BorderSide(
-                    color: BrandColors.gold.withValues(alpha: .5)),
-                visualDensity: VisualDensity.compact,
-              ),
-              onPressed: _bookAppointment,
-              icon: const Icon(Icons.event_available_rounded, size: 16),
-              label: const Text('حجز موعد',
-                  style:
-                      TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
-            ),
-          ),
+        // م172 — زر المربع أُزيل: الحجز صار بالزر العائم الدائري السفلي
+        // (قرار المالك) — pp-fab-book.
         if (appts.isEmpty)
           Padding(
             padding: const EdgeInsets.all(14),
@@ -2372,6 +2356,138 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
       Navigator.of(context).popUntil((r) => r.isFirst);
       ref.read(activeTabProvider.notifier).state = 'calendar';
     }
+  }
+
+  /// م172 — الزر العائم السياقي بحسب التبويب المفتوح (قرار المالك).
+  Widget? _contextFab(List<JMap> activeDebts) {
+    switch (activeSection) {
+      case 'visits':
+        // الزيارات — زر «+» القائم حرفياً (زيارة سريعة).
+        return ShinyFab(
+          key: const Key('pp-add-visit'),
+          tooltip: 'إضافة زيارة',
+          onTap: _openQuickVisit,
+        );
+      case 'debts':
+        // الديون — «تسجيل دفعة» ذهبيةً، فقط إن وُجد دينٌ مفتوح.
+        if (activeDebts.isEmpty) return null;
+        return ShinyFab(
+          key: const Key('pp-fab-pay'),
+          tooltip: 'تسجيل دفعة',
+          icon: Icons.payments_rounded,
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomLeft,
+            colors: [BrandColors.gold, BrandColors.goldDark],
+          ),
+          glowColor: BrandColors.gold,
+          onTap: () => _payFromFab(activeDebts),
+        );
+      case 'appts':
+        // المواعيد — «حجز موعد» دائري (بدل زر المربع — أُزيل).
+        if (!staffAllowed('records.add')) return null;
+        return ShinyFab(
+          key: const Key('pp-fab-book'),
+          tooltip: 'حجز موعد',
+          icon: Icons.event_available_rounded,
+          onTap: _bookAppointment,
+        );
+      case 'xrays':
+        // الأشعة — زران متراصان: «تصوير مباشر» (هاتف فقط) فوق «رفع».
+        if (!staffAllowed('records.add')) return null;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isDesktopUi(context)) ...[
+              ShinyFab(
+                key: const Key('pp-fab-camera'),
+                tooltip: 'تصوير مباشر',
+                icon: Icons.photo_camera_rounded,
+                size: 48,
+                onTap: _openInAppCamera,
+              ),
+              const SizedBox(height: 10),
+            ],
+            ShinyFab(
+              key: const Key('pp-fab-upload'),
+              tooltip: 'رفع صورة / صور',
+              icon: Icons.upload_rounded,
+              size: 48,
+              onTap: () => _xrayCtl.upload(),
+            ),
+          ],
+        );
+      default:
+        return null; // خطة العلاج — بلا زر عائم.
+    }
+  }
+
+  /// م172 — «تسجيل دفعة» من الزر العائم: دينٌ واحد يفتح نافذة الدفعة
+  /// الموحدة مباشرةً، وأكثر يعرض ورقة اختيار الدين أولاً.
+  void _payFromFab(List<JMap> activeDebts) {
+    if (activeDebts.isEmpty) return;
+    if (activeDebts.length == 1) {
+      _payInstallment(activeDebts.first);
+      return;
+    }
+    final n = formatNumber;
+    final cur = ref.read(currencyProvider);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: BrandColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Text('اختر الدين لتسجيل الدفعة',
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: BrandColors.goldDark)),
+            ),
+            for (final d in activeDebts)
+              ListTile(
+                key: Key('pp-fab-pay-${d['id']}'),
+                dense: true,
+                leading: const Icon(Icons.payments_rounded,
+                    size: 18, color: BrandColors.goldDark),
+                title: Text('${d['service'] ?? d['name'] ?? 'دين'}',
+                    style: const TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w700)),
+                subtitle: Text(
+                    'المتبقي: ${n(jsNumOr0(d['remaining']))} $cur',
+                    style: const TextStyle(
+                        fontSize: 11, color: BrandColors.red)),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _payInstallment(d);
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// م172 — فتح الكاميرا الداخلية: كل لقطةٍ تُحفظ فوراً في مسار رفع
+  /// الأشعة نفسه (عبر متحكم القسم) — لا تطبيق الكاميرا الأساسي.
+  void _openInAppCamera() {
+    if (!gateStaff(context, 'records.add')) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => XrayCameraScreen(
+          patientName: name,
+          onCapture: (fileName, bytes) =>
+              _xrayCtl.addCaptured([(fileName, bytes)]),
+        ),
+      ),
+    );
   }
 
   /// م171 — «حجز موعد» من بطاقة المريض: مسودة {اسم/هاتف/عيادة} ثم فتح
