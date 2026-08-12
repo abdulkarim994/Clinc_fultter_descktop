@@ -12,10 +12,30 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 class ShinyFab extends StatefulWidget {
-  const ShinyFab({super.key, required this.tooltip, required this.onTap});
+  const ShinyFab({
+    super.key,
+    required this.tooltip,
+    required this.onTap,
+    this.icon = Icons.add_rounded, // م172 — أيقونة قابلة للتخصيص
+    this.gradient, // م172 — تدرج بديل (الافتراضي أخضر العلامة حرفياً)
+    this.glowColor, // م172 — لون التوهج (الافتراضي أخضر العلامة)
+    this.size = 58, // م172 — نسخة مصغرة لأزرار الأشعة المتراصة
+  });
 
   final String tooltip;
   final VoidCallback onTap;
+
+  /// م172 — أيقونة الزر (زر الحجز/الدفعة/التصوير...) — الافتراضي «+».
+  final IconData icon;
+
+  /// م172 — تدرج بديل بهوية التطبيق (مثل الذهبي للدفعات) — null = الأخضر.
+  final Gradient? gradient;
+
+  /// م172 — لون التوهج النابض — null = أخضر العلامة (السلوك القائم).
+  final Color? glowColor;
+
+  /// م172 — قطر الدائرة (58 الافتراضي؛ 48 للأزرار المتراصة).
+  final double size;
 
   @override
   State<ShinyFab> createState() => _ShinyFabState();
@@ -57,17 +77,19 @@ class _ShinyFabState extends State<ShinyFab>
           final dx = -70 + 140 * sweep;
           // توهج نابض ناعم (جيب كامل الدورة).
           final glow = 0.35 + 0.2 * (0.5 - (t - 0.5).abs()) * 2;
+          final side = widget.size;
           return Container(
-            width: 58,
-            height: 58,
+            width: side,
+            height: side,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: BrandColors.brandGradient,
+              gradient: widget.gradient ?? BrandColors.brandGradient,
               border: Border.all(
                   color: const Color.fromRGBO(201, 162, 75, .35)),
               boxShadow: [
                 BoxShadow(
-                  color: BrandColors.brand600.withValues(alpha: glow),
+                  color: (widget.glowColor ?? BrandColors.brand600)
+                      .withValues(alpha: glow),
                   blurRadius: 18,
                   spreadRadius: 1,
                 ),
@@ -112,11 +134,11 @@ class _ShinyFabState extends State<ShinyFab>
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: widget.onTap,
-                      child: const SizedBox(
-                        width: 58,
-                        height: 58,
-                        child: Icon(Icons.add_rounded,
-                            size: 27, color: Colors.white),
+                      child: SizedBox(
+                        width: side,
+                        height: side,
+                        child: Icon(widget.icon,
+                            size: side * 27 / 58, color: Colors.white),
                       ),
                     ),
                   ),

@@ -424,9 +424,8 @@ void main() {
           });
         },
       );
-      // م36 — الافتراضي صار «الرئيسية»: ننتقل للسجلات كي يظهر الزر العائم.
-      await tester.tap(find.text('السجلات'), warnIfMissed: false);
-      await settle(tester);
+      // م172 — الزر العائم «+» صار في «الرئيسية» فقط (قرار المالك):
+      // نبقى عليها — الشريط السفلي يُفحص من هنا (ظاهر بكل التبويبات).
       // الشريط السفلي: تبويب المالية يقع أسفل منتصف الشاشة.
       final fin = tester.getCenter(find.text('المالية'));
       final h = tester.view.physicalSize.height / tester.view.devicePixelRatio;

@@ -1069,6 +1069,10 @@ void main() {
       await settle(tester);
       await tester.tap(find.byType(BackButton).first, warnIfMissed: false);
       await settle(tester);
+      // م172 — «+» صار في «الرئيسية» فقط: نعود إليها أولاً (مع استقرار
+      // حركة تكبير الزر العائم قبل نقره).
+      await tester.tap(find.text('الرئيسية'), warnIfMissed: false);
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('fab-add')), warnIfMissed: false);
       await settle(tester);
       await tester.tap(

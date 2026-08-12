@@ -65,13 +65,28 @@ final xrayGalleryPickProvider = Provider<XrayPick>(
   (ref) => defaultXrayGalleryPick,
 );
 
+/// م172 — متحكم خارجي لقسم الأشعة: يتيح للزر العائم السياقي في بطاقة
+/// المريض تشغيل الرفع، أو إدخال لقطات الكاميرا الداخلية في نفس مسار
+/// الرفع حرفياً (ضغط/وسم/حصة/طابور).
+class XraySectionController {
+  _XraySectionState? _state;
+  bool get attached => _state != null;
+  Future<void> upload() async => _state?._upload();
+  Future<void> addCaptured(List<(String, Uint8List)> shots) async =>
+      _state?._ingestBytes(shots);
+}
+
 class XraySection extends ConsumerStatefulWidget {
   const XraySection({
     super.key,
     required this.patientName,
     this.clinic = '',
     this.phone = '',
+    this.controller, // م172 — ربط الزر العائم السياقي بالقسم.
   });
+
+  /// م172 — متحكم اختياري للزر العائم في البطاقة.
+  final XraySectionController? controller;
 
   final String patientName;
 
@@ -89,6 +104,14 @@ class XraySection extends ConsumerStatefulWidget {
 
 class _XraySectionState extends ConsumerState<XraySection> {
   bool uploading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?._state = this; // م172
+  }
+
+
   String? editingKey;
   final renameCtl = TextEditingController();
 
@@ -102,6 +125,9 @@ class _XraySectionState extends ConsumerState<XraySection> {
 
   @override
   void dispose() {
+    if (widget.controller?._state == this) {
+      widget.controller?._state = null; // م172 — فك ربط المتحكم.
+    }
     for (final t in _pendingDeletes) {
       t.cancel();
     }
@@ -231,6 +257,14 @@ class _XraySectionState extends ConsumerState<XraySection> {
       }
       return;
     }
+    await _ingestBytes(picked);
+  }
+
+  /// م172 — مسار إدخال البايتات المشترك (المنتقيات والكاميرا الداخلية):
+  /// الحصة ثم الضغط والوسم والطابور — حرفياً كما كان داخل _upload.
+  Future<void> _ingestBytes(List<(String, Uint8List)> picked) async {
+    if (picked.isEmpty || !mounted) return;
+    if (!gateStaff(context, 'records.add')) return;
     setState(() => uploading = true);
     final store = ref.read(xrayStoreProvider);
     // م134 — حصة التخزين: نُحدِّث الحصة من الخادم عند الاتصال، ثم نمنع

@@ -431,21 +431,36 @@ class AppShellScreen extends ConsumerWidget {
             SafeArea(top: false, child: tabBar),
         ],
       ),
-      // الزر العائم (+) — يفتح نموذج الإدخال الكامل كورقة سفلية.
-      // م107 (طلب المالك): نفس دائرة بطاقة المريض الخضراء اللامعة
-      // حرفياً (ShinyFab المشترك)، مثبتة يساراً دائماً (endFloat في
-      // RTL) ومرفوعة فوق شريط التنقل السفلي بدل ملاصقته.
-      floatingActionButton: fabVisible &&
-              (staffU == null || staffCan(staffU, 'records.add'))
-          ? Padding(
-              padding: EdgeInsets.only(bottom: tabBottom ? 66 : 6),
-              child: ShinyFab(
-                key: const Key('fab-add'),
-                tooltip: 'زيارة جديدة',
-                onTap: () => openAddRecordSheet(context),
-              ),
-            )
-          : null,
+      // الزر العائم — م107: دائرة ShinyFab الخضراء الموحدة، يساراً دائماً.
+      // م172 (قرار المالك): سياقيٌّ بالتبويب — «+» في الرئيسية (إدخال
+      // اليوم) فقط، «إضافة حجز» دائري في الحجوزات، ولا زر في البقية.
+      floatingActionButton: !fabVisible ||
+              !(staffU == null || staffCan(staffU, 'records.add'))
+          ? null
+          : switch (active) {
+              'home' => Padding(
+                  padding: EdgeInsets.only(bottom: tabBottom ? 66 : 6),
+                  child: ShinyFab(
+                    key: const Key('fab-add'),
+                    tooltip: 'زيارة جديدة',
+                    onTap: () => openAddRecordSheet(context),
+                  ),
+                ),
+              'calendar' => Padding(
+                  padding: EdgeInsets.only(bottom: tabBottom ? 66 : 6),
+                  child: ShinyFab(
+                    key: const Key('fab-book-appt'),
+                    tooltip: 'إضافة حجز',
+                    icon: Icons.event_available_rounded,
+                    // مسودة فارغة = فتح معالج الموعد فارغاً (المستمع
+                    // داخل التبويب المفتوح يستهلكها فوراً).
+                    onTap: () => ref
+                        .read(apptBookDraftProvider.notifier)
+                        .state = <String, Object?>{},
+                  ),
+                ),
+              _ => null,
+            },
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }

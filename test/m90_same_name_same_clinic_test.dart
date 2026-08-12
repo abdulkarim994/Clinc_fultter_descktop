@@ -250,6 +250,10 @@ void main() {
       // م133 — نموذج الإدخال rec-* لم يبق على تبويب «الرئيسية» (صار
       // DailyIncomeScreen)؛ انتقل إلى ورقة سفلية تُفتح بالزر العائم
       // Key('fab-add') (app_shell.dart). كل مفاتيح rec-* باقية بلا تغيير.
+      // م172 — «+» صار في الرئيسية فقط: نعود إليها أولاً (استقرارٌ
+      // لحركة تكبير الزر العائم قبل نقره).
+      await tester.tap(find.text('الرئيسية'), warnIfMissed: false);
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('fab-add')), warnIfMissed: false);
       await tester.pumpAndSettle();
 
@@ -295,6 +299,9 @@ void main() {
     ) async {
       await boot(tester);
       // م133 — نفس انتقال rec-* إلى ورقة fab-add أعلاه.
+      // م172 — «+» في الرئيسية فقط: نعود إليها أولاً (استقرار الحركة).
+      await tester.tap(find.text('الرئيسية'), warnIfMissed: false);
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('fab-add')), warnIfMissed: false);
       await tester.pumpAndSettle();
 
