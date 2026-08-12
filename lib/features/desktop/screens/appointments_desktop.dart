@@ -34,6 +34,7 @@ import '../../../data/repositories/patients_repository.dart'
 import '../../appointments/appointments_logic.dart';
 import '../../appointments/appt_lifecycle.dart'
     show
+        apptDurationMin, // م169/ب — نص حوار التعارض
         apptStatusColor,
         apptStatusLabel,
         archivedIdsToPurge,
@@ -41,8 +42,10 @@ import '../../appointments/appt_lifecycle.dart'
         clinicsOf,
         filterByClinic,
         hasUnassignedClinic,
+        isBreakRow, // م169/ب — الاستراحات وكشف التعارض
         kNoClinic,
-        normApptStatus;
+        normApptStatus,
+        overlappingRow; // م169/ب — كشف التعارض (توأم معالج الهاتف)
 import '../../appointments/appointments_tab.dart'
     show apptRevProvider;
 import '../../patients/patients_tab.dart' show patientsRevProvider;
@@ -97,6 +100,10 @@ class _DesktopAppointmentsScreenState
   /// م164 — تبويب العيادة المختار ('' = الكل، kNoClinic = غير المحددة).
   String get _clinicFilter =>
       '${ref.read(desktopPrefsProvider)[_kClinicKey] ?? ''}';
+
+  /// م169 — الفلتر الفعلي بعد قاعدة «الكل» (انظر effApptClinicFilter).
+  String _effClinicFilter(List<String> clinics) =>
+      effApptClinicFilter(_clinicFilter, clinics);
 
   @override
   void initState() {
@@ -192,8 +199,10 @@ class _DesktopAppointmentsScreenState
   List<JMap> _filteredAppts() {
     final map = _apptMap();
     // م164 — تبويب العيادة يفلتر القائمة قبل بقية الفلاتر.
+    // م169 — عبر الفلتر الفعلي (قاعدة «الكل» الجديدة).
     final all = filterByClinic(
-        <JMap>[for (final l in map.values) ...l], _clinicFilter);
+        <JMap>[for (final l in map.values) ...l],
+        _effClinicFilter(clinicsOf(ref.read(appConfigProvider))));
     final today = getCurrentDate();
     final q = _searchCtl.text.trim();
 
@@ -342,9 +351,74 @@ class _DesktopAppointmentsScreenState
   }
 
   /// حفظ من النموذج: إنشاء عادي/دوري أو تعديل موعد واحد.
-  void _save(_FormResult r) {
-    final name = r.name.trim();
-    if (name.isEmpty) {
+  /// م169/ب — كشف التعارض قبل الكتابة (توأم conflictOk في معالج الهاتف
+  /// حرفياً): أي استراحةٍ متداخلة ⇒ منعٌ قاطع، وموعدُ مريضٍ آخر متداخل ⇒
+  /// حوار «تعارض بالوقت» قابل للتجاوز. الفحص بنطاق عيادة الموعد نفسها.
+  Future<bool> _conflictOk(_FormResult r, {required String name}) async {
+    if (r.time.isEmpty) return true;
+    final clinics = clinicsOf(ref.read(appConfigProvider));
+    final targetDay = filterByClinic(
+      [
+        for (final x in ref.read(reposProvider).appointments.getAll())
+          if ('${x['date']}' == r.date) x,
+      ],
+      clinics.length <= 1 ? '' : r.clinic,
+    );
+    final slotMin =
+        (r.durationMin != null && r.durationMin! > 0) ? r.durationMin! : 30;
+    final exceptId = r.editingId;
+    // أولاً: أي استراحةٍ متداخلة ⇒ منعٌ قاطع (تُفحص كلها لا أولها).
+    if (!r.isBreak) {
+      final bHit = overlappingRow(
+          [for (final x in targetDay) if (isBreakRow(x)) x], r.time, slotMin,
+          exceptId: exceptId);
+      if (bHit != null) {
+        _snack('⛔ لا يمكن الحجز فوق استراحة '
+            '(${jsOr(bHit['name'], 'استراحة')} ${to12h('${bHit['time']}')})');
+        return false;
+      }
+    }
+    final hit = overlappingRow(targetDay, r.time, slotMin, exceptId: exceptId);
+    if (hit == null) return true;
+    if (isBreakRow(hit)) {
+      _snack('⛔ لا يمكن الحجز فوق استراحة '
+          '(${jsOr(hit['name'], 'استراحة')} ${to12h('${hit['time']}')})');
+      return false;
+    }
+    if (!mounted) return false;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('تعارض بالوقت', style: TextStyle(fontSize: 14)),
+        content: Text(
+          'يتداخل هذا الوقت مع موعد «${hit['name']}» '
+          '(${to12h('${hit['time']}')} · ${apptDurationMin(hit)} د).\n'
+          'حفظ رغم التعارض؟',
+          style: const TextStyle(fontSize: 12.5),
+        ),
+        actions: [
+          TextButton(
+            key: const Key('appt-conflict-cancel'),
+            onPressed: () => Navigator.pop(dCtx, false),
+            child: const Text('تغيير الوقت'),
+          ),
+          FilledButton(
+            key: const Key('appt-conflict-save'),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('حفظ رغم التعارض'),
+          ),
+        ],
+      ),
+    );
+    return go == true;
+  }
+
+  Future<void> _save(_FormResult r) async {
+    // م169/ب — الاستراحة باسمٍ افتراضي، والموعد باسمٍ إلزامي.
+    final name = r.isBreak
+        ? (r.name.trim().isEmpty ? 'استراحة' : r.name.trim())
+        : r.name.trim();
+    if (!r.isBreak && name.isEmpty) {
       _snack('⚠ أدخل اسم المريض');
       return;
     }
@@ -352,12 +426,18 @@ class _DesktopAppointmentsScreenState
       _snack('⚠ أدخل التاريخ');
       return;
     }
+    // م169/ب — الاستراحة بوقتٍ إلزامي (سلوك معالج الهاتف).
+    if (r.isBreak && r.time.isEmpty) {
+      _snack('⚠ حدد وقت الاستراحة');
+      return;
+    }
     // م164 — العيادة إلزامية عند تعدد العيادات (لا افتراض بأول عيادة).
     if (clinicRequired(ref.read(appConfigProvider)) && r.clinic.isEmpty) {
       _snack('⚠ اختر العيادة أولاً — لا حجز بدون عيادة');
       return;
     }
-
+    // م169/ب — التعارض والحقول الإلزامية فُحصت قبل الإغلاق
+    // (_validateBeforeSave)؛ الحُرّاس هنا دفاعيون فقط.
     if (r.editingId != null) {
       // تعديل موعد واحد فقط (توأم فرع التعديل في saveAppt) — لا يمسّ
       // السلسلة، والحقول الإضافية للدورية تبقى عبر نشر ...prev.
@@ -370,15 +450,16 @@ class _DesktopAppointmentsScreenState
         repos.appointments.upsertLocal({
           ...prev,
           'name': name,
-          'phone': r.phone,
+          // م169/ب — الاستراحة بلا هاتف/خدمة (توأم فرع تعديل الهاتف).
+          'phone': r.isBreak ? '' : r.phone,
           'date': r.date,
           'time': r.time,
-          'service': r.service,
+          'service': r.isBreak ? '' : r.service,
           'notes': r.notes,
           // م164 — تعديل العيادة (يُستعمل أيضاً للتعيين السريع للقديم).
           'clinic': r.clinic,
           'clinic_id': r.clinic.isEmpty ? '' : clinicKeyFor(r.clinic),
-          'patient_id': patientId,
+          'patient_id': r.isBreak ? '' : patientId,
           // م: المدة حقلٌ مرن — تُكتب عند تحديدها، وتبقى قيمة سابقة عبر
           // نشر ...prev إن تُركت فارغة.
           if (r.durationMin != null && r.durationMin! > 0)
@@ -386,24 +467,26 @@ class _DesktopAppointmentsScreenState
           '_mod': jsNow(),
         });
       }
-      _snack('تم تعديل الموعد');
+      _snack(r.isBreak ? 'تم تعديل الاستراحة' : 'تم تعديل الموعد');
       _bump();
       return;
     }
 
     if (r.repeat == null) {
-      // موعد عادي — إضافة واحدة.
+      // موعد عادي — إضافة واحدة. م169/ب: الاستراحة بعلم isBreak: 1
+      // (أرقام لا قيم منطقية) وبلا هاتف/خدمة/هوية مريض — توأم الهاتف.
       _addOne(
         name: name,
-        phone: r.phone,
+        phone: r.isBreak ? '' : r.phone,
         date: r.date,
         time: r.time,
-        service: r.service,
+        service: r.isBreak ? '' : r.service,
         notes: r.notes,
         clinic: r.clinic,
         durationMin: r.durationMin,
+        extra: r.isBreak ? const {'isBreak': 1, 'patient_id': ''} : const {},
       );
-      _snack('تم إضافة الموعد');
+      _snack(r.isBreak ? 'تمت إضافة الاستراحة ☕' : 'تم إضافة الموعد');
       _bump();
       return;
     }
@@ -572,6 +655,21 @@ class _DesktopAppointmentsScreenState
     String? defaultTime,
     JMap? prefill,
   }) async {
+    // م169 — قاعدة العيادة عند الإضافة: «الكل» للعرض فقط (لا إضافة قبل
+    // اختيار عيادةٍ محددة)، والعيادة المختارة من التبويب العلوي تُقفل
+    // في النموذج تلقائياً (قرار المالك — التعديل يبقى حراً).
+    final formClinics = clinicsOf(ref.read(appConfigProvider));
+    final effFilter = _effClinicFilter(formClinics);
+    if (editing == null && formClinics.length > 1 && effFilter.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              '«الكل» للعرض فقط — اختر عيادةً من القائمة العلوية أولاً')));
+      return;
+    }
+    final lockedClinic =
+        (editing == null && formClinics.contains(effFilter))
+            ? effFilter
+            : null;
     final result = await showDesktopDialog<_FormResult>(
       context,
       title: editing == null
@@ -594,9 +692,37 @@ class _DesktopAppointmentsScreenState
         defaultDate: defaultDate ?? getCurrentDate(),
         defaultTime: defaultTime,
         prefill: prefill,
+        lockedClinic: lockedClinic, // م169
+        onValidate: _validateBeforeSave, // م169/ب — فحص قبل الإغلاق
       ),
     );
     if (result != null) _save(result);
+  }
+
+  /// م169/ب — فحص النتيجة قبل إغلاق النموذج: الحقول الإلزامية ثم التعارض
+  /// (استراحة = منع قاطع، موعد مريضٍ آخر = حوار قابل للتجاوز). false =
+  /// يبقى النموذج مفتوحاً بإدخال المستخدم كما هو.
+  Future<bool> _validateBeforeSave(_FormResult r) async {
+    final name = r.isBreak
+        ? (r.name.trim().isEmpty ? 'استراحة' : r.name.trim())
+        : r.name.trim();
+    if (!r.isBreak && name.isEmpty) {
+      _snack('⚠ أدخل اسم المريض');
+      return false;
+    }
+    if (r.date.isEmpty) {
+      _snack('⚠ أدخل التاريخ');
+      return false;
+    }
+    if (r.isBreak && r.time.isEmpty) {
+      _snack('⚠ حدد وقت الاستراحة');
+      return false;
+    }
+    if (clinicRequired(ref.read(appConfigProvider)) && r.clinic.isEmpty) {
+      _snack('⚠ اختر العيادة أولاً — لا حجز بدون عيادة');
+      return false;
+    }
+    return _conflictOk(r, name: name);
   }
 
   // ── مجموعة الإجراءات المشتركة — تُمرَّر للجدولة الأسبوعية كي تستدعي نفس
@@ -663,7 +789,8 @@ class _DesktopAppointmentsScreenState
     // والاختيار محفوظ في تفضيلات الجهاز.
     final clinicTabs = _ClinicTabs(
       clinics: clinicsOf(cfg),
-      selected: _clinicFilter,
+      // م169 — الفلتر الفعلي (قاعدة «الكل»).
+      selected: _effClinicFilter(clinicsOf(cfg)),
       hasUnassigned:
           hasUnassignedClinic(ref.watch(reposProvider).appointments.getAll()),
       onChanged: (v) {
@@ -705,7 +832,8 @@ class _DesktopAppointmentsScreenState
                 child: WeeklyScheduler(
                   key: const Key('appt-week-view'),
                   actions: _actions(centerName, currency),
-                  clinicFilter: _clinicFilter,
+                  // م169 — الفلتر الفعلي (قاعدة «الكل»).
+                  clinicFilter: _effClinicFilter(clinicsOf(cfg)),
                 ),
               ),
             ],
@@ -852,8 +980,10 @@ class _FullscreenScheduleState extends ConsumerState<_FullscreenSchedule> {
     ref.watch(apptRevProvider);
     ref.watch(desktopPrefsProvider);
     final cfg = ref.watch(appConfigProvider);
-    final clinicFilter =
-        '${ref.read(desktopPrefsProvider)[_kClinicKey] ?? ''}';
+    // م169 — الفلتر الفعلي (قاعدة «الكل») في ملء الشاشة أيضاً.
+    final clinicFilter = effApptClinicFilter(
+        '${ref.read(desktopPrefsProvider)[_kClinicKey] ?? ''}',
+        clinicsOf(cfg));
 
     return CallbackShortcuts(
       bindings: {
@@ -930,6 +1060,18 @@ class _FullscreenScheduleState extends ConsumerState<_FullscreenSchedule> {
 
 // ── م164: تبويبات العيادات (أعلى الجدول — تفلتر القائمة والجدولة) ────────────
 
+/// م169 — تطبيع فلتر العيادة المحفوظ وفق قاعدة «الكل»: «الكل» ('') متاحٌ
+/// للعرض فقط ومع عيادتين بالضبط؛ مع ثلاثٍ فصاعداً يسقط الخيار فيؤول
+/// المحفوظ ('' أو عيادةٌ حُذفت) إلى أول عيادة — لا جدول عالقاً على فلترٍ
+/// لم يعد موجوداً. عيادةٌ واحدة أو لا شيء ⇒ '' (بلا فلترة — التوافق الخلفي).
+String effApptClinicFilter(String saved, List<String> clinics) {
+  if (saved == kNoClinic) return saved;
+  if (clinics.length <= 1) return '';
+  if (saved.isEmpty) return clinics.length == 2 ? '' : clinics.first;
+  if (clinics.contains(saved)) return saved;
+  return clinics.length == 2 ? '' : clinics.first;
+}
+
 class _ClinicTabs extends StatelessWidget {
   const _ClinicTabs({
     required this.clinics,
@@ -976,13 +1118,15 @@ class _ClinicTabs extends StatelessWidget {
     }
 
     // م165ب — بلا صفٍّ مستقل: يعيش وسط شريط المبدّل الأعلى.
+    // م169 — «الكل» للعرض فقط ويُتاح مع عيادتين بالضبط لا أكثر (قرار
+    // المالك): مع 3 عيادات فصاعداً يُزال فيُلزم اختيار عيادةٍ محددة.
     return Row(mainAxisSize: MainAxisSize.min, children: [
       // م165 — أيقونة طبية (كانت storefront تشبه الدكان).
       Icon(Icons.medical_services_rounded,
           size: 15, color: BrandColors.mut2),
       const SizedBox(width: 8),
       Wrap(spacing: 6, children: [
-        tab('', 'الكل'),
+        if (clinics.length == 2) tab('', 'الكل'),
         for (final c in clinics) tab(c, c),
         if (hasUnassigned) tab(kNoClinic, 'غير محددة'),
       ]),
@@ -1813,6 +1957,7 @@ class _FormResult {
     required this.repeat,
     required this.count,
     required this.durationMin,
+    this.isBreak = false, // م169/ب — استراحة ☕ (isBreak: 1 — أرقام لا bool)
   });
 
   /// م164 — عيادة الموعد (إلزامية عند تعدد العيادات).
@@ -1832,6 +1977,9 @@ class _FormResult {
 
   /// مدة الموعد بالدقائق — null = تُترك على الافتراضي/القيمة السابقة.
   final int? durationMin;
+
+  /// م169/ب — استراحة: تمنع الحجز فوقها منعاً قاطعاً ولا تدخل الإحصاءات.
+  final bool isBreak;
 }
 
 class _AppointmentForm extends StatefulWidget {
@@ -1845,10 +1993,19 @@ class _AppointmentForm extends StatefulWidget {
     required this.defaultDate,
     this.defaultTime,
     this.prefill,
+    this.lockedClinic, // م169 — عيادة مقفلة من تبويب العيادات العلوي.
+    this.onValidate, // م169/ب — فحصٌ قبل إغلاق النموذج (تعارض/استراحة).
   });
+
+  /// م169/ب — يُستدعى بنتيجة النموذج قبل إغلاقه؛ false تُبقيه مفتوحاً
+  /// (فلا يضيع إدخال المستخدم عند تعارضٍ ألغاه) — توأم conflictOk بالهاتف.
+  final Future<bool> Function(_FormResult)? onValidate;
 
   /// م164 — عيادات الإعدادات: واحدة ⇒ اختيار تلقائي؛ تعدد ⇒ إلزامي.
   final List<String> clinics;
+
+  /// م169 — عند الإضافة من تبويب عيادةٍ محددة: تُعبأ وتُقفل (لا تُغيَّر).
+  final String? lockedClinic;
 
   final JMap? editing;
   final List<JMap> records;
@@ -1878,6 +2035,10 @@ class _AppointmentFormState extends State<_AppointmentForm> {
   String _time = '';
   String _clinic = '';
   List<String> _suggestions = [];
+
+  /// م169/ب — وضع الاستراحة ☕ (توأم معالج الهاتف): اسمٌ اختياري، بلا
+  /// هاتف/خدمة/تكرار، وتُكتب بعلم isBreak: 1.
+  bool _isBreak = false;
 
   /// نمط التكرار المختار: null = بلا (عادي).
   String? _repeat;
@@ -1910,6 +2071,13 @@ class _AppointmentFormState extends State<_AppointmentForm> {
       _clinic = widget.clinics.first;
     }
     if (!widget.clinics.contains(_clinic)) _clinic = '';
+    // م169 — العيادة المقفلة من التبويب العلوي تتقدم على كل تعبئة.
+    final locked = widget.lockedClinic;
+    if (locked != null && widget.clinics.contains(locked)) {
+      _clinic = locked;
+    }
+    // م169/ب — تعديل استراحةٍ قائمة يفتح النموذج بوضع الاستراحة.
+    _isBreak = widget.editing != null && isBreakRow(widget.editing!);
   }
 
   @override
@@ -1922,10 +2090,10 @@ class _AppointmentFormState extends State<_AppointmentForm> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final durTxt = _durationCtl.text.trim();
     final dur = durTxt.isEmpty ? null : jsNumOr0(durTxt).toInt();
-    Navigator.of(context).pop(_FormResult(
+    final result = _FormResult(
       editingId: _isEdit ? '${widget.editing!['id']}' : null,
       name: _nameCtl.text,
       phone: _phoneCtl.text,
@@ -1935,10 +2103,16 @@ class _AppointmentFormState extends State<_AppointmentForm> {
       notes: _notesCtl.text,
       clinic: _clinic,
       // التكرار يظهر عند الإنشاء فقط — التعديل يمس الموعد الواحد.
-      repeat: _isEdit ? null : _repeat,
+      // م169/ب — الاستراحة بلا تكرار (سلوك معالج الهاتف).
+      repeat: (_isEdit || _isBreak) ? null : _repeat,
       count: _count,
       durationMin: (dur != null && dur > 0) ? dur : null,
-    ));
+      isBreak: _isBreak,
+    );
+    // م169/ب — الفحص قبل الإغلاق: تعارضٌ/استراحة يُبقي النموذج مفتوحاً.
+    final v = widget.onValidate;
+    if (v != null && !await v(result)) return;
+    if (mounted) Navigator.of(context).pop(result);
   }
 
   @override
@@ -1958,7 +2132,17 @@ class _AppointmentFormState extends State<_AppointmentForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // م164 — العيادة أولاً: إلزامية عند التعدد وظاهرة دائماً.
-              if (widget.clinics.length > 1) ...[
+              // م169 — عيادةٌ مقفلة: نصٌّ ثابت (كنمط العيادة الواحدة)
+              // بدل قائمةٍ منسدلة — لا تُغيَّر من النموذج.
+              if (widget.lockedClinic != null) ...[
+                Text('العيادة: $_clinic',
+                    key: const Key('appt-form-clinic-locked'),
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        color: BrandColors.mut)),
+                const SizedBox(height: 8),
+              ] else if (widget.clinics.length > 1) ...[
                 DropdownButtonFormField<String>(
                   key: const Key('appt-form-clinic'),
                   initialValue: _clinic.isEmpty ? null : _clinic,
@@ -1985,6 +2169,42 @@ class _AppointmentFormState extends State<_AppointmentForm> {
                         color: BrandColors.mut)),
                 const SizedBox(height: 8),
               ],
+              // ── م169/ب — مفتاح «استراحة ☕» (توأم معالج الهاتف):
+              // اسمٌ اختياري، بلا هاتف/خدمة/تكرار، isBreak: 1 عند الحفظ ──
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: _isBreak
+                      ? const Color(0xFFB45309).withValues(alpha: .08)
+                      : BrandColors.ink.withValues(alpha: .035),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: _isBreak
+                          ? const Color(0xFFB45309).withValues(alpha: .4)
+                          : BrandColors.line,
+                      width: .7),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Text('استراحة ☕ — تمنع الحجز فوقها',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: _isBreak
+                                ? const Color(0xFFB45309)
+                                : BrandColors.mut)),
+                  ),
+                  Switch(
+                    key: const Key('appt-form-break'),
+                    value: _isBreak,
+                    activeTrackColor: const Color(0xFFB45309),
+                    onChanged: _isEdit
+                        ? null // التعديل لا يقلب نوع الصف — سلوك الهاتف.
+                        : (v) => setState(() => _isBreak = v),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 10),
               Row(children: [
                 Expanded(
                   child: TextField(
@@ -1992,25 +2212,30 @@ class _AppointmentFormState extends State<_AppointmentForm> {
                     controller: _nameCtl,
                     autofocus: true,
                     style: const TextStyle(fontSize: 12.5),
-                    decoration: const InputDecoration(
-                        isDense: true, labelText: 'اسم المريض *'),
+                    decoration: InputDecoration(
+                        isDense: true,
+                        // م169/ب — الاسم اختياري للاستراحة (افتراضه «استراحة»).
+                        labelText:
+                            _isBreak ? 'اسم الاستراحة (اختياري)' : 'اسم المريض *'),
                     onChanged: (v) => setState(() {
                       _suggestions = apptNameSuggestions(
                           v, widget.records, widget.prosthetics);
                     }),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    key: const Key('appt-form-phone'),
-                    controller: _phoneCtl,
-                    keyboardType: TextInputType.phone,
-                    style: const TextStyle(fontSize: 12.5),
-                    decoration: const InputDecoration(
-                        isDense: true, labelText: 'رقم الهاتف'),
+                if (!_isBreak) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      key: const Key('appt-form-phone'),
+                      controller: _phoneCtl,
+                      keyboardType: TextInputType.phone,
+                      style: const TextStyle(fontSize: 12.5),
+                      decoration: const InputDecoration(
+                          isDense: true, labelText: 'رقم الهاتف'),
+                    ),
                   ),
-                ),
+                ],
               ]),
               if (_suggestions.isNotEmpty)
                 Container(
@@ -2043,6 +2268,8 @@ class _AppointmentFormState extends State<_AppointmentForm> {
                   ]),
                 ),
               const SizedBox(height: 10),
+              // م169/ب — لا حقل خدمة للاستراحة.
+              if (!_isBreak)
               TextField(
                 key: const Key('appt-form-service'),
                 controller: _serviceCtl,
@@ -2129,7 +2356,8 @@ class _AppointmentFormState extends State<_AppointmentForm> {
               ),
 
               // ── محدد التكرار — يظهر عند الإنشاء فقط ──
-              if (!_isEdit) ...[
+              // م169/ب — والاستراحة بلا تكرار (سلوك معالج الهاتف).
+              if (!_isEdit && !_isBreak) ...[
                 const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.all(12),

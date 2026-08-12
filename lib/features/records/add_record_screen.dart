@@ -1448,28 +1448,29 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 ],
               ),
 
-              // ── م167/ج: «التحاليل الثلاثية» سطرٌ كامل بارز (كانت
-              // منكمشة كأنها إضافة هامشية — ملاحظة المالك) ──
-              if (widget.editEntry == null &&
-                  triAnalysesEnabled(config)) ...[
+              // ── قسم الدين ──
+              // م169 — فوراً أسفل مفتاح «دين» (كان في ذيل النموذج بعيداً
+              // عن مفتاحه — ملاحظة المالك): يظهر لحظة التفعيل تحت الصف.
+              if (isDebt) ...[
                 const SizedBox(height: 10),
                 Container(
-                  height: 44,
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: hasAnalysis
-                        ? BrandColors.green.withValues(alpha: .08)
-                        : BrandColors.ink.withValues(alpha: .045),
+                    color: BrandColors.surface2,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: hasAnalysis
-                          ? BrandColors.green.withValues(alpha: .45)
-                          : BrandColors.line,
-                      width: hasAnalysis ? 1 : .7,
-                    ),
+                    border:
+                        Border.all(color: BrandColors.line, width: .7),
                   ),
-                  child: Center(child: _analToggle(config)),
+                  child: TextField(
+                    key: const Key('rec-firstpay'),
+                    controller: firstPayCtl,
+                    keyboardType: TextInputType.number,
+                    decoration: vdec('الدفعة الأولى', hint: '0'),
+                  ),
                 ),
               ],
+
+
 
               // ── قسم التركيبات ──
               if (pros) ...[
@@ -1591,6 +1592,37 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                   ),
                 ),
               ],
+
+              // ── م167/ج: «التحاليل الثلاثية» سطرٌ كامل بارز ──
+              // م169/ب — أسفل مربعات المختبر (التركيبات) مباشرةً، وطريقة
+              // دفعها تحته فوراً (ملاحظة المالك على لقطة 2026-08-12).
+              if (widget.editEntry == null &&
+                  triAnalysesEnabled(config)) ...[
+                const SizedBox(height: 10),
+                Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: hasAnalysis
+                        ? BrandColors.green.withValues(alpha: .08)
+                        : BrandColors.ink.withValues(alpha: .045),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: hasAnalysis
+                          ? BrandColors.green.withValues(alpha: .45)
+                          : BrandColors.line,
+                      width: hasAnalysis ? 1 : .7,
+                    ),
+                  ),
+                  child: Center(child: _analToggle(config)),
+                ),
+              ],
+
+              // ── نظام «التحاليل» — منطقة التحليل المنبسطة ──
+              if (hasAnalysis) ...[
+                const SizedBox(height: 10),
+                _analysisSection(keyPrefix: 'rec'),
+              ],
+
               const SizedBox(height: 10),
 
               // ── م167: رقاقتان متساويتان بارتفاع موحد (كانتا مفتاحين
@@ -1694,31 +1726,7 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                 ],
               ),
 
-              // ── قسم الدين ──
-              if (isDebt) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: BrandColors.surface2,
-                    borderRadius: BorderRadius.circular(12),
-                    border:
-                        Border.all(color: BrandColors.line, width: .7),
-                  ),
-                  child: TextField(
-                    key: const Key('rec-firstpay'),
-                    controller: firstPayCtl,
-                    keyboardType: TextInputType.number,
-                    decoration: vdec('الدفعة الأولى', hint: '0'),
-                  ),
-                ),
-              ],
 
-              // ── نظام «التحاليل» — منطقة التحليل المنبسطة ──
-              if (hasAnalysis) ...[
-                const SizedBox(height: 10),
-                _analysisSection(keyPrefix: 'rec'),
-              ],
 
               // ── معلومات مختصرة (قرار المالك — ميزة الملاحظات المختصرة) ──
               // كانت «ملاحظات» حبيسةَ قسم الدين؛ صارت حقلاً دائماً لكل
