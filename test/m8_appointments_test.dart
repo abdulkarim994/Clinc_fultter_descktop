@@ -332,6 +332,9 @@ void main() {
           'completed',
         );
         c2.dispose();
+        // م173 — المؤرشف صار في تبويب «أرشيف اليوم» المستقل.
+        await tester.tap(find.byKey(const Key('appt-tab-archive')));
+        await tester.pumpAndSettle();
         await tester.ensureVisible(find.byKey(Key('appt-undone-$id')));
         await tester.pumpAndSettle();
         await tester.tap(
@@ -345,6 +348,9 @@ void main() {
           'upcoming',
         );
         c2.dispose();
+        // العودة لتبويب الجدول لبقية الخطوات.
+        await tester.tap(find.byKey(const Key('appt-tab-schedule')));
+        await tester.pumpAndSettle();
 
         // م164 — الحذف صار في ورقة الإجراءات السريعة: افتح البطاقة أولاً.
         await tester.ensureVisible(find.byKey(Key('appt-row-$id')));
