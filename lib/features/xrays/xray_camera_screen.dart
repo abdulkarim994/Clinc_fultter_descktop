@@ -212,20 +212,22 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
     if (leave == true && mounted) Navigator.of(context).pop();
   }
 
-  /// م173/ب — معاينة «cover» بملء الشاشة (إصلاح المالك: كانت تظهر
-  /// صندوقاً صغيراً وسط الشاشة): النمط القياسي المضمون — أبعاد حساس
-  /// الكاميرا الحقيقية previewSize (مقلوبةً عرضاً/ارتفاعاً في الوضع
-  /// العمودي) داخل FittedBox بوضع cover، فتملأ الشاشة دائماً بقصٍّ
-  /// صحيح مهما كانت نسبة الجهاز — بلا أي معادلات مقياس هشة.
+  /// م173/ج — معاينة «cover» بملء الشاشة (الإصلاح النهائي): مكوّن
+  /// CameraPreview يفرض داخلياً AspectRatio بقيمة aspectRatio (مقلوبةً
+  /// في الوضع العمودي) — وأجهزةٌ تبلّغها بقيمٍ غير قياسية فيرسم شريطاً
+  /// داخل أي صندوقٍ لا يطابقها. الحل: صندوق FittedBox يُبنى **بالنسبة
+  /// الداخلية نفسها حرفياً** (مرآة معادلة المكوّن)، فيملأ النسيجُ
+  /// الصندوقَ كاملاً دائماً ويقصُّ FittedBox الفائض لملء الشاشة —
+  /// مهما كانت القيمة المبلَّغة ومهما كان الجهاز.
   /// لواقط الإيماءات (زوم القرصة + تركيز اللمس) طبقةٌ بملء الشاشة
   /// بإحداثيات مطبّعة عليها (لا داخل التحويل — يفسد إحداثيات اللمس).
   Widget _coverPreview(CameraController ctl) {
-    final ps = ctl.value.previewSize;
-    final portrait =
-        MediaQuery.orientationOf(context) == Orientation.portrait;
-    // أبعاد الحساس تأتي أفقيةً دائماً — تُقلب في الوضع العمودي.
-    final w = ps == null ? 9.0 : (portrait ? ps.height : ps.width);
-    final h = ps == null ? 16.0 : (portrait ? ps.width : ps.height);
+    final landscape =
+        MediaQuery.orientationOf(context) == Orientation.landscape;
+    // مرآة معادلة CameraPreview الداخلية حرفياً: أفقي ⇒ النسبة كما
+    // هي، عمودي ⇒ مقلوبة — فيتطابق الصندوق مع نسيج المعاينة تماماً.
+    final raw = ctl.value.aspectRatio;
+    final ar = raw <= 0 ? 9 / 16 : (landscape ? raw : 1 / raw);
     return LayoutBuilder(
       builder: (context, box) => GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -255,8 +257,8 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
             child: FittedBox(
               fit: BoxFit.cover,
               child: SizedBox(
-                width: w,
-                height: h,
+                width: 1000 * ar,
+                height: 1000,
                 child: CameraPreview(ctl),
               ),
             ),
