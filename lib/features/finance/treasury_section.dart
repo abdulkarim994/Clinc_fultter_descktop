@@ -25,6 +25,8 @@ import '../expenses/expenses_report.dart' show expenseCategoryLabel;
 import '../print/treatment_tables.dart' show formatNumber;
 import '../staff/staff_gate.dart' show staffAllowed;
 import 'analyses_filter.dart' show monthAnalysesRows, monthAnalysesTotals;
+// م168 — رؤية الشهر المركزية للتحاليل (اختفاء شامل بعد تاريخ الإيقاف).
+import '../settings/analyses3.dart' show triVisibleInMonth;
 import 'finance_screen.dart' show financeRevProvider;
 import 'treasury_logic.dart';
 import 'treasury_tables.dart';
@@ -65,6 +67,9 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
     final anal = monthAnalysesTotals(records, month: s.month);
     final ex = repos.expenses.monthExpenseTotals(s.month);
     final t = treasuryTotals(s);
+    // م168 — رؤية التحاليل لهذا الشهر: الأشهر التاريخية (حتى شهر
+    // الإيقاف) تبقى ببطاقتها وقيمها، والتالية تختفي كلياً بلا فراغ.
+    final triSee = triVisibleInMonth(ref.watch(appConfigProvider), s.month);
 
     return ListView(
       key: const Key('treasury-main'),
@@ -111,6 +116,8 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
             expTotal: ex.total,
             det: det,
             dense: true,
+            // م168 — إخفاء صف التحاليل للأشهر التالية للإيقاف.
+            showAnal: triSee,
           )
         else ...[
           // ── وضع «التفصيل»: صفوف بسيطة بروح الديون ────────────────────
@@ -127,15 +134,18 @@ class _TreasurySectionState extends ConsumerState<TreasurySection> {
             const SizedBox(height: 8),
           ],
           Divider(height: 18, color: BrandColors.line),
-          TreasuryMasterRow(
-            key: const Key('tr2-row-anal'),
-            icon: Icons.biotech_rounded,
-            label: 'إيراد التحاليل الثلاثية',
-            value: det ? '${n(anal.cash + anal.transfer)} $cur' : '—',
-            color: BrandColors.green,
-            onTap: () => _openDetail(context, s, 'anal'),
-          ),
-          const SizedBox(height: 8),
+          // م168 — بطاقة التحاليل وفاصلها السفلي يختفيان معاً بعد الإيقاف.
+          if (triSee) ...[
+            TreasuryMasterRow(
+              key: const Key('tr2-row-anal'),
+              icon: Icons.biotech_rounded,
+              label: 'إيراد التحاليل الثلاثية',
+              value: det ? '${n(anal.cash + anal.transfer)} $cur' : '—',
+              color: BrandColors.green,
+              onTap: () => _openDetail(context, s, 'anal'),
+            ),
+            const SizedBox(height: 8),
+          ],
           TreasuryMasterRow(
             key: const Key('tr2-row-exp'),
             icon: Icons.receipt_long_rounded,
