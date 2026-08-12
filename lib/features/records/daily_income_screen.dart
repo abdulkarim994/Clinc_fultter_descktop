@@ -34,6 +34,9 @@ import 'analysis_actions.dart' show promptAddAnalysisToVisit;
 import 'day_close_store.dart' show DayCloseStore, confirmClosedDayWrite;
 import 'home_logic.dart' hide JMap;
 import 'pay_breakdown_dialog.dart' show MixedPayCell;
+// م168 — حارسا الرؤية المركزيان للتحاليل الثلاثية (اختفاء شامل عند الإيقاف).
+import '../settings/analyses3.dart'
+    show triAnalysesEnabled, triVisibleOnDate;
 import '../staff/staff_gate.dart'
     show gateStaff, requestAdminSignature, staffAllowed;
 import '../staff/staff_store.dart' show StaffStore;
@@ -230,6 +233,11 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
     final rowAnalyses =
         analysisRowMarks(dayRows, analIndex, getCurrentDate())[row.id] ??
             const <AnalysisLink>[];
+    // م168 — حارسا الرؤية المركزيان: العرض («التحاليل ✓») تاريخيٌّ حتى
+    // يوم الإيقاف، والإضافة/الحذف بالتفعيل وحده فيختفيان فور الإيقاف.
+    final triCfg = ref.read(appConfigProvider);
+    final triOn = triAnalysesEnabled(triCfg);
+    final triSee = triVisibleOnDate(triCfg, getCurrentDate());
     Widget item({
       required IconData icon,
       required String label,
@@ -368,7 +376,8 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
                 ),
               // نظام «التحاليل» — بندٌ يظهر فقط إن للصف تحليلٌ مرتبط: يفتح
               // نافذةً تعرض التحاليل (الاسم/القيمة/الطريقة). دخلٌ معزول.
-              if (rowAnalyses.isNotEmpty)
+              // م168 — عرضٌ تاريخي: يظهر حتى يوم الإيقاف ويختفي بعده.
+              if (rowAnalyses.isNotEmpty && triSee)
                 item(
                   icon: Icons.science_rounded,
                   label: 'التحاليل ✓',
@@ -381,7 +390,9 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
               // م147 — «إضافة التحاليل»: توأم بند سطح المكتب حرفياً — يظهر
               // للصفوف غير المصروفية التي لا تحاليل لها وللمستخدم صلاحية
               // records.add، ويفتح نافذة كاش/تحويل (سلوك «زيارة جديدة»).
-              if (rowAnalyses.isEmpty &&
+              // م168 — التفاعل بالتفعيل وحده: الإيقاف يخفيه فوراً وكلياً.
+              if (triOn &&
+                  rowAnalyses.isEmpty &&
                   row.id.isNotEmpty &&
                   staffAllowed('records.add'))
                 item(
@@ -395,7 +406,10 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
               // م147 — «حذف التحاليل» — يظهر فقط للصفوف التي لها تحاليل
               // وللمستخدم صلاحية records.delete. دخلٌ مخبري معزول لا يمس
               // مجاميع الزيارة (توأم بند سطح المكتب).
-              if (rowAnalyses.isNotEmpty && staffAllowed('records.delete'))
+              // م168 — التفاعل بالتفعيل وحده: الإيقاف يخفيه فوراً وكلياً.
+              if (triOn &&
+                  rowAnalyses.isNotEmpty &&
+                  staffAllowed('records.delete'))
                 item(
                   icon: Icons.delete_outline,
                   label: 'حذف التحاليل',
