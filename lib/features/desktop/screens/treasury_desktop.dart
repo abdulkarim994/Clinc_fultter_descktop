@@ -26,6 +26,8 @@ import '../../finance/analyses_filter.dart'
     show monthAnalysesRows, monthAnalysesTotals;
 import '../../finance/finance_screen.dart' show financeRevProvider;
 import '../../finance/treasury_logic.dart';
+// م168 — رؤية الشهر المركزية للتحاليل (اختفاء شامل بعد تاريخ الإيقاف).
+import '../../settings/analyses3.dart' show triVisibleInMonth;
 import '../../finance/treasury_tables.dart';
 import '../../print/treatment_tables.dart' show formatNumber;
 import '../../staff/staff_gate.dart' show staffAllowed;
@@ -79,6 +81,11 @@ class _DesktopTreasuryScreenState
     final anal = monthAnalysesTotals(records, month: s.month);
     final ex = repos.expenses.monthExpenseTotals(s.month);
     final t = treasuryTotals(s);
+    // م168 — رؤية التحاليل لهذا الشهر: الأشهر التاريخية (حتى شهر
+    // الإيقاف) تبقى ببندها وقيمها، والتالية تختفي كلياً بلا فراغ —
+    // ولو كان بند التحاليل محدداً في شهرٍ مخفي يُعامل كلا تحديد.
+    final triSee = triVisibleInMonth(ref.watch(appConfigProvider), s.month);
+    final effSel = (_sel == 'anal' && !triSee) ? null : _sel;
 
     final saved = ref.watch(desktopPrefsProvider)[_kViewKey];
     final totalsView = _totalsView ?? (saved is bool ? saved : false);
@@ -139,6 +146,8 @@ class _DesktopTreasuryScreenState
                       expXfer: ex.xfer,
                       expTotal: ex.total,
                       det: det,
+                      // م168 — إخفاء صف التحاليل للأشهر التالية للإيقاف.
+                      showAnal: triSee,
                     ),
                   ],
                 ),
@@ -175,16 +184,19 @@ class _DesktopTreasuryScreenState
                 const SizedBox(height: 8),
               ],
               Divider(height: 18, color: BrandColors.line),
-              TreasuryMasterRow(
-                key: const Key('tr2-row-anal'),
-                icon: Icons.biotech_rounded,
-                label: 'إيراد التحاليل الثلاثية',
-                value: det ? '${n(anal.cash + anal.transfer)} $cur' : '—',
-                color: BrandColors.green,
-                selected: _sel == 'anal',
-                onTap: () => setState(() => _sel = 'anal'),
-              ),
-              const SizedBox(height: 8),
+              // م168 — بند التحاليل وفاصله يختفيان معاً بعد الإيقاف.
+              if (triSee) ...[
+                TreasuryMasterRow(
+                  key: const Key('tr2-row-anal'),
+                  icon: Icons.biotech_rounded,
+                  label: 'إيراد التحاليل الثلاثية',
+                  value: det ? '${n(anal.cash + anal.transfer)} $cur' : '—',
+                  color: BrandColors.green,
+                  selected: effSel == 'anal',
+                  onTap: () => setState(() => _sel = 'anal'),
+                ),
+                const SizedBox(height: 8),
+              ],
               TreasuryMasterRow(
                 key: const Key('tr2-row-exp'),
                 icon: Icons.receipt_long_rounded,
@@ -209,19 +221,20 @@ class _DesktopTreasuryScreenState
       minMasterWidth: 320,
       maxMasterWidth: 520,
       master: master,
-      detail: _sel == null
+      // م168 — عبر effSel: تحديد «التحاليل» في شهرٍ مخفي = لا تفصيل.
+      detail: effSel == null
           ? null
           : KeyedSubtree(
-              key: ValueKey('tr2-detail-$_sel-$_prosTab'),
-              child: _detail(s, records, cur),
+              key: ValueKey('tr2-detail-$effSel-$_prosTab'),
+              child: _detail(s, records, cur, effSel),
             ),
     );
   }
 
   // ── لوح التفصيل ───────────────────────────────────────────────────────
 
-  Widget _detail(TreasurySlice s, List<_JMap> records, String cur) {
-    final sel = _sel!;
+  // م168 — البند المعروض يُمرَّر صراحةً (effSel) بدل قراءة _sel مباشرة.
+  Widget _detail(TreasurySlice s, List<_JMap> records, String cur, String sel) {
     final isClinic = sel.startsWith('c:');
     final clinic = isClinic ? sel.substring(2) : '';
     final title = isClinic
