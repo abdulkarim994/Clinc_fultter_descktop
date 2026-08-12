@@ -8,6 +8,11 @@
          API 32) بإذن READ_EXTERNAL_STORAGE. منتقي المستندات (SAF) لا
          يحتاج إذناً — الإذنان يغطيان منتقي المعرض على كل الأجهزة. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- م172 — التصوير المباشر للأشعة بكاميرا داخل التطبيق (شاشة كاميرا
+         خاصة بهوية التطبيق — لا تطبيق الكاميرا الأساسي). الإذن وقت
+         التشغيل تطلبه إضافة camera عند التهيئة، والرفض يُعالج برسالة. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"/>
     <!-- م68/دفعة ثانٍ-أ — تقوية الخصوصية:
