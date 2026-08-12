@@ -42,6 +42,14 @@ final apptRevProvider = StateProvider<int>((ref) => 0);
 /// توأم query {followup:'1', ...}. يستهلكها التبويب (أو شاشة الدور) مرة.
 final followUpDraftProvider = StateProvider<JMap?>((ref) => null);
 
+/// م171 — يوم الهبوط المطلوب عند فتح تبويب المواعيد (من مربع مواعيد
+/// بطاقة المريض: «النقر يأخذني ليوم الحجز») — يُستهلك مرةً ثم يُصفَّر.
+final apptGoDayProvider = StateProvider<String>((ref) => '');
+
+/// م171 — مسودة «حجز موعد» من سجل المريض {name, phone, clinic}: يفتح بها
+/// المعالج معبأً (توأم مسودة المتابعة بلا وسمها) — تُستهلك ثم تُصفَّر.
+final apptBookDraftProvider = StateProvider<JMap?>((ref) => null);
+
 /// م164 — العيادة المختارة في شاشة الحجوزات (تبقى عبر التنقل بين التبويبات).
 final apptClinicProvider = StateProvider<String>((ref) => '');
 
@@ -101,6 +109,34 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
       if (widget.dayOnly) return;
       _purgeOldArchive();
       _consumeFollowUpDraft();
+      // م171 — الهبوط على يوم حجزٍ محدد ثم فتح معالجٍ معبأ إن وُجدت مسودة.
+      _consumeGoDay();
+      _consumeBookDraft();
+    });
+  }
+
+  /// م171 — الهبوط على يوم الحجز القادم من مربع مواعيد بطاقة المريض.
+  void _consumeGoDay() {
+    final go = ref.read(apptGoDayProvider);
+    if (go.isEmpty || !mounted) return;
+    ref.read(apptGoDayProvider.notifier).state = '';
+    setState(() => selectedDay = go);
+  }
+
+  /// م171 — فتح المعالج معبأً بمسودة حجزٍ من سجل المريض (الثلاث نقاط/
+  /// بطاقة المريض) — اسمٌ وهاتفٌ وعيادةٌ جاهزة، بلا وسم متابعة.
+  void _consumeBookDraft() {
+    final draft = ref.read(apptBookDraftProvider);
+    if (draft == null || !mounted) return;
+    ref.read(apptBookDraftProvider.notifier).state = null;
+    final clinic = '${draft['clinic'] ?? ''}';
+    if (clinic.isNotEmpty) {
+      ref.read(apptClinicProvider.notifier).state = clinic;
+    }
+    _openWizard(preset: {
+      'name': draft['name'],
+      'phone': draft['phone'],
+      'clinic': clinic,
     });
   }
 
