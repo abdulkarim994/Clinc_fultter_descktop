@@ -58,6 +58,9 @@ dependencies:
   connectivity_plus: ^7.3.1
   sqlite3_flutter_libs: ^0.6.0+eol
   image_picker: ^1.2.3
+  # م172 — الكاميرا الداخلية للأشعة (تصوير مباشر داخل التطبيق لا تطبيق
+  # الكاميرا الأساسي) — معاينة حية + التقاط وحفظ فوري في مسار الرفع.
+  camera: ^0.11.0
   flutter_secure_storage: ^10.3.1
   local_auth: ^3.0.2
   supabase_flutter: ^2.16.0
