@@ -185,6 +185,10 @@ void main() {
       await settle(tester);
       await tester.tap(find.byType(BackButton).first, warnIfMissed: false);
       await settle(tester);
+      // م173 — مغادرة قسمٍ مالي تعيد للرئيسية (قرار المالك): نعود
+      // لتبويب المالية أولاً ثم نفتح الأرباح.
+      await tester.tap(find.text('المالية'), warnIfMissed: false);
+      await settle(tester);
       await tester.tap(
         find.byKey(const Key('fin-seg-profits')),
         warnIfMissed: false,
