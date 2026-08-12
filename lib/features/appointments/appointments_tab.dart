@@ -258,6 +258,14 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab> {
     final clinic = _clinic;
     final today = getCurrentDate();
 
+    // م172 — وصول مسودة حجزٍ/يوم هبوطٍ والتبويب مفتوحٌ أصلاً (الزر
+    // العائم في الصدفة أو بطاقة مريضٍ فوق نفس التبويب): استهلاكٌ فوري.
+    ref.listen(apptBookDraftProvider, (prev, next) {
+      if (next != null) _consumeBookDraft();
+    });
+    ref.listen(apptGoDayProvider, (prev, next) {
+      if (next.isNotEmpty) _consumeGoDay();
+    });
     final apptMap = buildApptMap(
       appointments: appointments,
       records: records,
