@@ -212,42 +212,54 @@ class _XrayCameraScreenState extends State<XrayCameraScreen> {
     if (leave == true && mounted) Navigator.of(context).pop();
   }
 
-  /// م173 — معاينة «cover» بملء الشاشة: مقياسٌ من نسبتَي أبعاد الشاشة
-  /// والكاميرا يقص الفائض بدل الشريط العلوي المشوه السابق.
+  /// م173/ب — معاينة «cover» بملء الشاشة (إصلاح المالك: كانت تظهر
+  /// صندوقاً صغيراً وسط الشاشة): النمط القياسي المضمون — أبعاد حساس
+  /// الكاميرا الحقيقية previewSize (مقلوبةً عرضاً/ارتفاعاً في الوضع
+  /// العمودي) داخل FittedBox بوضع cover، فتملأ الشاشة دائماً بقصٍّ
+  /// صحيح مهما كانت نسبة الجهاز — بلا أي معادلات مقياس هشة.
+  /// لواقط الإيماءات (زوم القرصة + تركيز اللمس) طبقةٌ بملء الشاشة
+  /// بإحداثيات مطبّعة عليها (لا داخل التحويل — يفسد إحداثيات اللمس).
   Widget _coverPreview(CameraController ctl) {
-    final size = MediaQuery.sizeOf(context);
-    var scale = size.aspectRatio * ctl.value.aspectRatio;
-    if (scale < 1) scale = 1 / scale;
-    return ClipRect(
-      child: Transform.scale(
-        scale: scale,
-        child: Center(
-          child: GestureDetector(
-            // تكبير بقرصة الأصابع + تركيز بلمس النقطة.
-            onScaleStart: (_) => _zoomBase = _zoom,
-            onScaleUpdate: (d) async {
-              final z = (_zoomBase * d.scale).clamp(_zoomMin, _zoomMax);
-              if ((z - _zoom).abs() < .01) return;
-              _zoom = z;
-              try {
-                await ctl.setZoomLevel(z);
-              } catch (_) {}
-              if (mounted) setState(() {});
-            },
-            onTapDown: (d) async {
-              final box = context.findRenderObject() as RenderBox?;
-              if (box == null) return;
-              final local = box.globalToLocal(d.globalPosition);
-              final p = Offset(
-                (local.dx / box.size.width).clamp(0, 1),
-                (local.dy / box.size.height).clamp(0, 1),
-              );
-              try {
-                await ctl.setFocusPoint(p);
-                await ctl.setExposurePoint(p);
-              } catch (_) {}
-            },
-            child: CameraPreview(ctl),
+    final ps = ctl.value.previewSize;
+    final portrait =
+        MediaQuery.orientationOf(context) == Orientation.portrait;
+    // أبعاد الحساس تأتي أفقيةً دائماً — تُقلب في الوضع العمودي.
+    final w = ps == null ? 9.0 : (portrait ? ps.height : ps.width);
+    final h = ps == null ? 16.0 : (portrait ? ps.width : ps.height);
+    return LayoutBuilder(
+      builder: (context, box) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        // تكبير بقرصة الأصابع + تركيز بلمس النقطة (على كامل الشاشة).
+        onScaleStart: (_) => _zoomBase = _zoom,
+        onScaleUpdate: (d) async {
+          final z = (_zoomBase * d.scale).clamp(_zoomMin, _zoomMax);
+          if ((z - _zoom).abs() < .01) return;
+          _zoom = z;
+          try {
+            await ctl.setZoomLevel(z);
+          } catch (_) {}
+          if (mounted) setState(() {});
+        },
+        onTapDown: (d) async {
+          final p = Offset(
+            (d.localPosition.dx / box.maxWidth).clamp(0, 1),
+            (d.localPosition.dy / box.maxHeight).clamp(0, 1),
+          );
+          try {
+            await ctl.setFocusPoint(p);
+            await ctl.setExposurePoint(p);
+          } catch (_) {}
+        },
+        child: ClipRect(
+          child: SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: w,
+                height: h,
+                child: CameraPreview(ctl),
+              ),
+            ),
           ),
         ),
       ),
