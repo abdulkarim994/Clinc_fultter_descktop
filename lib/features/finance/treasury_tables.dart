@@ -663,6 +663,15 @@ String prosGroupType(ProsGroup g) {
 /// الدقيق: التاريخ/الدفعة/الدفع/المعمل/الطبيب/العيادة + صف إجمالي مميز
 /// يجمع كل عمود — بنفس منطق prosGrouped وحساباته حرفياً. فلترة كاش/
 /// تحويل داخل الاسم + طباعة كامل التركيبات بالتقرير القديم نفسه.
+/// م173 — مقبض رجوع جدول التركيبات: يتيح لزر رجوع النظام إغلاق تفاصيل
+/// الحالة المفتوحة (المستوى الثاني) بدل مغادرة الشاشة — تسلسلٌ هرمي.
+class ProsTableBackHandle {
+  bool Function()? _handler;
+
+  /// true = عولج الرجوع داخلياً (أُغلقت التفاصيل)، false = لا شيء مفتوح.
+  bool handleBack() => _handler?.call() ?? false;
+}
+
 class TreasuryProsTable extends ConsumerStatefulWidget {
   const TreasuryProsTable({
     super.key,
@@ -672,7 +681,11 @@ class TreasuryProsTable extends ConsumerStatefulWidget {
     required this.month,
     required this.clinic,
     this.dense = false,
+    this.backHandle,
   });
+
+  /// م173 — مقبض رجوعٍ اختياري تربطه شاشة التفصيل بزر رجوع النظام.
+  final ProsTableBackHandle? backHandle;
 
   final List<ProsGroup> groups;
 
@@ -697,6 +710,17 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
   ProsCaseRow? _openCase;
   String _pay = 'all';
 
+  @override
+  void initState() {
+    super.initState();
+    // م173 — ربط مقبض الرجوع: حالةٌ مفتوحة تُغلق بزر رجوع النظام.
+    widget.backHandle?._handler = () {
+      if (_openCase == null) return false;
+      setState(() => _openCase = null);
+      return true;
+    };
+  }
+
   // م157 — أعرُض أعمدة الجدول القابلة للسحب (سطح المكتب غير المكثف).
   double _cwDate = 84;
   double _cwLab = 76;
@@ -705,6 +729,7 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
 
   @override
   void dispose() {
+    widget.backHandle?._handler = null; // م173 — فك مقبض الرجوع.
     _searchCtl.dispose();
     super.dispose();
   }
