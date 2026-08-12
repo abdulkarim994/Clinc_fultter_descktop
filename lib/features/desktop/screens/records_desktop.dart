@@ -45,7 +45,8 @@ import '../../patients/patients_tab.dart'
 import '../../patients/quick_visit_sheet.dart' show showQuickVisitSheet;
 import '../../finance/analyses_registry.dart' show AnalysesRegistryCard;
 import '../../print/treatment_tables.dart' show formatNumber;
-import '../../settings/analyses3.dart' show triAnalysesEnabled;
+// م168 — مدخل السجل يظهر بالتفعيل أو بوجود تاريخٍ ظاهر (قبل الإيقاف).
+import '../../settings/analyses3.dart' show triHasVisibleHistory;
 import '../../staff/staff_gate.dart' show gateStaff, staffAllowed;
 import '../desktop_prefs.dart'
     show desktopPrefsProvider, saveDesktopPref;
@@ -576,8 +577,11 @@ class _DesktopRecordsScreenState
             currency: cur,
             clinicFilter: _clinicFilter,
             // م155 — مدخل التحاليل الثلاثية الثابت (خلف علم الميزة).
-            showAnalysesEntry:
-                triAnalysesEnabled(ref.watch(appConfigProvider)),
+            // م168 — أو بوجود تاريخٍ ظاهر قبل الإيقاف (عرضٌ تاريخي فقط).
+            showAnalysesEntry: triHasVisibleHistory(
+              ref.watch(appConfigProvider),
+              repos.records.getAll().cast<Map<String, Object?>>(),
+            ),
             analysesSelected: _analysesOpen,
             onOpenAnalyses: _openAnalyses,
             clinicStripExpanded: clinicStripExpanded,
