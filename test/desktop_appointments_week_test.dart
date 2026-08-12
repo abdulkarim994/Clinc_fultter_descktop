@@ -35,10 +35,12 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  /// سبت الأسبوع الحاوي لليوم (توأم حساب الجدولة: daysSinceSat=(weekday+1)%7).
-  DateTime weekStartOf(DateTime d) {
-    final day = DateTime(d.year, d.month, d.day);
-    return day.subtract(Duration(days: (day.weekday + 1) % 7));
+  /// م169 — الأسبوع متدحرجٌ يبدأ من اليوم: نبذر «الغد» (ثاني عمود —
+  /// مرئيٌّ دائماً وغير ماضٍ) بدل اثنين أسبوع السبت الذي قد يكون ماضياً
+  /// فيقفله عقد «الأيام السابقة للعرض فقط» الجديد.
+  DateTime tomorrow() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day).add(const Duration(days: 1));
   }
 
   String ymd(DateTime d) =>
@@ -126,9 +128,7 @@ void main() {
 
   testWidgets('بطاقة الموعد تظهر في يومها ووقتها', (tester) async {
     // موعدٌ يوم الاثنين من الأسبوع الحالي الساعة 10:00.
-    final ws = weekStartOf(DateTime.now());
-    final mon = ws.add(const Duration(days: 2)); // السبت+2 = الاثنين
-    final date = ymd(mon);
+    final date = ymd(tomorrow()); // م169 — الغد: مرئيٌّ وغير ماضٍ.
     final container = await boot(tester, seed: (c) {
       c.read(reposProvider).appointments.upsertLocal({
         'id': 'w1',
@@ -153,9 +153,7 @@ void main() {
   });
 
   testWidgets('النقل بالسحب الرأسي يحدّث الوقت ويُبقي التاريخ', (tester) async {
-    final ws = weekStartOf(DateTime.now());
-    final mon = ws.add(const Duration(days: 2));
-    final date = ymd(mon);
+    final date = ymd(tomorrow()); // م169 — الغد: مرئيٌّ وغير ماضٍ.
     final container = await boot(tester, seed: (c) {
       c.read(reposProvider).appointments.upsertLocal({
         'id': 'w2',
@@ -194,9 +192,7 @@ void main() {
 
   testWidgets('النسخ من الـpopover ينشئ صفاً جديداً بمعرّفٍ مختلف',
       (tester) async {
-    final ws = weekStartOf(DateTime.now());
-    final mon = ws.add(const Duration(days: 2));
-    final date = ymd(mon);
+    final date = ymd(tomorrow()); // م169 — الغد: مرئيٌّ وغير ماضٍ.
     final container = await boot(tester, seed: (c) {
       c.read(reposProvider).appointments.upsertLocal({
         'id': 'w3',
@@ -293,9 +289,7 @@ void main() {
 
   testWidgets('durationMin من نموذج تعديل يُحدّث الصف عبر الجدولة',
       (tester) async {
-    final ws = weekStartOf(DateTime.now());
-    final mon = ws.add(const Duration(days: 2));
-    final date = ymd(mon);
+    final date = ymd(tomorrow()); // م169 — الغد: مرئيٌّ وغير ماضٍ.
     final container = await boot(tester, seed: (c) {
       c.read(reposProvider).appointments.upsertLocal({
         'id': 'w4',
