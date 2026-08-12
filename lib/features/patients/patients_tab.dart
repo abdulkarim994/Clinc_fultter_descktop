@@ -24,7 +24,8 @@ import 'patient_profile_screen.dart' hide JMap;
 import 'patients_logic.dart';
 import '../finance/analyses_registry.dart'
     show AnalysesRegistryEntry, AnalysesRegistryScreen;
-import '../settings/analyses3.dart' show triAnalysesEnabled;
+// م168 — مدخل السجل يظهر بالتفعيل أو بوجود تاريخٍ ظاهر (قبل الإيقاف).
+import '../settings/analyses3.dart' show triHasVisibleHistory;
 import 'quick_visit_sheet.dart' show showQuickVisitSheet;
 import '../staff/staff_gate.dart' show gateStaff, staffAllowed;
 
@@ -305,7 +306,12 @@ class _ClinicsLandingState extends ConsumerState<_ClinicsLanding> {
         const SizedBox(height: 12),
         // م154 — مدخل «إيراد التحاليل الثلاثية»: السجل الدائم انتقل من
         // الخزينة إلى السجلات (قرار المالك) — يظهر حين الميزة مفعّلة.
-        if (triAnalysesEnabled(ref.watch(appConfigProvider))) ...[
+        // م168 — أو حين يوجد تاريخُ تحاليلَ سابقٌ لتاريخ الإيقاف (عرضٌ
+        // تاريخي فقط — البيانات القديمة تبقى وصولة ولا مدخل بلا تاريخ).
+        if (triHasVisibleHistory(
+          ref.watch(appConfigProvider),
+          ref.watch(reposProvider).records.getAll().cast<Map<String, Object?>>(),
+        )) ...[
           AnalysesRegistryEntry(
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
