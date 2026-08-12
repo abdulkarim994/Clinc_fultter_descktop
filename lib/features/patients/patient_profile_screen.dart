@@ -37,6 +37,13 @@ import 'audit_log.dart' show appendAudit, hasAudit;
 import 'audit_trail.dart' show AuditAction, recordAudit;
 import '../xrays/xray_section.dart';
 import '../xrays/xray_store.dart' show xrayKeysFor;
+import '../appointments/appointments_tab.dart'
+    show apptBookDraftProvider, apptGoDayProvider;
+import '../shell/app_shell.dart' show activeTabProvider;
+import '../appointments/appt_lifecycle.dart'
+    show apptStatusColor, apptStatusLabel, patientUpcomingAppointments;
+import '../appointments/appointments_logic.dart' show to12h;
+import '../desktop/desktop_shell.dart' show desktopTabProvider;
 import '../records/analysis_actions.dart' show promptAddAnalysisToVisit;
 import '../records/day_close_store.dart' show confirmClosedDayWrite;
 import '../records/income_day_dialog.dart' show askIncomeDay;
@@ -1289,6 +1296,12 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
                         'الديون${activeDebts.isNotEmpty ? ' (${activeDebts.length})' : ''}',
                         Icons.add_circle_outline_rounded,
                       ),
+                      // م171 — المواعيد بعد الديون وقبل الأشعة (طلب المالك).
+                      _secTab(
+                        'appts',
+                        'المواعيد${_patientAppts().isNotEmpty ? ' (${_patientAppts().length})' : ''}',
+                        Icons.event_note_rounded,
+                      ),
                       _secTab(
                         'xrays',
                         'الأشعة',
@@ -1543,6 +1556,14 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
                           ),
                         ),
                   ],
+
+                  // ── م171 — المواعيد: حجوزات المريض القادمة، النقر
+                  // ينقل ليوم الحجز في تبويب المواعيد، وزر حجزٍ سريع ──
+                  if (activeSection == 'appts')
+                    _Section(
+                      title: 'المواعيد المحجوزة',
+                      child: _appointmentsBody(),
+                    ),
 
                   // ── صور الأشعة ──
                   if (activeSection == 'xrays')
@@ -2222,6 +2243,15 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
               'إضافة التحاليل الثلاثية',
               _addTriAnalysisToLastVisit,
             ),
+          // م171 — «حجز موعد» من ورقة إجراءات البطاقة (طلب المالك).
+          if (staffAllowed('records.add'))
+            action(
+              sheetCtx,
+              const Key('pp-act-book'),
+              Icons.event_available_rounded,
+              'حجز موعد',
+              _bookAppointment,
+            ),
           action(
             sheetCtx,
             const Key('pp-act-del'),
@@ -2249,6 +2279,115 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
       ),
       builder: body,
     );
+  }
+
+  /// م171 — مواعيد المريض القادمة (المعلقة) بهويته (الاسم + هاتف الهوية
+  /// لاستبعاد السميّ) — مصدر تبويب «المواعيد» وعدّاده.
+  List<JMap> _patientAppts() => patientUpcomingAppointments(
+        ref.read(reposProvider).appointments.getAll().cast<JMap>(),
+        name,
+        phone: _medPhone(),
+      ).cast<JMap>();
+
+  /// م171 — جسم تبويب «المواعيد»: قائمة الحجوزات القادمة (التاريخ/الوقت/
+  /// العيادة/الحالة) — النقر ينقل ليوم الحجز، وزر حجزٍ سريع أعلى القائمة.
+  Widget _appointmentsBody() {
+    final appts = _patientAppts();
+    String latin(String d) => d.replaceAll('-', '/');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // زر الحجز السريع — يفتح معالج المواعيد معبأً بالمريض.
+        if (staffAllowed('records.add'))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: OutlinedButton.icon(
+              key: const Key('pp-appt-book'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: BrandColors.goldDark,
+                side: BorderSide(
+                    color: BrandColors.gold.withValues(alpha: .5)),
+                visualDensity: VisualDensity.compact,
+              ),
+              onPressed: _bookAppointment,
+              icon: const Icon(Icons.event_available_rounded, size: 16),
+              label: const Text('حجز موعد',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            ),
+          ),
+        if (appts.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Text('لا توجد مواعيد محجوزة قادمة',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: BrandColors.mut2)),
+          )
+        else
+          for (final a in appts)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 3),
+              child: Material(
+                color: BrandColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(color: BrandColors.line, width: .7),
+                ),
+                child: ListTile(
+                key: Key('pp-appt-${a['id']}'),
+                dense: true,
+                leading: Icon(Icons.event_rounded,
+                    size: 18,
+                    color: apptStatusColor('${a['status'] ?? 'pending'}')),
+                title: Text(
+                  '${latin('${a['date'] ?? ''}')}'
+                  '${'${a['time'] ?? ''}'.isNotEmpty ? ' • ${to12h('${a['time']}')}' : ''}',
+                  style: const TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w800),
+                ),
+                subtitle: Text(
+                  '${'${a['clinic'] ?? ''}'.isNotEmpty ? '${a['clinic']} • ' : ''}'
+                  '${apptStatusLabel('${a['status'] ?? 'pending'}')}',
+                  style: TextStyle(fontSize: 11, color: BrandColors.mut),
+                ),
+                trailing: Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 12, color: BrandColors.faint),
+                // النقر يأخذ ليوم الحجز في تبويب المواعيد (طلب المالك).
+                onTap: () => _goToApptDay('${a['date'] ?? ''}'),
+              ),
+              ),
+            ),
+      ],
+    );
+  }
+
+  /// م171 — الانتقال ليوم حجزٍ محدد في تبويب المواعيد: يُبذر يوم الهبوط
+  /// ثم يُفتح التبويب (الكمبيوتر: الأسبوع يبدأ منه؛ الهاتف: قائمة اليوم).
+  void _goToApptDay(String date) {
+    if (date.isEmpty) return;
+    ref.read(apptGoDayProvider.notifier).state = date;
+    if (isDesktopUi(context)) {
+      ref.read(desktopTabProvider.notifier).state = 'calendar';
+    } else {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      ref.read(activeTabProvider.notifier).state = 'calendar';
+    }
+  }
+
+  /// م171 — «حجز موعد» من بطاقة المريض: مسودة {اسم/هاتف/عيادة} ثم فتح
+  /// تبويب المواعيد ليفتح معالجه/نموذجه معبأً.
+  void _bookAppointment() {
+    ref.read(apptBookDraftProvider.notifier).state = {
+      'name': name,
+      'phone': _medPhone(),
+      'clinic': clinic,
+    };
+    if (isDesktopUi(context)) {
+      ref.read(desktopTabProvider.notifier).state = 'calendar';
+    } else {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      ref.read(activeTabProvider.notifier).state = 'calendar';
+    }
   }
 
   /// م147 — آخر زيارة قائمة للمريض: توأم بناء allEntries في build حرفياً
