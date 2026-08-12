@@ -226,11 +226,15 @@ void main() {
     expect(row['status'], 'completed');
     expect(row['archivedOn'], today, reason: 'ختم يوم الأرشفة');
 
-    // البطاقة انتقلت للأرشيف: لا صف نشط، وقسم الأرشيف يعدّ 1 — لا ازدواج.
+    // البطاقة انتقلت للأرشيف: لا صف نشط، وعدّاد الجدول صفر — لا ازدواج.
     expect(find.byKey(const Key('appt-done-a1')), findsNothing);
-    expect(find.textContaining('أرشيف اليوم (1)'), findsOneWidget);
     expect(find.textContaining('0 موعد'), findsOneWidget,
         reason: 'المؤرشف لا يُحسب في عدّاد الجدول الحالي');
+
+    // م173 — الأرشيف صار في تبويبه المستقل: فتحه يظهر عنوانه بعدّاده.
+    await t.tap(find.byKey(const Key('appt-tab-archive')));
+    await t.pumpAndSettle();
+    expect(find.textContaining('أرشيف اليوم (1)'), findsOneWidget);
 
     // التراجع يعيده للجدول.
     await t.ensureVisible(find.byKey(const Key('appt-undone-a1')));
@@ -239,6 +243,10 @@ void main() {
     await t.pumpAndSettle();
     expect(c.read(reposProvider).appointments.getById('a1')!['status'],
         'upcoming');
+
+    // العودة لتبويب الجدول: الموعد عاد لعدّاده.
+    await t.tap(find.byKey(const Key('appt-tab-schedule')));
+    await t.pumpAndSettle();
     expect(find.textContaining('1 موعد'), findsOneWidget);
   });
 
