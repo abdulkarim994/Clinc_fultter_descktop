@@ -79,6 +79,38 @@ String? nextApptStatus(Object? raw) {
 /// هل الصف استراحة؟ (علم رقمي isBreak: 1 — لا قيم منطقية).
 bool isBreakRow(JMap a) => jsTruthy(a['isBreak']);
 
+/// م171 — مواعيد المريض القادمة (المعلقة) لمربع «المواعيد» في بطاقته:
+/// بالاسم المطابق، ومع هاتفين صريحين مختلفين على الطرفين يُستبعد السميّ
+/// (توأم استثناء السميَّين). تستثني الاستراحات والحالات النهائية، مرتبةً
+/// بالتاريخ فالوقت تصاعدياً.
+List<JMap> patientUpcomingAppointments(
+  List<JMap> rows,
+  String name, {
+  String phone = '',
+}) {
+  final nm = name.trim();
+  if (nm.isEmpty) return const [];
+  final ph = phone.replaceAll(RegExp(r'[^0-9]'), '');
+  bool phoneOk(JMap a) {
+    final ap = '${a['phone'] ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
+    return ph.isEmpty || ap.isEmpty || ap == ph;
+  }
+
+  final out = <JMap>[
+    for (final a in rows)
+      if (!isBreakRow(a) &&
+          !isTerminalStatus(a['status']) &&
+          '${a['name'] ?? ''}'.trim() == nm &&
+          phoneOk(a))
+        a,
+  ];
+  out.sort((x, y) {
+    final d = '${x['date'] ?? ''}'.compareTo('${y['date'] ?? ''}');
+    return d != 0 ? d : '${x['time'] ?? ''}'.compareTo('${y['time'] ?? ''}');
+  });
+  return out;
+}
+
 /// مدة الصف بالدقائق — durationMin أو الافتراضي 30.
 int apptDurationMin(JMap a) {
   final n = jsNumOr0(a['durationMin']).toInt();

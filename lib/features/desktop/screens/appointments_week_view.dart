@@ -52,7 +52,8 @@ import '../../appointments/appointments_logic.dart'
         waReminderText;
 import '../../appointments/appt_lifecycle.dart'
     show apptStatusColor, filterByClinic, normApptStatus;
-import '../../appointments/appointments_tab.dart' show apptRevProvider;
+import '../../appointments/appointments_tab.dart'
+    show apptGoDayProvider, apptRevProvider;
 import '../../patients/patients_tab.dart' show patientsRevProvider;
 import '../desktop_prefs.dart'
     show desktopPrefsProvider, saveDesktopPref;
@@ -184,6 +185,17 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
     // م169 — أسبوعٌ متدحرج يبدأ من اليوم: اليومُ أولُ عمودٍ على اليمين
     // دائماً (كان يبدأ من سبت الأسبوع)، والتنقل للخلف يبقى للعرض فقط.
     _weekStart = _todayMidnight();
+    // م171 — يوم هبوطٍ من مربع مواعيد بطاقة المريض: الأسبوع يبدأ منه
+    // («النقر يأخذني ليوم الحجز»). القراءة هنا وتصفيرُ المزود بعد الإطار
+    // (تعديله أثناء initState يرمي «modify provider while building»).
+    final go = ref.read(apptGoDayProvider);
+    if (go.isNotEmpty) {
+      final d = DateTime.tryParse(go);
+      if (d != null) _weekStart = DateTime(d.year, d.month, d.day);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(apptGoDayProvider.notifier).state = '';
+      });
+    }
     // م166 — استرجاع مقياس الجدول المحفوظ (40–160).
     final saved = double.tryParse(
         '${ref.read(desktopPrefsProvider)[_kHourHKey] ?? ''}');

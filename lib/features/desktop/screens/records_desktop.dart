@@ -42,6 +42,9 @@ import '../../patients/patients_tab.dart'
         homeJumpProvider,
         patientMapProvider,
         patientsRevProvider;
+import '../../appointments/appointments_tab.dart'
+    show apptBookDraftProvider;
+import '../../appointments/appt_lifecycle.dart' show kNoClinic;
 import '../../patients/quick_visit_sheet.dart' show showQuickVisitSheet;
 import '../../finance/analyses_registry.dart' show AnalysesRegistryCard;
 import '../../print/treatment_tables.dart' show formatNumber;
@@ -52,6 +55,7 @@ import '../../settings/clinic_admin.dart' show archivedClinicsOf;
 import '../../staff/staff_gate.dart' show gateStaff, staffAllowed;
 import '../desktop_prefs.dart'
     show desktopPrefsProvider, saveDesktopPref;
+import '../desktop_shell.dart' show desktopTabProvider;
 import '../widgets/context_menu.dart'
     show CtxItem, ContextMenuRegion;
 import '../widgets/split_view.dart'
@@ -451,6 +455,22 @@ class _DesktopRecordsScreenState
           icon: Icons.add_circle_rounded,
           keyId: 'records-quick-visit',
           onTap: () => _addVisit(p),
+        ),
+      // م171 — «حجز موعد» من الثلاث نقاط (طلب المالك): مسودة {اسم/هاتف/
+      // عيادة} ثم تبويب المواعيد يفتح نموذجه معبأً.
+      if (staffAllowed('records.add'))
+        CtxItem(
+          'حجز موعد',
+          icon: Icons.event_available_rounded,
+          keyId: 'records-book-appt',
+          onTap: () {
+            ref.read(apptBookDraftProvider.notifier).state = {
+              'name': agg.name,
+              'phone': agg.phone,
+              'clinic': agg.clinic == kNoClinic ? '' : agg.clinic,
+            };
+            ref.read(desktopTabProvider.notifier).state = 'calendar';
+          },
         ),
       // تعديل البيانات — اكتساح الاسم/الهاتفين (editPatientCascade).
       if (staffAllowed('records.edit'))

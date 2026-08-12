@@ -47,7 +47,7 @@ import '../../appointments/appt_lifecycle.dart'
         normApptStatus,
         overlappingRow; // م169/ب — كشف التعارض (توأم معالج الهاتف)
 import '../../appointments/appointments_tab.dart'
-    show apptRevProvider;
+    show apptBookDraftProvider, apptGoDayProvider, apptRevProvider;
 import '../../patients/patients_tab.dart' show patientsRevProvider;
 import '../desktop_prefs.dart'
     show desktopPrefsProvider, saveDesktopPref;
@@ -119,6 +119,29 @@ class _DesktopAppointmentsScreenState
         repos.appointments.delete(id);
       }
       if (ids.isNotEmpty) _bump();
+      // م171 — يوم هبوطٍ من بطاقة المريض: نفرض عرض الأسبوع (الجدولة
+      // تستهلك اليوم نفسه في initState فتبدأ أسبوعها منه).
+      if (ref.read(apptGoDayProvider).isNotEmpty) {
+        saveDesktopPref(ref, _kViewKey, 'week', immediate: true);
+        setState(() {});
+      }
+      // م171 — مسودة حجزٍ من سجل المريض: تثبيت تبويب عيادتها ثم فتح
+      // النموذج معبأً (فيقفل حقل العيادة عليها وفق قاعدة م169).
+      final draft = ref.read(apptBookDraftProvider);
+      if (draft != null) {
+        ref.read(apptBookDraftProvider.notifier).state = null;
+        final clinic = '${draft['clinic'] ?? ''}';
+        final clinics = clinicsOf(ref.read(appConfigProvider));
+        if (clinic.isNotEmpty && clinics.contains(clinic)) {
+          saveDesktopPref(ref, _kClinicKey, clinic, immediate: true);
+          setState(() {});
+        }
+        _openForm(booking: true, prefill: {
+          'name': draft['name'],
+          'phone': draft['phone'],
+          'clinic': clinic,
+        });
+      }
     });
   }
 
@@ -654,6 +677,7 @@ class _DesktopAppointmentsScreenState
     String? defaultDate,
     String? defaultTime,
     JMap? prefill,
+    bool booking = false, // م171 — حجزٌ جديد معبأ (لا «نسخ»).
   }) async {
     // م169 — قاعدة العيادة عند الإضافة: «الكل» للعرض فقط (لا إضافة قبل
     // اختيار عيادةٍ محددة)، والعيادة المختارة من التبويب العلوي تُقفل
@@ -673,10 +697,10 @@ class _DesktopAppointmentsScreenState
     final result = await showDesktopDialog<_FormResult>(
       context,
       title: editing == null
-          ? (prefill == null ? 'موعد جديد' : 'نسخ الموعد')
+          ? ((prefill == null || booking) ? 'موعد جديد' : 'نسخ الموعد')
           : 'تعديل الموعد',
       subtitle: editing == null
-          ? (prefill == null
+          ? ((prefill == null || booking)
               ? 'أضف موعداً عادياً أو دورياً'
               : 'نسخةٌ جديدة — اختر التاريخ والوقت')
           : 'تعديل هذا الموعد فقط',
