@@ -42,6 +42,7 @@ import '../../../core/utils/js_compat.dart';
 import '../../appointments/appointments_logic.dart'
     show
         JMap,
+        buildApptMap, // م169/ج — توحيد مصدر الجدول مع القائمة
         cleanPhone,
         debtSmsText,
         debtWaText,
@@ -180,7 +181,9 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
   @override
   void initState() {
     super.initState();
-    _weekStart = _weekStartOf(DateTime.now());
+    // م169 — أسبوعٌ متدحرج يبدأ من اليوم: اليومُ أولُ عمودٍ على اليمين
+    // دائماً (كان يبدأ من سبت الأسبوع)، والتنقل للخلف يبقى للعرض فقط.
+    _weekStart = _todayMidnight();
     // م166 — استرجاع مقياس الجدول المحفوظ (40–160).
     final saved = double.tryParse(
         '${ref.read(desktopPrefsProvider)[_kHourHKey] ?? ''}');
@@ -207,13 +210,10 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
     saveDesktopPref(ref, _kHourHKey, '$_kHourH', immediate: true);
   }
 
-  /// سبت الأسبوع الحاوي لتاريخٍ ما (منتصف الليل). حساب العقد:
-  /// daysSinceSat = (weekday+1)%7 حيث weekday: الاثنين=1..الأحد=7.
-  /// السبت=6 ⇒ (6+1)%7=0 (اليوم نفسه بداية أسبوعه).
-  static DateTime _weekStartOf(DateTime d) {
-    final day = DateTime(d.year, d.month, d.day);
-    final daysSinceSat = (day.weekday + 1) % 7;
-    return day.subtract(Duration(days: daysSinceSat));
+  /// م169 — منتصف ليل اليوم: بداية الأسبوع المتدحرج (بدل سبت الأسبوع).
+  static DateTime _todayMidnight() {
+    final n = DateTime.now();
+    return DateTime(n.year, n.month, n.day);
   }
 
   String _ymd(DateTime d) =>
@@ -287,14 +287,30 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
     final weekEnd = days.last;
     final todayStr = getCurrentDate();
 
-    // جلب صفوف الأسبوع الحقيقية (القابلة للتحرير) ثم توزيعها على الأيام.
+    // م169/ج — الجدول والقائمة أساسٌ واحد بطريقتَي عرض (قرار المالك):
+    // المصدر الموحد buildApptMap نفسه — صفوف المستودع الحقيقية القابلة
+    // للتحرير + الحجوزات المشتقة من السجلات/التركيبات (حقل appointment —
+    // تظهر بلا وقتٍ في شريط «بلا وقت» وتُدار من ملف المريض، عرضٌ فقط).
     // م164 — تبويب العيادة يفلتر الجدولة أيضاً (توأم فلترة القائمة).
-    final rows = filterByClinic(
-        ref
-            .watch(reposProvider)
-            .appointments
-            .getByDateRange(_ymd(_weekStart), _ymd(weekEnd)),
-        widget.clinicFilter);
+    final weekRepos = ref.watch(reposProvider);
+    final mergedMap = buildApptMap(
+      appointments: weekRepos.appointments
+          .getByDateRange(_ymd(_weekStart), _ymd(weekEnd)),
+      records: weekRepos.records.getAll(),
+      prosthetics: weekRepos.prosthetics.getAll(),
+    );
+    // الصفوف الحقيقية تُجرَّد من علامة _src العارضة قبل بلوغ مسارات
+    // الكتابة (upsertLocal ينشر الخريطة كاملة)؛ المشتقة تُبقيها كوسم
+    // «عرضٌ فقط» يفحصه _showDetails.
+    final rows = [
+      for (final r in filterByClinic(
+        [
+          for (final day in days) ...(mergedMap[_ymd(day)] ?? const <JMap>[]),
+        ],
+        widget.clinicFilter,
+      ))
+        if (r['_src'] == 'rec') r else ({...r}..remove('_src')),
+    ];
 
     final byDay = <String, List<JMap>>{};
     final noTime = <JMap>[]; // بلا وقتٍ أو خارج مدى الدوام.
@@ -322,8 +338,8 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
               _weekStart = _weekStart.subtract(const Duration(days: 7))),
           onNext: () => setState(() =>
               _weekStart = _weekStart.add(const Duration(days: 7))),
-          onToday: () =>
-              setState(() => _weekStart = _weekStartOf(DateTime.now())),
+          // م169 — «اليوم» يعيد الأسبوع المتدحرج (اليوم أول الأعمدة).
+          onToday: () => setState(() => _weekStart = _todayMidnight()),
           // م166 — مؤشر المقياس وزر العودة لـ 100% (Ctrl+عجلة للتغيير).
           zoomPct: (_kHourH / _kHourHDefault * 100).round(),
           onResetZoom: () {
@@ -367,6 +383,8 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
                           day: day,
                           dayStr: _ymd(day),
                           isToday: _ymd(day) == todayStr,
+                          // م169 — الأيام السابقة تُعرض مبهتة (عرضٌ فقط).
+                          isPast: _ymd(day).compareTo(todayStr) < 0,
                           startHour: startHour,
                           endHour: endHour,
                           now: _now,
@@ -374,23 +392,48 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
                           durationOf: _durationOf,
                           timeToMinutes: _timeToMinutes,
                           minutesToTime: _minutesToTime,
-                          onEmptyTap: (mins) => widget.actions.openForm(
-                            defaultDate: _ymd(day),
-                            defaultTime: _minutesToTime(mins),
-                          ),
+                          // م169 — قفل الإنشاء في الأيام السابقة: الماضي
+                          // للعرض فقط (يبقى مبهتاً)، ورسالة عند المحاولة.
+                          onEmptyTap: (mins) {
+                            if (_ymd(day).compareTo(todayStr) < 0) {
+                              _pastDaySnack();
+                              return;
+                            }
+                            widget.actions.openForm(
+                              defaultDate: _ymd(day),
+                              defaultTime: _minutesToTime(mins),
+                            );
+                          },
                           onTapCard: _showDetails,
                           onDoubleTapCard: (a) =>
                               widget.actions.openForm(editing: a),
-                          onMove: (a, newDayStr, newMins) => widget.actions
-                              .move(a,
-                                  date: newDayStr,
-                                  time: _minutesToTime(newMins)),
-                          onCopy: (a, newDayStr, newMins) => widget.actions
-                              .copy(a,
-                                  date: newDayStr,
-                                  time: _minutesToTime(newMins)),
-                          onResize: (a, newDuration) =>
-                              widget.actions.setDuration(a, newDuration),
+                          // م169 — الأيام السابقة للعرض فقط: لا نقل ولا
+                          // نسخ ولا تغيير مدة على موعدٍ في يومٍ ماضٍ.
+                          onMove: (a, newDayStr, newMins) {
+                            if (newDayStr.compareTo(todayStr) < 0) {
+                              _pastDaySnack();
+                              return;
+                            }
+                            widget.actions.move(a,
+                                date: newDayStr,
+                                time: _minutesToTime(newMins));
+                          },
+                          onCopy: (a, newDayStr, newMins) {
+                            if (newDayStr.compareTo(todayStr) < 0) {
+                              _pastDaySnack();
+                              return;
+                            }
+                            widget.actions.copy(a,
+                                date: newDayStr,
+                                time: _minutesToTime(newMins));
+                          },
+                          onResize: (a, newDuration) {
+                            if (_ymd(day).compareTo(todayStr) < 0) {
+                              _pastDaySnack();
+                              return;
+                            }
+                            widget.actions.setDuration(a, newDuration);
+                          },
                           weekStart: _weekStart,
                         ),
                       ),
@@ -405,8 +448,23 @@ class _WeeklySchedulerState extends ConsumerState<WeeklyScheduler> {
     );
   }
 
+  /// م169 — رسالة قفل الأيام السابقة الموحدة.
+  void _pastDaySnack() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('الأيام السابقة للعرض فقط — لا إضافة ولا تعديل مواعيد فيها')),
+    );
+  }
+
   // ── popover التفاصيل ──
   void _showDetails(JMap a) {
+    // م169/ج — الصف المشتق من سجل زيارةٍ (rec) عرضٌ فقط هنا: لا إجراءات
+    // موعدٍ عليه — يُدار من ملف المريض نفسه (توأم وسمه بالهاتف).
+    if (a['_src'] == 'rec') {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'حجزٌ من سجل الزيارة («${a['name']}») — يُدار من ملف المريض')));
+      return;
+    }
     final repos = ref.read(reposProvider);
     final debts = repos.debts.getAll();
     showDialog<void>(
@@ -724,6 +782,7 @@ class _DayColumn extends StatefulWidget {
     required this.day,
     required this.dayStr,
     required this.isToday,
+    this.isPast = false, // م169 — يومٌ سابق: عرضٌ مبهت فقط.
     required this.startHour,
     required this.endHour,
     required this.now,
@@ -743,6 +802,9 @@ class _DayColumn extends StatefulWidget {
   final DateTime day;
   final String dayStr;
   final bool isToday;
+
+  /// م169 — الأيام السابقة تظهر مبهتةً (الإنشاء/التعديل محجوبان أعلى).
+  final bool isPast;
   final int startHour;
   final int endHour;
   final DateTime now;
@@ -820,9 +882,12 @@ class _DayColumnState extends State<_DayColumn> {
 
       return Container(
         decoration: BoxDecoration(
-          color: widget.isToday
-              ? BrandColors.gold.withValues(alpha: .04)
-              : null,
+          // م169 — الأيام السابقة مبهتة بطبقةٍ حبرية خفيفة (عرضٌ فقط).
+          color: widget.isPast
+              ? BrandColors.ink.withValues(alpha: .05)
+              : widget.isToday
+                  ? BrandColors.gold.withValues(alpha: .04)
+                  : null,
           border: Border(
             right: BorderSide(color: BrandColors.line, width: .6),
           ),
@@ -969,7 +1034,8 @@ class _DayColumnState extends State<_DayColumn> {
         heightPx: height,
         durationMin: duration,
         overflow: overflow,
-        dimmed: isDragging,
+        // م169 — بطاقات الأيام السابقة مبهتة (عرضٌ فقط).
+        dimmed: isDragging || widget.isPast,
         onTap: () => widget.onTapCard(a),
         onDoubleTap: () => widget.onDoubleTapCard(a),
         onDragStart: () {
