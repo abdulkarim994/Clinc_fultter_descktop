@@ -19,7 +19,8 @@ import 'tab_icons.dart';
 import '../finance/finance_screen.dart'
     show FinanceScreen, financeSectionProvider;
 import '../additional/additional_tab.dart';
-import '../patients/patients_tab.dart' show PatientsTab, homeJumpProvider;
+import '../patients/patients_tab.dart'
+    show PatientsTab, homeJumpProvider, openClinicProvider;
 import '../appointments/appointments_logic.dart' show to12h;
 import '../appointments/appt_lifecycle.dart' show bookingSystemOf;
 import '../appointments/appointments_tab.dart';
@@ -243,7 +244,25 @@ class AppShellScreen extends ConsumerWidget {
     };
     final tabBar = _ShellTabBar(bottom: tabBottom);
 
-    return Scaffold(
+    // م173 — زر رجوع النظام (قرار المالك): تسلسلٌ هرمي متوقع —
+    //   • داخل عيادةٍ في السجلات ⇒ رجوعٌ لبوابة العيادات أولاً.
+    //   • أي تبويبٍ غير الرئيسية ⇒ رجوعٌ للرئيسية.
+    //   • الرئيسية ⇒ خروجٌ طبيعي من التطبيق.
+    // «داخل عيادة» تُراقب كي يعاد البناء فيتحدث canPop معها.
+    final inClinic =
+        active == 'clinics' && ref.watch(openClinicProvider) != null;
+    return PopScope(
+      canPop: active == 'home' && !inClinic,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (ref.read(activeTabProvider) == 'clinics' &&
+            ref.read(openClinicProvider) != null) {
+          ref.read(openClinicProvider.notifier).state = null;
+          return;
+        }
+        ref.read(activeTabProvider.notifier).state = 'home';
+      },
+      child: Scaffold(
       body: Column(
         children: [
           // ── هيدر العلامة — توأم .brand-header حرفياً: تدرج 160deg مع
@@ -462,6 +481,7 @@ class AppShellScreen extends ConsumerWidget {
               _ => null,
             },
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      ),
     );
   }
 }
