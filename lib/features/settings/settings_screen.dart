@@ -58,6 +58,7 @@ import 'analyses3.dart'
         kTriAnalysesName,
         triAnalysesEnabled,
         triAnalysesPrice,
+        triCfgWrite, // م168 — كاتب الكتلة المركزي (يدير disabledOn)
         triRepeatMonths;
 
 typedef JMap = Map<String, Object?>;
@@ -1710,6 +1711,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// يكتب خريطة التحاليل الثلاثية {'price','enabled','repeatMonths'} تحت
   /// kTriAnalysesCfgKey عبر آلية _update نفسها لمفاتيح config البسيطة —
   /// الحقول الثلاثة تُكتب معاً دوماً فلا يُسقط كاتبٌ حقلَ الآخر.
+  /// م168 — البناء عبر triCfgWrite المركزية: تختم disabledOn بتاريخ اليوم
+  /// عند الانتقال مفعّل→متوقف وتمحوه عند التفعيل (قاعدة الاختفاء الشامل).
   void _writeTriAnal({
     required num price,
     required bool enabled,
@@ -1718,11 +1721,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _update(
       (c) => {
         ...c,
-        kTriAnalysesCfgKey: {
-          'price': price,
-          'enabled': enabled,
-          'repeatMonths': repeatMonths,
-        },
+        kTriAnalysesCfgKey: triCfgWrite(
+          c,
+          price: price,
+          enabled: enabled,
+          repeatMonths: repeatMonths,
+          today: getCurrentDate(),
+        ),
       },
     );
   }
@@ -1739,11 +1744,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'app.config',
       {
         ...cfg,
-        kTriAnalysesCfgKey: {
-          'price': now,
-          'enabled': triAnalysesEnabled(cfg),
-          'repeatMonths': triRepeatMonths(cfg),
-        },
+        // م168 — عبر triCfgWrite: كتابة السعر تحافظ على disabledOn كما هو.
+        kTriAnalysesCfgKey: triCfgWrite(
+          cfg,
+          price: now,
+          enabled: triAnalysesEnabled(cfg),
+          repeatMonths: triRepeatMonths(cfg),
+          today: getCurrentDate(),
+        ),
       },
       configBase: cfg,
     );
@@ -1767,11 +1775,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       'app.config',
       {
         ...cfg,
-        kTriAnalysesCfgKey: {
-          'price': triAnalysesPrice(cfg),
-          'enabled': triAnalysesEnabled(cfg),
-          'repeatMonths': now,
-        },
+        // م168 — عبر triCfgWrite: كتابة المدة تحافظ على disabledOn كما هو.
+        kTriAnalysesCfgKey: triCfgWrite(
+          cfg,
+          price: triAnalysesPrice(cfg),
+          enabled: triAnalysesEnabled(cfg),
+          repeatMonths: now,
+          today: getCurrentDate(),
+        ),
       },
       configBase: cfg,
     );
