@@ -47,6 +47,8 @@ import '../../finance/analyses_registry.dart' show AnalysesRegistryCard;
 import '../../print/treatment_tables.dart' show formatNumber;
 // م168 — مدخل السجل يظهر بالتفعيل أو بوجود تاريخٍ ظاهر (قبل الإيقاف).
 import '../../settings/analyses3.dart' show triHasVisibleHistory;
+// م170 — بطاقات العيادات المؤرشفة (عرض تاريخي).
+import '../../settings/clinic_admin.dart' show archivedClinicsOf;
 import '../../staff/staff_gate.dart' show gateStaff, staffAllowed;
 import '../desktop_prefs.dart'
     show desktopPrefsProvider, saveDesktopPref;
@@ -515,8 +517,13 @@ class _DesktopRecordsScreenState
 
     // بطاقات العيادات — تُبنى من الدالة الجاهزة clinicCards (تتفاعل مع
     // selectedMonthProvider تلقائياً بحكم ref.watch أعلاه).
+    // م170 — بطاقات المؤرشفة التاريخية تبقى في السجلات (عرضٌ وتصفح).
     final cards = clinicCards(
-      clinics: clinics,
+      clinics: [
+        ...clinics,
+        for (final a in archivedClinicsOf(ref.watch(appConfigProvider)))
+          if (!clinics.contains(a)) a,
+      ],
       month: month,
       records: repos.records.getAll(),
       prosthetics: repos.prosthetics.getAll(),

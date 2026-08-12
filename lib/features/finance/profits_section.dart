@@ -16,6 +16,8 @@ import '../archive/archive_screen.dart';
 import '../print/treatment_tables.dart' show formatNumber;
 import 'finance_screen.dart';
 import 'profits_logic.dart';
+// م170 — اللقطات المالية المجمدة للعيادات المحذوفة (تبقى بالسجل المالي).
+import '../settings/clinic_admin.dart' show frozenRowsForMonth;
 import '../staff/staff_gate.dart' show gateStaff;
 
 class ProfitsSection extends ConsumerStatefulWidget {
@@ -133,16 +135,36 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
             ),
           ]),
           Builder(builder: (context) {
-            final rows = monthlyClinicRows(
-              month,
-              records: records,
-              prosthetics: prosthetics,
-              debts: debts,
-              clinics: clinics,
-              doctorPct: doctorPct,
-            );
+            // م170 — صفوف العيادات المحذوفة من لقطاتها المجمدة (السجل
+            // المالي القديم يبقى عادياً بعد الحذف — قرار المالك).
+            final cfg = ref.watch(appConfigProvider);
+            final frozenRows = frozenRowsForMonth(cfg, month);
+            final rows = [
+              ...monthlyClinicRows(
+                month,
+                records: records,
+                prosthetics: prosthetics,
+                debts: debts,
+                clinics: clinics,
+                doctorPct: doctorPct,
+              ),
+              for (final f in frozenRows)
+                ClinicProfitRow(
+                  '${f.clinic} 🔒',
+                  jsNumOr0(f.fields['revenue']),
+                  jsNumOr0(f.fields['doctor']),
+                  jsNumOr0(f.fields['clinicShare']),
+                ),
+            ];
             final grand = getMonthlyReport(
                 records, prosthetics, debts, month, doctorPct);
+            // الإجمالي العام مع المجمد (كي يطابق الشهر التاريخي حرفياً).
+            num frozenRevenue = 0, frozenDoctor = 0, frozenClinic = 0;
+            for (final f in frozenRows) {
+              frozenRevenue += jsNumOr0(f.fields['revenue']);
+              frozenDoctor += jsNumOr0(f.fields['doctor']);
+              frozenClinic += jsNumOr0(f.fields['clinicShare']);
+            }
             final ex = repos.expenses.monthExpenseTotals(month);
             return Column(children: [
               if (rows.isEmpty)
@@ -200,13 +222,16 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
                             color: BrandColors.goldDark)),
                     const SizedBox(height: 8),
                     Row(children: [
-                      _ProfCell('إجمالي الإيرادات', n(grand.grandTotal),
+                      _ProfCell('إجمالي الإيرادات',
+                          n(grand.grandTotal + frozenRevenue),
                           BrandColors.goldDark,
                           key: const Key('prof-grand-revenue')),
-                      _ProfCell('ربح الطبيب', n(grand.doctorTotal),
+                      _ProfCell('ربح الطبيب',
+                          n(grand.doctorTotal + frozenDoctor),
                           BrandColors.green,
                           key: const Key('prof-grand-doctor')),
-                      _ProfCell('ربح العيادة', n(grand.clinicTotal),
+                      _ProfCell('ربح العيادة',
+                          n(grand.clinicTotal + frozenClinic),
                           BrandColors.brand600,
                           key: const Key('prof-grand-clinic')),
                     ]),
@@ -217,7 +242,7 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
                         _ProfCell('المصروفات', n(ex.total), BrandColors.red),
                         _ProfCell(
                             'صافي ربح العيادة',
-                            n(grand.clinicTotal - ex.total),
+                            n(grand.clinicTotal + frozenClinic - ex.total),
                             BrandColors.brand700,
                             key: const Key('prof-grand-clinic-net')),
                       ]),

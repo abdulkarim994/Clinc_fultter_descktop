@@ -589,6 +589,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('svc-del-0')), warnIfMissed: false);
       await settle(tester);
+      // م170 — تنبيه تأكيد الحذف الجديد: السجلات التاريخية تبقى.
+      await tester.tap(find.byKey(const Key('svc-del-confirm')),
+          warnIfMissed: false);
+      await settle(tester);
 
       final chk = ProviderContainer(
         overrides: [

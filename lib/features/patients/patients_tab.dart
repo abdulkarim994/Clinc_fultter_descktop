@@ -26,6 +26,8 @@ import '../finance/analyses_registry.dart'
     show AnalysesRegistryEntry, AnalysesRegistryScreen;
 // م168 — مدخل السجل يظهر بالتفعيل أو بوجود تاريخٍ ظاهر (قبل الإيقاف).
 import '../settings/analyses3.dart' show triHasVisibleHistory;
+// م170 — بطاقات العيادات المؤرشفة (عرض تاريخي).
+import '../settings/clinic_admin.dart' show archivedClinicsOf;
 import 'quick_visit_sheet.dart' show showQuickVisitSheet;
 import '../staff/staff_gate.dart' show gateStaff, staffAllowed;
 
@@ -109,8 +111,14 @@ class _ClinicsLandingState extends ConsumerState<_ClinicsLanding> {
       searchCtl.text = query;
     }
 
+    // م170 — العيادات المؤرشفة (اسمٌ قديم بعد تعديل «للجديد فقط») تبقى
+    // ببطاقاتها التاريخية في السجلات — عرضٌ وتصفح فقط، لا إدخال عليها.
     final cards = clinicCards(
-      clinics: clinics,
+      clinics: [
+        ...clinics,
+        for (final a in archivedClinicsOf(ref.watch(appConfigProvider)))
+          if (!clinics.contains(a)) a,
+      ],
       month: month,
       records: repos.records.getAll(),
       prosthetics: repos.prosthetics.getAll(),
