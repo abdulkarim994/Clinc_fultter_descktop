@@ -23,8 +23,12 @@ import '../../core/utils/js_compat.dart';
 import '../../core/utils/uid.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'queue_add_sheet.dart' show showQueueAddSheet;
 import 'queue_order.dart';
+import '../../core/widgets/shiny_fab.dart' show ShinyFab;
+import '../desktop/desktop_gate.dart' show isDesktopUi;
 import '../appointments/appointments_tab.dart' show followUpDraftProvider;
+import '../staff/staff_gate.dart' show staffAllowed;
 import '../settings/settings_screen.dart' show kDefaultQueueWaTemplate;
 
 /// تنسيق وقت 12 ساعة (4:30 PM) — fmtTime حرفياً من الأصل. الفارغ ⇒ «—».
@@ -82,6 +86,11 @@ class QueueView {
 
 /// نبضة إعادة قراءة لبيانات الدور بعد كل كتابة (لا تمس حالة العرض).
 final queueRevProvider = StateProvider<int>((ref) => 0);
+
+/// م177 — مسودة إضافة حجزٍ بالدور (من بطاقة المريض/المتابعة): تُستهلك
+/// مرةً عند فتح اللوحة فتنبثق ورقة الإضافة معبأةً بها.
+final queueAddDraftProvider =
+    StateProvider<Map<String, Object?>?>((ref) => null);
 
 class QueueController extends Notifier<QueueView> {
   @override
@@ -333,30 +342,64 @@ class QueueScreen extends ConsumerStatefulWidget {
 }
 
 class _QueueScreenState extends ConsumerState<QueueScreen> {
+  /// م177 — حارس ضد دفع اللوحة مرتين من هذه الشاشة.
+  bool _boardOpen = false;
+
   @override
   void initState() {
     super.initState();
     // م164 — مسودة المتابعة حين يكون نوع الحجز «بالدور» (الإعداد هو
-    // المصدر الوحيد للسلوك): تفتح عيادةَ سجلها مباشرةً — الاسم والهاتف
-    // تستهلكهما لوحة الدور نفسها في نموذج الإضافة السريعة.
+    // المصدر الوحيد للسلوك): تفتح عيادةَ سجلها مباشرةً — والاسم والهاتف
+    // م177: تستهلكهما ورقة الإضافة المنبثقة داخل اللوحة.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final draft = ref.read(followUpDraftProvider);
-      if (draft == null) return;
-      final clinic = '${draft['clinic'] ?? ''}';
-      final clinics = ref.read(clinicsProvider);
-      if (clinic.isNotEmpty && clinics.contains(clinic)) {
-        ref.read(queueViewProvider.notifier).openClinic(clinic);
+      if (draft != null) {
+        ref.read(followUpDraftProvider.notifier).state = null;
+        final clinic = '${draft['clinic'] ?? ''}';
+        final clinics = ref.read(clinicsProvider);
+        ref.read(queueAddDraftProvider.notifier).state = {
+          'name': draft['name'],
+          'phone': draft['phone'],
+          'notes': jsTruthy(draft['service'])
+              ? 'متابعة — ${draft['service']}'
+              : '',
+        };
+        if (clinic.isNotEmpty && clinics.contains(clinic)) {
+          ref.read(queueViewProvider.notifier).openClinic(clinic);
+        }
       }
+      // م177 — عيادة مفتوحة (متابعة/بطاقة مريض/عودة للتبويب) ⇒ اللوحة
+      // شاشةً كاملة فوق الصدفة.
+      _maybeOpenBoard();
     });
+  }
+
+  /// م177 — دفع لوحة الدور شاشةً كاملة (مرة واحدة، وفقط حين تكون هذه
+  /// الشاشة ظاهرةً — لا دفع مزدوجاً حين تفتح بطاقة المريض لوحتها فوقها).
+  void _maybeOpenBoard() {
+    if (!mounted || _boardOpen) return;
+    // م177 — الكمبيوتر: DesktopQueueScreen يبدّل للوحة المضمنة بنفسه.
+    if (isDesktopUi(context)) return;
+    if (ref.read(queueViewProvider).clinic == null) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    _boardOpen = true;
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(
+            builder: (_) => const QueueBoardScreen()))
+        .whenComplete(() => _boardOpen = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final view = ref.watch(queueViewProvider);
-    return view.clinic == null
-        ? const _ClinicSelect()
-        : const _QueueBoard();
+    // فتح عيادةٍ من أي مسار ⇒ دفع اللوحة (شاشة الاختيار تبقى تحتها).
+    ref.listen(queueViewProvider, (prev, next) {
+      if ((prev?.clinic == null) && next.clinic != null) {
+        _maybeOpenBoard();
+      }
+    });
+    return const _ClinicSelect();
   }
 }
 
@@ -510,51 +553,65 @@ class _ClinicSelect extends ConsumerWidget {
   }
 }
 
-// ── لوحة الدور ──
-class _QueueBoard extends ConsumerStatefulWidget {
-  const _QueueBoard();
+// ── لوحة الدور — م177: شاشة كاملة مستقلة (قرار المالك): سهم الرجوع
+// يميناً واسم العيادة وسط الترويسة بخط كبير، صف تاريخٍ أنحف بسهمين
+// والتاريخ وسطاً كبيراً غامقاً، وتبويبات «صباحاً/مساءً/الأرشيف» بمؤشرٍ
+// منزلقٍ وسحبٍ أفقي (تصميم تبويبات الحجز التقليدي م173) — والإضافة
+// بورقة منبثقة من الأسفل (زر دائري) بدل مربع + العلوي الملغى. ──
+class QueueBoardScreen extends ConsumerStatefulWidget {
+  const QueueBoardScreen({super.key, this.embedded = false});
+
+  /// الكمبيوتر يضمّنها داخل بطاقة تبويب الحجوزات (لا مساراً مدفوعاً) —
+  /// زر الرجوع حينها يعيد لاختيار العيادة بدل إغلاق مسار.
+  final bool embedded;
 
   @override
-  ConsumerState<_QueueBoard> createState() => _QueueBoardState();
+  ConsumerState<QueueBoardScreen> createState() =>
+      _QueueBoardScreenState();
 }
 
-class _QueueBoardState extends ConsumerState<_QueueBoard> {
-  bool addOpen = false;
-  String addStatus = 'new';
-  int addedCount = 0; // م56 — عدّاد المضافين في الجلسة (توأم addedCount).
-  final nameCtl = TextEditingController();
-  final phoneCtl = TextEditingController();
-  final notesCtl = TextEditingController();
+class _QueueBoardScreenState extends ConsumerState<QueueBoardScreen>
+    with SingleTickerProviderStateMixin {
+  static const _periods = ['morning', 'evening', 'archive'];
+  late final TabController _tabCtl;
 
   @override
   void initState() {
     super.initState();
+    final p = ref.read(queueViewProvider).period;
+    _tabCtl = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: _periods.contains(p) ? _periods.indexOf(p) : 0,
+    );
+    _tabCtl.addListener(() {
+      if (_tabCtl.indexIsChanging) return;
+      final id = _periods[_tabCtl.index];
+      if (ref.read(queueViewProvider).period != id) {
+        ref.read(queueViewProvider.notifier).setPeriod(id);
+      }
+    });
     // م56 — تنظيف يومي عند فتح اللوحة (توأم purgeOldDays في onMounted).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(queueViewProvider.notifier).purgeOldDays();
-      // م164 — استهلاك مسودة المتابعة (اسم/هاتف) في الإضافة السريعة —
-      // نوع الحجز «بالدور» يوجه المتابعة هنا بدل جدول المواعيد.
-      final draft = ref.read(followUpDraftProvider);
+      // م177 — مسودة حجزٍ واردة (بطاقة مريض/متابعة): ورقة إضافة معبأة.
+      final draft = ref.read(queueAddDraftProvider);
       if (draft != null) {
-        ref.read(followUpDraftProvider.notifier).state = null;
-        setState(() {
-          addOpen = true;
-          nameCtl.text = '${draft['name'] ?? ''}';
-          phoneCtl.text = '${draft['phone'] ?? ''}';
-          notesCtl.text = jsTruthy(draft['service'])
-              ? 'متابعة — ${draft['service']}'
-              : '';
-        });
+        ref.read(queueAddDraftProvider.notifier).state = null;
+        showQueueAddSheet(
+          context,
+          name: '${draft['name'] ?? ''}',
+          phone: '${draft['phone'] ?? ''}',
+          notes: '${draft['notes'] ?? ''}',
+        );
       }
     });
   }
 
   @override
   void dispose() {
-    nameCtl.dispose();
-    phoneCtl.dispose();
-    notesCtl.dispose();
+    _tabCtl.dispose();
     super.dispose();
   }
 
@@ -566,26 +623,14 @@ class _QueueBoardState extends ConsumerState<_QueueBoard> {
           content: Text(msg), duration: const Duration(milliseconds: 1400)));
   }
 
-  void _quickAdd() {
-    // م56 — تنبيه الاسم الفارغ (كان يفشل بصمت) + إشعار وعدّاد كالأصل.
-    if (nameCtl.text.trim().isEmpty) {
-      _snack('الرجاء إدخال الاسم');
-      return;
+  /// م177 — الرجوع: المضمّن يعيد للاختيار، والمدفوع يغلق مساره (وPopScope
+  /// يصفّر العيادة بعد الانغلاق).
+  void _back() {
+    if (widget.embedded) {
+      ref.read(queueViewProvider.notifier).back();
+    } else {
+      Navigator.of(context).maybePop();
     }
-    final added = ref.read(queueViewProvider.notifier).quickAdd(
-          name: nameCtl.text,
-          phone: phoneCtl.text,
-          status: addStatus,
-          notes: notesCtl.text,
-        );
-    if (added != null) {
-      setState(() => addedCount++);
-      _snack('تمت الإضافة');
-    }
-    nameCtl.clear();
-    phoneCtl.clear();
-    notesCtl.clear();
-    // تبقى النافذة مفتوحة لإضافة المريض التالي فوراً (سلوك الأصل).
   }
 
   // ═══ v62 — حالات لوحة «التالي في الدور» البطلة ═══
@@ -608,7 +653,7 @@ class _QueueBoardState extends ConsumerState<_QueueBoard> {
             color: Colors.white.withValues(alpha: .8), size: 26),
         const SizedBox(width: 10),
         const Expanded(
-          child: Text('لا منتظرين حالياً — أضف حجزاً بزر +',
+          child: Text('لا منتظرين حالياً — أضف من زر الحجز الدائري',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 13.5,
@@ -670,14 +715,18 @@ class _QueueBoardState extends ConsumerState<_QueueBoard> {
                         fontWeight: FontWeight.w800,
                         color: BrandColors.goldLight)),
                 if ('${next['est_time'] ?? ''}'.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Text(
-                        '🕐 ${fmtQueueTime12(next['est_time'])}',
-                        style: TextStyle(
-                            fontSize: 10.5,
-                            color: Colors.white
-                                .withValues(alpha: .85))),
+                  Flexible(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                          '🕐 ${fmtQueueTime12(next['est_time'])}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              color: Colors.white
+                                  .withValues(alpha: .85))),
+                    ),
                   ),
                 if (hasNotes)
                   Flexible(
@@ -799,6 +848,14 @@ class _QueueBoardState extends ConsumerState<_QueueBoard> {
     final rows = ref.watch(queueRowsProvider);
     final today = getCurrentDate();
 
+    // مزامنة مؤشر التبويب مع الفترة إن غُيّرت خارجياً.
+    final idx = _periods.contains(view.period)
+        ? _periods.indexOf(view.period)
+        : 0;
+    if (_tabCtl.index != idx && !_tabCtl.indexIsChanging) {
+      _tabCtl.index = idx;
+    }
+
     final waiting =
         rows.where((r) => r['state'] == 'waiting').toList();
     final done = rows.where((r) => r['state'] == 'done').toList()
@@ -815,365 +872,321 @@ class _QueueBoardState extends ConsumerState<_QueueBoard> {
       ..sort(
           (a, b) => jsNumOr0(a['seq']).compareTo(jsNumOr0(b['seq'])));
 
-    final display = switch (view.period) {
-      'archive' => done,
-      'evening' => evening,
-      _ => morning,
-    };
-
-    // م56 — زر الرجوع الفيزيائي يغلق اللوحة أولاً (لوحة ← اختيار عيادة)
-    // قبل مغادرة التبويب (توأم pushBackHandler(_onHardwareBack) في الأصل).
+    // م177 — الرجوع بعد انغلاق المسار يصفّر العيادة (لوحة ⇒ اختيار).
     return PopScope(
-      canPop: false,
+      canPop: !widget.embedded,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) ref.read(queueViewProvider.notifier).back();
+        if (didPop) ref.read(queueViewProvider.notifier).back();
       },
-      child: Column(
-      children: [
-        // ── الشريط العلوي: رجوع + عيادة + تنقل اليوم ──
-        // ── v61 — رأس الدور بالقالب الموحد (توأم السجلات/المالية):
-        // [رجوع 38×36 | العيادة+التاريخ | سهما تنقل ذهبيان] على خلفية
-        // الصفحة مباشرة بلا بطاقة حاضنة. ──
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-          child: Row(
+      child: Scaffold(
+        backgroundColor: BrandColors.paper,
+        body: SafeArea(
+          child: Column(
             children: [
-              Material(
-                color: BrandColors.brand600.withValues(alpha: .08),
-                borderRadius: BorderRadius.circular(10),
-                child: InkWell(
-                  key: const Key('queue-back'),
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () =>
-                      ref.read(queueViewProvider.notifier).back(),
-                  child: SizedBox(
-                    width: 38,
-                    height: 36,
-                    child: Icon(Icons.arrow_back_rounded,
-                        size: 18, color: BrandColors.brandIcon),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
+              _boardHeader(view, today),
+              _tabsBar(morning.length, evening.length, done.length),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: TabBarView(
+                  controller: _tabCtl,
                   children: [
-                    Text(
-                      view.clinic!,
-                      style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13.5,
-                          color: BrandColors.brandText),
-                    ),
-                    Row(children: [
-                      Text(view.date,
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 10.5,
-                              color: BrandColors.mut2)),
-                      if (view.date == today)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 6),
-                          child: Text('اليوم',
-                              style: TextStyle(
-                                  fontSize: 10.5,
-                                  color: BrandColors.green,
-                                  fontWeight: FontWeight.w700)),
-                        )
-                      else if (view.date.compareTo(today) > 0)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 6),
-                          child: Text('حجز مسبق',
-                              style: TextStyle(
-                                  fontSize: 10.5,
-                                  color: BrandColors.goldDark,
-                                  fontWeight: FontWeight.w700)),
-                        ),
-                    ]),
+                    _periodBody('morning', view, morning, done, waiting,
+                        today),
+                    _periodBody('evening', view, evening, done, waiting,
+                        today),
+                    _periodBody('archive', view, done, done, waiting,
+                        today),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              // سهما تنقل التاريخ — مربعان ذهبيان بعائلة القمع.
-              Material(
-                color: BrandColors.gold.withValues(alpha: .08),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: BorderSide(
-                      color: BrandColors.gold.withValues(alpha: .3)),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () => ref
-                      .read(queueViewProvider.notifier)
-                      .shiftDay(-1),
-                  child: const SizedBox(
-                    width: 38,
-                    height: 36,
-                    child: Icon(Icons.chevron_right_rounded,
-                        size: 18, color: BrandColors.goldDark),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Material(
-                color: BrandColors.gold.withValues(alpha: .08),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  side: BorderSide(
-                      color: BrandColors.gold.withValues(alpha: .3)),
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () => ref
-                      .read(queueViewProvider.notifier)
-                      .shiftDay(1),
-                  child: const SizedBox(
-                    width: 38,
-                    height: 36,
-                    child: Icon(Icons.chevron_left_rounded,
-                        size: 18, color: BrandColors.goldDark),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
-
-        // ── v62 — لوحة «التالي في الدور» البطلة (بحث أنظمة الدور:
-        // Now Serving + Call Next): رقم ذهبي ضخم، اسم كبير، سطر خاطف،
-        // زر «إدخال التالي» بضغطة، تخطٍّ، وشريط تقدم اليوم.
-        // تُخفى مؤقتاً أثناء فتح نافذة الإضافة (تفسح لها المكان). ──
-        if (!(addOpen && view.period != 'archive'))
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
-          child: Container(
-            key: const Key('queue-hero'),
-            decoration: BoxDecoration(
-              gradient: BrandColors.brandGradient,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(
-                    color: Color.fromRGBO(10, 48, 36, .25),
-                    blurRadius: 14,
-                    offset: Offset(0, 4)),
-              ],
-            ),
-            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-            child: view.period == 'archive'
-                ? _heroArchive(done)
-                : display.isEmpty
-                    ? _heroEmpty()
-                    : _heroNext(display.first, done, waiting),
-          ),
-        ),
-
-        // ── الإحصاءات الحية — v62: رقاقات مدمجة بدل البطاقات الضخمة ──
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-          child: Row(
-            children: [
-              _Stat(
-                  label: 'الموجودون حالياً',
-                  value: waiting.length,
-                  color: const Color(0xFF2563EB)),
-              _Stat(
-                  label: 'تم علاجهم اليوم',
-                  value: done.length,
-                  color: BrandColors.green),
-              _Stat(
-                  label: 'المتبقّون',
-                  value: waiting.length,
-                  color: BrandColors.goldDark),
-            ],
-          ),
-        ),
-
-        // ── الفترات + زر الإضافة ──
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-          child: Row(
-            children: [
-              _PeriodTab(
-                  id: 'morning',
-                  label: 'صباح',
-                  count: morning.length,
-                  view: view),
-              _PeriodTab(
-                  id: 'evening',
-                  label: 'مساء',
-                  count: evening.length,
-                  view: view),
-              _PeriodTab(
-                  id: 'archive',
-                  label: 'الأرشيف',
-                  count: done.length,
-                  view: view),
-              const Spacer(),
-              if (view.period != 'archive')
-                Badge(
-                  isLabelVisible: addedCount > 0,
-                  label: Text('$addedCount'),
-                  child: FloatingActionButton.small(
-                    key: const Key('queue-add-toggle'),
-                    heroTag: 'q-add',
-                    backgroundColor:
-                        addOpen ? BrandColors.goldDark : BrandColors.gold,
-                    foregroundColor: BrandColors.brand900,
-                    onPressed: () => setState(() {
-                      addOpen = !addOpen;
-                      if (addOpen) addedCount = 0;
-                    }),
-                    child: Icon(
-                        addOpen ? Icons.close_rounded : Icons.add_rounded),
-                  ),
-                ),
-            ],
-          ),
-        ),
-
-        // ── الإضافة السريعة ──
-        if (addOpen && view.period != 'archive')
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-            child: Card(
-              color: BrandColors.surface2,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: TextField(
-                            key: const Key('queue-add-name'),
-                            controller: nameCtl,
-                            autofocus: true,
-                            onSubmitted: (_) => _quickAdd(),
-                            decoration: const InputDecoration(
-                                hintText: 'اسم المريض', isDense: true),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: TextField(
-                            controller: phoneCtl,
-                            keyboardType: TextInputType.phone,
-                            decoration: const InputDecoration(
-                                hintText: 'الهاتف (اختياري)',
-                                isDense: true),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // م56 — حقل الملاحظات في الإضافة السريعة (كان المتحكم
-                    // يُنشأ ويُفرّغ بلا حقل معروض — الملاحظة تُهمل).
-                    TextField(
-                      key: const Key('queue-add-notes'),
-                      controller: notesCtl,
-                      onSubmitted: (_) => _quickAdd(),
-                      decoration: const InputDecoration(
-                          hintText: 'ملاحظات (اختياري)', isDense: true),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        ChoiceChip(
-                          label: const Text('جديد'),
-                          selected: addStatus == 'new',
-                          onSelected: (_) =>
-                              setState(() => addStatus = 'new'),
-                        ),
-                        const SizedBox(width: 6),
-                        ChoiceChip(
-                          label: const Text('مراجعة'),
-                          selected: addStatus == 'review',
-                          onSelected: (_) =>
-                              setState(() => addStatus = 'review'),
-                        ),
-                        const Spacer(),
-                        FilledButton.icon(
-                          key: const Key('queue-add-go'),
-                          onPressed: _quickAdd,
-                          style: FilledButton.styleFrom(
-                              backgroundColor: BrandColors.brand600),
-                          icon: const Icon(Icons.check_rounded, size: 17),
-                          label: const Text('إضافة ومتابعة'),
-                        ),
-                      ],
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        'اكتب الاسم واضغط Enter — تبقى النافذة مفتوحة '
-                        'لإضافة المريض التالي فوراً.',
-                        style: TextStyle(
-                            fontSize: 11, color: BrandColors.mut2),
-                      ),
-                    ),
-                  ],
-                ),
+        // م177 — الإضافة بالزر الدائري (ورقة منبثقة من الأسفل) — مربع
+        // + العلوي أُلغي نهائياً (قرار المالك).
+        floatingActionButton: !staffAllowed('records.add')
+            ? null
+            : ShinyFab(
+                key: const Key('queue-fab-add'),
+                tooltip: 'إضافة حجز بالدور',
+                onTap: () => showQueueAddSheet(context),
               ),
-            ),
-          ),
-
-        // ── القائمة ──
-        Expanded(
-          child: display.isEmpty
-              ? Center(
-                  child: Text(
-                    view.period == 'archive'
-                        ? 'لا أحد في أرشيف اليوم بعد.'
-                        : 'قائمة الانتظار فارغة.',
-                    style: TextStyle(
-                        color: BrandColors.mut2, fontSize: 13),
-                  ),
-                )
-              : view.period == 'archive'
-                  // الأرشيف بترتيب الوصول الثابت — لا سحب.
-                  ? ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 90),
-                      itemCount: display.length,
-                      itemBuilder: (context, i) =>
-                          _QueueRow(row: display[i], view: view),
-                    )
-                  // م56 — سحب وإفلات لإعادة الترتيب في قائمة الانتظار
-                  // (توأم onPointerMove/applyOrder): الإفلات يطبّق الترتيب
-                  // الجديد ويعيد حساب الأوقات للجميع.
-                  : ReorderableListView.builder(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 90),
-                      buildDefaultDragHandles: false,
-                      itemCount: display.length,
-                      // onReorder مستقر ومتوافق عبر الإصدارات (البديل
-                      // onReorderItem أحدث)؛ نُبقيه ونُسكت التنبيه.
-                      // ignore: deprecated_member_use
-                      onReorder: (oldIndex, newIndex) {
-                        if (newIndex > oldIndex) newIndex -= 1;
-                        final ids = [
-                          for (final r in display) '${r['id']}'
-                        ];
-                        final moved = ids.removeAt(oldIndex);
-                        ids.insert(newIndex, moved);
-                        ref
-                            .read(queueViewProvider.notifier)
-                            .applyOrder(view.period, ids);
-                      },
-                      itemBuilder: (context, i) => _QueueRow(
-                        key: ValueKey(display[i]['id']),
-                        row: display[i],
-                        view: view,
-                        dragIndex: i,
-                        isNext: i == 0,
-                      ),
-                    ),
-        ),
-      ],
-    ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      ),
     );
+  }
+
+  /// م177 — ترويسة الشاشة الكاملة: [رجوع يميناً | العيادة وسطاً بخطٍّ
+  /// كبير] ثم صفُّ تاريخٍ أنحف [سهم | التاريخ الكبير الغامق | سهم].
+  Widget _boardHeader(QueueView view, String today) {
+    Widget sq(Key key, IconData icon, VoidCallback onTap,
+            {double h = 36}) =>
+        Material(
+          color: BrandColors.gold.withValues(alpha: .08),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side:
+                BorderSide(color: BrandColors.gold.withValues(alpha: .3)),
+          ),
+          child: InkWell(
+            key: key,
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap,
+            child: SizedBox(
+              width: 38,
+              height: h,
+              child:
+                  Icon(icon, size: 18, color: BrandColors.goldDark),
+            ),
+          ),
+        );
+    final dayLabel = view.date == today
+        ? 'اليوم'
+        : view.date.compareTo(today) > 0
+            ? 'حجز مسبق'
+            : '';
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+        child: Row(children: [
+          // سهم الرجوع في اليمين (أول الصف بالاتجاه العربي).
+          Material(
+            color: BrandColors.brand600.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              key: const Key('queue-back'),
+              borderRadius: BorderRadius.circular(10),
+              onTap: _back,
+              child: SizedBox(
+                width: 38,
+                height: 36,
+                child: Icon(Icons.arrow_back_rounded,
+                    size: 18, color: BrandColors.brandIcon),
+              ),
+            ),
+          ),
+          // اسم العيادة وسط الترويسة بخط كبير.
+          Expanded(
+            child: Text(
+              view.clinic ?? '',
+              key: const Key('queue-clinic-title'),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: BrandColors.brandText),
+            ),
+          ),
+          const SizedBox(width: 38), // موازنة زر الرجوع.
+        ]),
+      ),
+      // صف التاريخ الأنحف: سهمٌ يميناً وسهمٌ يساراً والتاريخ وسطاً.
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+        child: Row(children: [
+          sq(const Key('queue-day-prev'), Icons.chevron_right_rounded,
+              () => ref.read(queueViewProvider.notifier).shiftDay(-1),
+              h: 32),
+          Expanded(
+            child: Column(children: [
+              Text(
+                view.date,
+                key: const Key('queue-date-title'),
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    color: BrandColors.brand900),
+              ),
+              if (dayLabel.isNotEmpty)
+                Text(dayLabel,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: view.date == today
+                            ? BrandColors.green
+                            : BrandColors.goldDark)),
+            ]),
+          ),
+          sq(const Key('queue-day-next'), Icons.chevron_left_rounded,
+              () => ref.read(queueViewProvider.notifier).shiftDay(1),
+              h: 32),
+        ]),
+      ),
+    ]);
+  }
+
+  /// م177 — تبويبات «صباحاً/مساءً/الأرشيف» بخطٍّ كبير ومؤشرٍ منزلق —
+  /// تصميم تبويبات الحجز التقليدي (م173) نفسه بهوية التطبيق.
+  Widget _tabsBar(int morning, int evening, int archive) {
+    Widget tab(Key key, String label, int count) => Tab(
+          key: key,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+                child: Text(label,
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (count > 0) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: BrandColors.gold.withValues(alpha: .18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: BrandColors.gold.withValues(alpha: .45)),
+                ),
+                child: Text('$count',
+                    style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        color: BrandColors.goldDark)),
+              ),
+            ],
+          ]),
+        );
+    return Container(
+      decoration: BoxDecoration(
+        color: BrandColors.surface,
+        border:
+            Border(bottom: BorderSide(color: BrandColors.line, width: .8)),
+      ),
+      child: TabBar(
+        controller: _tabCtl,
+        labelColor: BrandColors.brand700,
+        unselectedLabelColor: BrandColors.mut,
+        labelStyle:
+            const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+        unselectedLabelStyle:
+            const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        indicatorColor: BrandColors.brand600,
+        indicatorWeight: 3,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        tabs: [
+          tab(const Key('period-morning'), 'صباحاً', morning),
+          tab(const Key('period-evening'), 'مساءً', evening),
+          tab(const Key('period-archive'), 'الأرشيف', archive),
+        ],
+      ),
+    );
+  }
+
+  /// جسم فترةٍ واحدة: البطل + الإحصاءات + القائمة — وعلى الشاشات
+  /// العريضة (الكمبيوتر) القائمة يساراً والبطل والإحصاءات لوحةً يمنى.
+  Widget _periodBody(String periodId, QueueView view, List<QRow> display,
+      List<QRow> done, List<QRow> waiting, String today) {
+    final isArchive = periodId == 'archive';
+    final hero = Container(
+      key: isArchive ? null : const Key('queue-hero'),
+      decoration: BoxDecoration(
+        gradient: BrandColors.brandGradient,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: const [
+          BoxShadow(
+              color: Color.fromRGBO(10, 48, 36, .25),
+              blurRadius: 14,
+              offset: Offset(0, 4)),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+      child: isArchive
+          ? _heroArchive(done)
+          : display.isEmpty
+              ? _heroEmpty()
+              : _heroNext(display.first, done, waiting),
+    );
+    final stats = Row(
+      children: [
+        _Stat(
+            label: 'الموجودون حالياً',
+            value: waiting.length,
+            color: const Color(0xFF2563EB)),
+        _Stat(
+            label: 'تم علاجهم اليوم',
+            value: done.length,
+            color: BrandColors.green),
+        _Stat(
+            label: 'المتبقّون',
+            value: waiting.length,
+            color: BrandColors.goldDark),
+      ],
+    );
+    final list = display.isEmpty
+        ? Center(
+            child: Text(
+              isArchive
+                  ? 'لا أحد في أرشيف اليوم بعد.'
+                  : 'قائمة الانتظار فارغة.',
+              style: TextStyle(color: BrandColors.mut2, fontSize: 13),
+            ),
+          )
+        : isArchive
+            // الأرشيف بترتيب الوصول الثابت — لا سحب.
+            ? ListView.builder(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 90),
+                itemCount: display.length,
+                itemBuilder: (context, i) =>
+                    _QueueRow(row: display[i], view: view),
+              )
+            // م56 — سحب وإفلات لإعادة الترتيب في قائمة الانتظار
+            // (توأم onPointerMove/applyOrder).
+            : ReorderableListView.builder(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 90),
+                buildDefaultDragHandles: false,
+                itemCount: display.length,
+                // ignore: deprecated_member_use
+                onReorder: (oldIndex, newIndex) {
+                  if (newIndex > oldIndex) newIndex -= 1;
+                  final ids = [for (final r in display) '${r['id']}'];
+                  final moved = ids.removeAt(oldIndex);
+                  ids.insert(newIndex, moved);
+                  ref
+                      .read(queueViewProvider.notifier)
+                      .applyOrder(periodId, ids);
+                },
+                itemBuilder: (context, i) => _QueueRow(
+                  key: ValueKey(display[i]['id']),
+                  row: display[i],
+                  view: view,
+                  dragIndex: i,
+                  isNext: i == 0,
+                ),
+              );
+
+    // م177 — تخطيط الكمبيوتر العريض: القائمة يساراً واللوحة الجانبية
+    // (البطل + الإحصاءات عمودياً) يميناً — بمقاسٍ مريح.
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    if (wide) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 330,
+              child: Column(children: [
+                hero,
+                const SizedBox(height: 8),
+                stats,
+              ]),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: list),
+          ],
+        ),
+      );
+    }
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+        child: hero,
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+        child: stats,
+      ),
+      Expanded(child: list),
+    ]);
   }
 }
 
@@ -1220,40 +1233,6 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _PeriodTab extends ConsumerWidget {
-  const _PeriodTab({
-    required this.id,
-    required this.label,
-    required this.count,
-    required this.view,
-  });
-
-  final String id;
-  final String label;
-  final int count;
-  final QueueView view;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final on = view.period == id;
-    return Padding(
-      padding: const EdgeInsets.only(left: 6),
-      child: ChoiceChip(
-        key: Key('period-$id'),
-        label: Text('$label ($count)'),
-        selected: on,
-        selectedColor: BrandColors.brand600,
-        labelStyle: TextStyle(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
-          color: on ? Colors.white : BrandColors.ink,
-        ),
-        onSelected: (_) =>
-            ref.read(queueViewProvider.notifier).setPeriod(id),
-      ),
-    );
-  }
-}
 
 /// م56 — صف الدور القابل للطي (توأم q-head/q-body في QueueBoard.vue):
 /// رأس مضغوط (رقم، اسم، دخول، مقبض سحب) يُوسّع عند اللمس فيظهر: الحالة،
