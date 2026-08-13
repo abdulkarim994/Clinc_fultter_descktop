@@ -462,11 +462,13 @@ void main() {
       await settle(tester);
       await tester.tap(find.byKey(const Key('clinic-ع1')), warnIfMissed: false);
       await settle(tester);
+      // م177 — الإضافة صارت ورقةً منبثقة من الزر الدائري.
+      await tester.pumpAndSettle();
       await tester.tap(
-        find.byKey(const Key('queue-add-toggle')),
+        find.byKey(const Key('queue-fab-add')),
         warnIfMissed: false,
       );
-      await settle(tester);
+      await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('queue-add-name')), 'سعاد');
       await tester.tap(
         find.byKey(const Key('queue-add-go')),
@@ -479,13 +481,9 @@ void main() {
         warnIfMissed: false,
       );
       await settle(tester);
-      // م56 — إغلاق لوحة الإضافة يحرّر المساحة (نافذة الاختبار ٦٠٠ بكسل)
-      // فتُبنى البطاقتان معاً في القائمة الكسولة.
-      await tester.tap(
-        find.byKey(const Key('queue-add-toggle')),
-        warnIfMissed: false,
-      );
-      await settle(tester);
+      // م177 — إغلاق الورقة (نقرة خارجها) يحرّر مساحة القائمة.
+      await tester.tapAt(const Offset(200, 40));
+      await tester.pumpAndSettle();
 
       final chk = container();
       addTearDown(chk.dispose);
