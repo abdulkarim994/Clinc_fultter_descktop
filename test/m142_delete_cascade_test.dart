@@ -314,7 +314,13 @@ void main() {
       await tester.tap(find.byKey(const Key('xray-seg-details')));
       await settle(tester);
 
+      // م176 — الحذف صار داخل قائمة الثلاث نقاط.
+      await tester.tap(find.byKey(const Key('xray-more-0')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('xray-del-btn-0')));
+      // م176 — ضغطة عنصر القائمة تنفذ بعد انغلاقها — إطار إضافي.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(find.text('سيُحذف بعد 3 ثوانٍ'), findsOneWidget);
@@ -336,7 +342,13 @@ void main() {
 
       await tester.tap(find.byKey(const Key('xray-seg-details')));
       await settle(tester);
+      // م176 — الحذف صار داخل قائمة الثلاث نقاط.
+      await tester.tap(find.byKey(const Key('xray-more-0')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('xray-del-btn-0')));
+      // م176 — ضغطة عنصر القائمة تنفذ بعد انغلاقها — إطار إضافي.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
       await settle(tester);
 
       expect(find.textContaining('سيُحذف بعد'), findsNothing);
@@ -358,7 +370,13 @@ void main() {
 
       await tester.tap(find.byKey(const Key('xray-seg-details')));
       await settle(tester);
+      // م176 — الحذف صار داخل قائمة الثلاث نقاط.
+      await tester.tap(find.byKey(const Key('xray-more-0')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('xray-del-btn-0')));
+      // م176 — ضغطة عنصر القائمة تنفذ بعد انغلاقها — إطار إضافي.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
       await tester.pump(const Duration(seconds: 3));
       await settle(tester);
 
@@ -376,7 +394,13 @@ void main() {
 
       await tester.tap(find.byKey(const Key('xray-seg-details')));
       await settle(tester);
+      // م176 — الحذف صار داخل قائمة الثلاث نقاط.
+      await tester.tap(find.byKey(const Key('xray-more-0')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('xray-del-btn-0')));
+      // م176 — ضغطة عنصر القائمة تنفذ بعد انغلاقها — إطار إضافي.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
       await tester.pump(const Duration(milliseconds: 300));
 
       // «تراجع» قبل انقضاء المؤقت. نستدعي رَدّ الفعل مباشرةً بدل نقرٍ حساسٍ
