@@ -299,3 +299,177 @@ List<String> profitYears(List<JMap> records, List<JMap> prosthetics) {
   };
   return ys.toList()..sort((a, b) => b.compareTo(a));
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// م178 — التقرير السنوي الدقيق (منطق نقي جديد)
+//
+// القاعدة الذهبية: **السنة = مجموع أشهرها الاثني عشر حرفياً** عبر
+// getMonthlyReport نفسها — فلا يمكن أن ينحرف السنوي عن الشهري أبداً
+// (نفس ضمانة monthGrandFor للمخطط). أساس القبض م112 محفوظ تلقائياً.
+//
+// اللقطات المجمدة للعيادات المحذوفة (م170) والمصروفات تصل عبر دالتَي
+// حقنٍ اختياريتين — فيبقى المنطق نقياً قابلاً للاختبار بلا Riverpod.
+// ═══════════════════════════════════════════════════════════════════════
+
+/// صف شهرٍ واحد في جدول الأرباح والخسائر السنوي.
+class MonthProfitRow {
+  const MonthProfitRow({
+    required this.month,
+    required this.idx,
+    required this.revenue,
+    required this.doctor,
+    required this.clinic,
+    required this.expenses,
+  });
+
+  /// YYYY-MM.
+  final String month;
+
+  /// 0..11 (فهرس [arMonths]).
+  final int idx;
+
+  final num revenue;
+  final num doctor;
+  final num clinic;
+  final num expenses;
+
+  /// صافي ربح العيادة للشهر = حصة العيادة − مصروفاته.
+  num get net => clinic - expenses;
+
+  bool get isEmpty =>
+      revenue == 0 && doctor == 0 && clinic == 0 && expenses == 0;
+}
+
+/// التقرير السنوي: إجماليات السنة + تفصيل أشهرها الاثني عشر.
+class YearReport {
+  const YearReport({
+    required this.year,
+    required this.revenue,
+    required this.doctor,
+    required this.clinic,
+    required this.expenses,
+    required this.months,
+  });
+
+  final String year;
+
+  /// إجمالي الإيراد (أساس القبض م112) = مجموع إيرادات الأشهر.
+  final num revenue;
+
+  /// إجمالي ربح الطبيب (سجلات + تركيبات).
+  final num doctor;
+
+  /// إجمالي ربح العيادة قبل المصروفات.
+  final num clinic;
+
+  /// مصروفات السنة كاملة.
+  final num expenses;
+
+  /// الأشهر الاثنا عشر بالترتيب (يناير..ديسمبر).
+  final List<MonthProfitRow> months;
+
+  /// صافي ربح العيادة السنوي = حصة العيادة − المصروفات.
+  num get net => clinic - expenses;
+
+  /// هامش الصافي % من الإيراد (0 عند غياب الإيراد).
+  num get marginPct => revenue == 0 ? 0 : net / revenue * 100;
+}
+
+/// م178 — التقرير السنوي: 12 استدعاءً لـ getMonthlyReport (تطابقاً حرفياً
+/// مع الشهري) + اللقطات المجمدة والمصروفات المحقونتين. تراكم بالقروش
+/// الصحيحة (عقد م85) فلا انجراف عبر الأشهر.
+YearReport yearReport(
+  String year, {
+  required List<JMap> records,
+  required List<JMap> prosthetics,
+  required List<JMap> debts,
+  required num doctorPct,
+  num Function(String month)? expensesOf,
+  List<ClinicProfitRow> Function(String month)? frozenRowsOf,
+}) {
+  final months = <MonthProfitRow>[];
+  var revC = 0, docC = 0, clinC = 0, expC = 0;
+  for (var i = 0; i < 12; i++) {
+    final m = '$year-${'${i + 1}'.padLeft(2, '0')}';
+    final rep = getMonthlyReport(records, prosthetics, debts, m, doctorPct);
+    var mRevC = toCents(rep.grandTotal);
+    var mDocC = toCents(rep.doctorTotal);
+    var mClinC = toCents(rep.clinicTotal);
+    // م170 — لقطات العيادات المحذوفة تدخل شهرها التاريخي كما في الشهري.
+    for (final f in frozenRowsOf?.call(m) ?? const <ClinicProfitRow>[]) {
+      mRevC += toCents(f.revenue);
+      mDocC += toCents(f.doctor);
+      mClinC += toCents(f.clinicShare);
+    }
+    final mExpC = toCents(expensesOf?.call(m) ?? 0);
+    months.add(MonthProfitRow(
+      month: m,
+      idx: i,
+      revenue: fromCents(mRevC),
+      doctor: fromCents(mDocC),
+      clinic: fromCents(mClinC),
+      expenses: fromCents(mExpC),
+    ));
+    revC += mRevC;
+    docC += mDocC;
+    clinC += mClinC;
+    expC += mExpC;
+  }
+  return YearReport(
+    year: year,
+    revenue: fromCents(revC),
+    doctor: fromCents(docC),
+    clinic: fromCents(clinC),
+    expenses: fromCents(expC),
+    months: months,
+  );
+}
+
+/// م178 — أرباح العيادات سنوياً: تجميع صفوف monthlyClinicRows (واللقطات
+/// المجمدة 🔒) عبر أشهر السنة بالاسم — فكل عيادة ترى إيرادها وحصتَيها
+/// عن السنة كاملة. الترتيب بالإيراد تنازلياً كالشهري.
+List<ClinicProfitRow> yearlyClinicRows(
+  String year, {
+  required List<JMap> records,
+  required List<JMap> prosthetics,
+  required List<JMap> debts,
+  required List<String> clinics,
+  required num doctorPct,
+  List<ClinicProfitRow> Function(String month)? frozenRowsOf,
+}) {
+  // تراكم بالقروش لكل اسم: [إيراد، طبيب، عيادة].
+  final acc = <String, List<int>>{};
+  void add(String name, num rev, num doc, num clin) {
+    final a = acc.putIfAbsent(name, () => [0, 0, 0]);
+    a[0] += toCents(rev);
+    a[1] += toCents(doc);
+    a[2] += toCents(clin);
+  }
+
+  for (var i = 0; i < 12; i++) {
+    final m = '$year-${'${i + 1}'.padLeft(2, '0')}';
+    for (final r in monthlyClinicRows(m,
+        records: records,
+        prosthetics: prosthetics,
+        debts: debts,
+        clinics: clinics,
+        doctorPct: doctorPct)) {
+      add(r.name, r.revenue, r.doctor, r.clinicShare);
+    }
+    for (final f in frozenRowsOf?.call(m) ?? const <ClinicProfitRow>[]) {
+      add(f.name, f.revenue, f.doctor, f.clinicShare);
+    }
+  }
+  final rows = [
+    for (final e in acc.entries)
+      if (e.value.any((c) => c != 0))
+        ClinicProfitRow(e.key, fromCents(e.value[0]), fromCents(e.value[1]),
+            fromCents(e.value[2])),
+  ]..sort((a, b) => b.revenue.compareTo(a.revenue));
+  return rows;
+}
+
+/// م178 — نسبة التغير السنوي (YoY) بالمئة، أو null حين لا أساس مقارنة
+/// (السنة السابقة صفر أو سالبة فلا معنى للنسبة).
+num? yoyPct(num current, num previous) =>
+    previous <= 0 ? null : (current - previous) / previous * 100;
