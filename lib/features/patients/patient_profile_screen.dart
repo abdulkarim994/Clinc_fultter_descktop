@@ -43,7 +43,10 @@ import '../appointments/appointments_tab.dart'
     show BookingFullScreen, apptBookDraftProvider, apptGoDayProvider;
 import '../shell/app_shell.dart' show activeTabProvider;
 import '../appointments/appt_lifecycle.dart'
-    show apptStatusColor, apptStatusLabel, patientUpcomingAppointments;
+    show apptStatusColor, apptStatusLabel, bookingSystemOf,
+        patientUpcomingAppointments;
+import '../queue/queue_screen.dart'
+    show QueueBoardScreen, queueAddDraftProvider, queueViewProvider;
 import '../appointments/appointments_logic.dart' show to12h;
 import '../desktop/desktop_shell.dart' show desktopTabProvider;
 import '../records/analysis_actions.dart' show promptAddAnalysisToVisit;
@@ -2493,7 +2496,30 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
   /// م173 — «حجز موعد» من بطاقة المريض (قرار المالك): نافذة بملء الشاشة
   /// تستضيف شاشة الحجز بمسودةٍ معبأة {اسم/هاتف/عيادة} — والرجوع يعيد
   /// للبطاقة نفسها (لا تبديل تبويب الصدفة). الكمبيوتر كما كان.
+  /// م177 — نوع الحجز «بالدور» ⇒ تبديلٌ تلقائي: لوحة دور عيادة المريض
+  /// بورقة إضافةٍ منبثقة معبأةً بالاسم والهاتف.
   void _bookAppointment() {
+    if (bookingSystemOf(ref.read(appConfigProvider)) == 'queue') {
+      final clinics = ref.read(clinicsProvider);
+      ref.read(queueAddDraftProvider.notifier).state = {
+        'name': name,
+        'phone': _medPhone(),
+      };
+      if (clinics.contains(clinic)) {
+        ref.read(queueViewProvider.notifier).openClinic(clinic);
+      }
+      if (isDesktopUi(context)) {
+        ref.read(desktopTabProvider.notifier).state = 'calendar';
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            fullscreenDialog: true,
+            builder: (_) => const QueueBoardScreen(),
+          ),
+        );
+      }
+      return;
+    }
     if (isDesktopUi(context)) {
       ref.read(apptBookDraftProvider.notifier).state = {
         'name': name,
