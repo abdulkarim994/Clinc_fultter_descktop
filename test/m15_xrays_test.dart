@@ -339,7 +339,10 @@ void main() {
         warnIfMissed: false,
       );
       await settle(tester);
-      expect(find.text('مرفوعة'), findsOneWidget);
+      // م176 — شارة «مرفوعة» استُبدلت بنقطة نجاح الرفع الحمراء (تظهر
+      // مرةً واحدة) — ولا شارة انتظار لصفٍّ مرفوع.
+      expect(find.byKey(const Key('xray-dot-0')), findsOneWidget);
+      expect(find.text('مرفوعة'), findsNothing);
       expect(find.text('بانتظار الرفع'), findsNothing);
     });
 
@@ -448,6 +451,9 @@ void main() {
         warnIfMissed: false,
       );
       await settle(tester);
+      // م176 — التعديل صار داخل قائمة الثلاث نقاط.
+      await tester.tap(find.byKey(const Key('xray-more-0')));
+      await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(const Key('xray-rename-btn-0')),
         warnIfMissed: false,
