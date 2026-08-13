@@ -35,6 +35,7 @@ import '../staff/staff_store.dart' show StaffStore;
 import '../staff/staff_gate.dart' show gateStaff;
 import '../records/daily_income_screen.dart';
 import '../settings/settings_screen.dart';
+import '../queue/queue_add_sheet.dart' show showQueueAddSheet;
 import '../queue/queue_screen.dart';
 import '../xrays/pending_uploads_dialog.dart';
 import '../../core/utils/js_compat.dart';
@@ -471,11 +472,27 @@ class AppShellScreen extends ConsumerWidget {
                     key: const Key('fab-book-appt'),
                     tooltip: 'إضافة حجز',
                     icon: Icons.event_available_rounded,
-                    // مسودة فارغة = فتح معالج الموعد فارغاً (المستمع
-                    // داخل التبويب المفتوح يستهلكها فوراً).
-                    onTap: () => ref
-                        .read(apptBookDraftProvider.notifier)
-                        .state = <String, Object?>{},
+                    // م177 — نوع الحجز «بالدور»: الورقة المنبثقة من
+                    // الأسفل (عيادة مفتوحة) وإلا إرشادٌ لفتح عيادة.
+                    // التقليدي: مسودة فارغة تفتح معالج الموعد كالسابق.
+                    onTap: () {
+                      if (bookingSystemOf(ref.read(appConfigProvider)) ==
+                          'queue') {
+                        if (ref.read(queueViewProvider).clinic != null) {
+                          showQueueAddSheet(context);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text(
+                                    'افتح عيادةً أولاً — ثم أضف من زر الحجز داخل لوحتها')),
+                          );
+                        }
+                        return;
+                      }
+                      ref
+                          .read(apptBookDraftProvider.notifier)
+                          .state = <String, Object?>{};
+                    },
                   ),
                 ),
               _ => null,
