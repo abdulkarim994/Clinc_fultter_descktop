@@ -15,7 +15,6 @@ import '../../core/utils/js_compat.dart';
 import '../shell/app_shell.dart' show activeTabProvider;
 import 'debts_section.dart';
 import 'profits_section.dart';
-import 'statement_section.dart';
 import 'treasury_section.dart';
 import '../staff/staff_session.dart'
     show kCurrentStaff, staffCan, staffIsAdmin;
@@ -50,8 +49,10 @@ const _finItems = <_FinItem>[
   _FinItem('debts', 'الديون',
       'الديون المفتوحة وسدادها وأقساطها',
       Icons.receipt_long_rounded),
+  // م178 — الأرباح ثلاثة أقسام (شهرية/سنوية/كشف حساب) وبطاقة الكشف
+  // تفتح القسم الثالث نفسه (سلامة روابط م108 وصلاحيات الموظفين).
   _FinItem('profits', 'الأرباح',
-      'أرباح الطبيب والعيادة شهرياً وسنوياً',
+      'جداول الأرباح الشهرية والسنوية وكشف الحساب',
       Icons.trending_up_rounded),
   _FinItem('statement', 'كشف الحساب',
       'كشف مالي بمدى تاريخي وفلاتر وطباعة',
@@ -106,7 +107,9 @@ class FinanceSectionScreen extends ConsumerWidget {
         body: switch (id) {
           'debts' => const DebtsSection(),
           'profits' => const ProfitsSection(),
-          'statement' => const StatementSection(),
+          // م178 — الكشف صار القسم الثالث في الأرباح؛ بطاقته وروابط
+          // م108 القديمة تفتحه على حبته مباشرة.
+          'statement' => const ProfitsSection(initialView: 'statement'),
           _ => const TreasurySection(),
         },
       ),

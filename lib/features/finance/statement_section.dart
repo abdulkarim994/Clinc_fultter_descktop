@@ -246,6 +246,28 @@ class _StatementSectionState extends ConsumerState<StatementSection> {
     for (final g in groups) {
       grand += g.total;
     }
+    // م178/ب — تسطيح المجموعات إلى صفوفٍ مفردة (العيادة عمود): ترتيب
+    // المجموعات وصفوفها محفوظ كما يعيده financialStatement (الأحدث
+    // إنشاءً أولاً) — العرضُ وحده تغيّر لا المنطق.
+    final rows = <({
+      String clinic,
+      String date,
+      String name,
+      String payment,
+      String service,
+      num amount
+    })>[
+      for (final g in groups)
+        for (final p in g.patients)
+          (
+            clinic: g.clinic,
+            date: p.date,
+            name: p.name,
+            payment: p.payment,
+            service: p.service,
+            amount: p.amount,
+          ),
+    ];
 
     return Column(
       children: [
@@ -350,6 +372,11 @@ class _StatementSectionState extends ConsumerState<StatementSection> {
           ]),
         ),
         const Divider(height: 14),
+        // م178/ب — النتائج **جدول أبيض واحد مسطّح بهوية جدول الخزينة
+        // حرفياً** (قرار المالك): لا تجميع بالعيادة ولا مجاميع فرعية —
+        // العيادة صارت عموداً، والمجموع العام وحده أسفل الجدول.
+        // الأعمدة: التاريخ · الاسم · اسم العيادة · نوع العلاج ·
+        // طريقة الدفع (رقاقة) · القيمة.
         Expanded(
           child: groups.isEmpty
               ? Center(
@@ -359,70 +386,14 @@ class _StatementSectionState extends ConsumerState<StatementSection> {
                           fontSize: 12, color: BrandColors.mut2)))
               : ListView(
                   key: const Key('st-list'),
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 90),
-                  children: [
-                    for (final g in groups) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10, bottom: 4),
-                        child: Row(children: [
-                          Icon(Icons.local_hospital_rounded,
-                              size: 14, color: BrandColors.brandIcon),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(g.clinic,
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: BrandColors.brandText)),
-                          ),
-                          Text('${n(g.total)} $cur',
-                              style: const TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800)),
-                        ]),
-                      ),
-                      for (final p in g.patients)
-                        Container(
-                          margin:
-                              const EdgeInsets.symmetric(vertical: 2),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: BrandColors.surface2,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: BrandColors.line),
-                          ),
-                          child: Row(children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(p.name,
-                                      style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700)),
-                                  Text(
-                                      [
-                                        if (p.service.isNotEmpty) p.service,
-                                        if (p.payment.isNotEmpty) p.payment,
-                                        if (_multiDay) p.date,
-                                      ].join(' · '),
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          color: BrandColors.mut2)),
-                                ],
-                              ),
-                            ),
-                            Text('${n(p.amount)} $cur',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    color: BrandColors.goldDark)),
-                          ]),
-                        ),
-                    ],
-                  ],
+                  // م178/ج — هوامش الشاشة أخفّ (كانت 14): العرض المستعاد
+                  // يذهب كله فواصلَ بين الأعمدة (طلب المالك).
+                  padding: EdgeInsets.fromLTRB(
+                      isDesktopUi(context) ? 14 : 6,
+                      0,
+                      isDesktopUi(context) ? 14 : 6,
+                      90),
+                  children: [_resultsTable(rows, cur, n)],
                 ),
         ),
         // ── الإجمالي أسفل (يتبع كل الفلاتر) ──
@@ -448,6 +419,235 @@ class _StatementSectionState extends ConsumerState<StatementSection> {
       ],
     );
   }
+
+  /// م178/ب — جدول النتائج: نسخةٌ حرفية من هوية [TreasuryMovesTable]
+  /// (غلاف أبيض بزوايا 12 وحد .8 وحشوة 10، ترويسة `_thStyle`، صفوف
+  /// بحشوة (8,5) وفواصل بينها، رقاقة دفعٍ ملوّنة، قيمة خضراء بأرقام
+  /// جدولية، وتذييل مجموعٍ أخضر) — والكمبيوتر يعانق اليمين بعرضٍ محدود.
+  Widget _resultsTable(
+    List<({String clinic, String date, String name, String payment,
+        String service, num amount})> rows,
+    String cur,
+    String Function(num) n,
+  ) {
+    final wide = isDesktopUi(context);
+    // م178/ج — تنفّس الأعمدة (طلب المالك: «حس لاصقات ببعض»):
+    //   • فاصل **بين كل عمودين** بلا استثناء (كان بين المجموعات فقط،
+    //     فالتصقت «اسم العيادة» بـ«نوع العلاج»).
+    //   • كل النصوص **متوسطة** في عمودها (كانت تبدأ من اليمين فتلامس
+    //     العمود المجاور).
+    //   • الأعمدة الثابتة أنحف على الهاتف والتاريخ بلا سنة — والعرض
+    //     المستعاد يذهب فواصلَ.
+    final fs = wide ? 12.5 : 11.5;
+    final wDate = wide ? 86.0 : 44.0;
+    final wPay = wide ? 70.0 : 50.0;
+    final wVal = wide ? 92.0 : 58.0;
+    final gap = wide ? 12.0 : 8.0;
+
+    /// التاريخ: كامل على الكمبيوتر، ومختصر (MM-DD) على الهاتف.
+    String dateOf(String d) =>
+        wide || d.length < 10 ? d : d.substring(5);
+
+    /// ترويسة عمود متوسطة النص داخل FittedBox انكماشي (سطر واحد، ونصُّها
+    /// كما هو). بلا [width] تُرجع التسمية عارية ليلفّها المنادي بوزنه.
+    Widget head(String txt, {double? width}) {
+      final label = FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(txt,
+            maxLines: 1, textAlign: TextAlign.center, style: _thStyle()),
+      );
+      return width == null ? label : SizedBox(width: width, child: label);
+    }
+
+    /// خلية نصية متوسطة في عمودها.
+    Widget cell(String txt, {required double size, Color? color}) => Text(
+          txt,
+          maxLines: 1,
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: size, fontWeight: FontWeight.w700, color: color),
+        );
+
+    final table = Container(
+      padding: EdgeInsets.all(wide ? 10 : 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: BrandColors.line, width: .8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── رأس الأعمدة: التاريخ · الاسم · اسم العيادة · نوع العلاج ·
+          //    طريقة الدفع · القيمة — بفاصلٍ بين كل عمودين وتوسيطٍ تام ──
+          Padding(
+            padding: EdgeInsets.symmetric(
+                horizontal: wide ? 8 : 2, vertical: 4),
+            child: Row(children: [
+              head('التاريخ', width: wDate),
+              SizedBox(width: gap),
+              Expanded(flex: 3, child: head('الاسم')),
+              SizedBox(width: gap),
+              Expanded(flex: 3, child: head('اسم العيادة')),
+              SizedBox(width: gap),
+              Expanded(flex: 3, child: head('نوع العلاج')),
+              SizedBox(width: gap),
+              head('طريقة الدفع', width: wPay),
+              SizedBox(width: gap),
+              head('القيمة', width: wVal),
+            ]),
+          ),
+          Divider(height: 1, color: BrandColors.line),
+          for (final r in rows) ...[
+            Padding(
+              padding: EdgeInsets.symmetric(
+                  horizontal: wide ? 8 : 2, vertical: 6),
+              child: Row(children: [
+                SizedBox(
+                  width: wDate,
+                  child: Text(dateOf(r.date),
+                      textDirection: TextDirection.ltr,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      style: TextStyle(
+                          fontSize: fs - 1,
+                          fontWeight: FontWeight.w700,
+                          color: BrandColors.ink,
+                          fontFeatures: const [
+                            FontFeature.tabularFigures()
+                          ])),
+                ),
+                SizedBox(width: gap),
+                Expanded(
+                    flex: 3, child: cell(r.name, size: fs)),
+                SizedBox(width: gap),
+                Expanded(
+                  flex: 3,
+                  child: cell(r.clinic,
+                      size: fs - .5, color: BrandColors.brandText),
+                ),
+                SizedBox(width: gap),
+                Expanded(
+                  flex: 3,
+                  child: cell(r.service.isEmpty ? '—' : r.service,
+                      size: fs - .5, color: BrandColors.strong),
+                ),
+                SizedBox(width: gap),
+                SizedBox(
+                    width: wPay,
+                    child: Center(child: _payChip(r.payment))),
+                SizedBox(width: gap),
+                SizedBox(
+                  width: wVal,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(n(r.amount),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: fs,
+                            fontWeight: FontWeight.w800,
+                            color: BrandColors.green,
+                            fontFeatures: const [
+                              FontFeature.tabularFigures()
+                            ]),
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+            Divider(height: 1, color: BrandColors.line),
+          ],
+          const SizedBox(height: 8),
+          // ── تذييل المجموع (نمط الخزينة: صندوق أخضر خفيف) ──
+          Container(
+            padding: EdgeInsets.symmetric(
+                horizontal: wide ? 10 : 4, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color.fromRGBO(46, 125, 90, .08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: const Color.fromRGBO(46, 125, 90, .25)),
+            ),
+            child: Row(children: [
+              SizedBox(
+                width: wide ? 90 : 62,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('المجموع',
+                      maxLines: 1,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.strong)),
+                ),
+              ),
+              const Expanded(child: SizedBox()),
+              SizedBox(
+                  width: wPay,
+                  child: Center(
+                      child: Text(cur,
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              color: BrandColors.strong)))),
+              SizedBox(width: gap),
+              SizedBox(
+                width: wVal,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                      n(rows.fold<num>(0, (s, r) => s + r.amount)),
+                      key: const Key('st-table-total'),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.green,
+                          fontFeatures: [FontFeature.tabularFigures()])),
+                ),
+              ),
+            ]),
+          ),
+        ],
+      ),
+    );
+
+    // م154/هـ — الكمبيوتر: الجدول يعانق اليمين بعرضٍ محدود والفراغ
+    // يُترك يساراً (قرار المالك)؛ الهاتف بعرضه الكامل.
+    return wide
+        ? Align(
+            alignment: AlignmentDirectional.topStart,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: table,
+            ),
+          )
+        : table;
+  }
+
+  /// م178/ب — رقاقة طريقة الدفع بلوني الخزينة حرفياً: الكاش أخضر وغيره
+  /// بنّي ذهبي، خلفية 10% وزوايا 8.
+  Widget _payChip(String pay) {
+    final isCash = pay == 'كاش' || pay == 'نقد' || pay == 'نقدي';
+    final color = isCash ? BrandColors.green : const Color(0xFF8A6D1B);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(pay.isEmpty ? '—' : pay,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w800, color: color)),
+    );
+  }
+
+  /// م178 — نص ترويسة عمودٍ في جدول النتائج (توأم ترويسات الخزينة).
+  TextStyle _thStyle() => TextStyle(
+      fontSize: 11, fontWeight: FontWeight.w800, color: BrandColors.strong);
 
   /// م109 — نص المدى المضغوط لزر الرأس: يوم واحد = تاريخه، وإلا مدى.
   String get _rangeLabel {
