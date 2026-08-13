@@ -132,6 +132,9 @@ class StorageMeter {
 
   int get fileCount => _sizes().length;
 
+  /// م176 — حجم ملفٍ مسجل بمفتاحه من خريطة الأحجام (0 إن لم يُعرف بعد).
+  int sizeOf(String key) => _sizes()[key] ?? 0;
+
   /// الحصة المخبَّأة — الافتراضية إن لم تُجلب بعد.
   int get quotaBytes {
     final q = _readInt(_kQuota);

@@ -26,7 +26,8 @@ import '../../core/utils/js_compat.dart' show jsOr;
 import '../desktop/desktop_gate.dart' show isDesktopUi;
 import '../desktop/widgets/desktop_dialogs.dart' show showDesktopDialog;
 import '../../core/theme/app_theme.dart';
-import '../../data/sync/db_sync.dart' show getMetaValue;
+import '../../data/sync/db_sync.dart'
+    show getMetaJson, getMetaValue, setMetaJson;
 import '../patients/audit_trail.dart' show AuditAction, recordAudit;
 import 'storage_meter.dart' show StorageMeter, humanBytesAr;
 import 'xray_pipeline.dart'
@@ -110,7 +111,18 @@ class _XraySectionState extends ConsumerState<XraySection> {
   void initState() {
     super.initState();
     widget.controller?._state = this; // م172
+    // م176 — المفاتيح التي شوهدت نقطتها الحمراء (مخزن محلي لا يتزامن).
+    _seenUploads = {
+      for (final e in getMetaJson<List>(
+          ref.read(localDbProvider), 'xray.up_seen', const []))
+        '$e',
+    };
   }
+
+  /// م176 — نقطة «نجاح الرفع» الحمراء: تظهر مرةً واحدة للمستخدم —
+  /// المشاهد سابقاً محفوظ محلياً، والمعروض بهذه الجلسة يبقى ظاهراً فيها.
+  late Set<String> _seenUploads;
+  final Set<String> _sessionDots = {};
 
 
   String? editingKey;
@@ -730,18 +742,27 @@ class _XraySectionState extends ConsumerState<XraySection> {
                             color: BrandColors.ink,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            'صور الأشعة (${keys.length})',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: BrandColors.ink,
+                          // م176 — قصاصة رشيقة مع خط المساحة الجديد.
+                          Flexible(
+                            child: Text(
+                              'صور الأشعة (${keys.length})',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: BrandColors.ink,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  // م176 — خط المساحة (المستخدم من الكلي حسب الاشتراك)
+                  // بسلوك عداد الاشتراك نفسه — يتحدث مع كل حذف/إضافة.
+                  _storageMini(),
+                  const SizedBox(width: 8),
                   // مبدّل النمط التوأم — xray-seg.
                   Container(
                     padding: const EdgeInsets.all(2),
@@ -1008,6 +1029,56 @@ class _XraySectionState extends ConsumerState<XraySection> {
     ),
   );
 
+  /// م176 — خط المساحة المصغر برأس البطاقة: «المستخدم من الكلي» + شريط
+  /// تقدمٍ رفيع بعتبات ألوان عداد الاشتراك نفسها (يُقرأ حياً كل بناء).
+  Widget _storageMini() {
+    final meter = ref.read(storageMeterProvider);
+    final used = meter.usedBytes;
+    final quota = meter.quotaBytes;
+    final ratio = quota <= 0 ? 0.0 : (used / quota).clamp(0.0, 1.0);
+    final color = switch (ratio) {
+      >= 0.95 => const Color(0xFFC0392B),
+      >= 0.9 => BrandColors.goldDark,
+      >= 0.8 => BrandColors.gold,
+      _ => BrandColors.brand,
+    };
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // انكماشٌ رشيق على الشاشات الضيقة/الخطوط العريضة (لا فيضان).
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 96),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '${humanBytesAr(used)} من ${humanBytesAr(quota)}',
+              key: const Key('xray-storage-mini'),
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: BrandColors.mut,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: SizedBox(
+            width: 76,
+            child: LinearProgressIndicator(
+              value: ratio == 0 ? 0.02 : ratio,
+              minHeight: 4,
+              backgroundColor: color.withValues(alpha: .15),
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   /// صف العرض التفصيلي — xray-det-row التوأم.
   Widget _detRow(
     Map<String, Object?> cfg,
@@ -1021,6 +1092,25 @@ class _XraySectionState extends ConsumerState<XraySection> {
     final uploaded = '${row?['upload_status']}' == 'uploaded';
     final name = '${meta['name'] ?? ''}';
     final date = _arDateLabel(meta);
+    // م176 — حجم الملف بجانب التاريخ (من خريطة أحجام عداد التخزين).
+    final sz = ref.read(storageMeterProvider).sizeOf(key);
+    final dateSize = [
+      if (date.isNotEmpty) date,
+      if (sz > 0) humanBytesAr(sz),
+    ].join(' · ');
+    // م176 — نقطة نجاح الرفع: أول ظهورٍ يُختم محلياً فلا تعود ثانيةً —
+    // وتبقى ظاهرةً طوال هذه الجلسة كي يراها المستخدم فعلاً.
+    final unseen = uploaded && !_seenUploads.contains(key);
+    if (unseen) {
+      _sessionDots.add(key);
+      _seenUploads.add(key);
+      final db = ref.read(localDbProvider);
+      final snapshot = _seenUploads.toList();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setMetaJson(db, 'xray.up_seen', snapshot);
+      });
+    }
+    final showDot = uploaded && _sessionDots.contains(key);
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(6),
@@ -1105,75 +1195,94 @@ class _XraySectionState extends ConsumerState<XraySection> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        name.isEmpty ? 'أشعة' : name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: BrandColors.brand700,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name.isEmpty ? 'أشعة' : name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: BrandColors.brand700,
+                              ),
+                            ),
+                          ),
+                          // م176 — نقطة نجاح الرفع الحمراء (تظهر مرةً
+                          // واحدة — تُختم مشاهدتها محلياً) بدل الشارة.
+                          if (showDot) ...[
+                            const SizedBox(width: 5),
+                            Container(
+                              key: Key('xray-dot-$i'),
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFEF4444),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 3),
                       Row(
                         children: [
-                          if (date.isNotEmpty) ...[
-                            Opacity(
-                              opacity: .5,
-                              child: Text(
-                                date,
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: BrandColors.ink,
+                          if (dateSize.isNotEmpty) ...[
+                            Flexible(
+                              child: Opacity(
+                                opacity: .5,
+                                child: Text(
+                                  dateSize,
+                                  key: Key('xray-datesize-$i'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: BrandColors.ink,
+                                  ),
                                 ),
                               ),
                             ),
                             const SizedBox(width: 6),
                           ],
-                          // شارة الحالة — xray-badge-ok / xray-badge-wait.
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: uploaded
-                                  ? const Color.fromRGBO(34, 197, 94, .15)
-                                  : const Color.fromRGBO(234, 179, 8, .15),
-                              border: Border.all(
-                                color: uploaded
-                                    ? const Color.fromRGBO(34, 197, 94, .25)
-                                    : const Color.fromRGBO(234, 179, 8, .25),
+                          // م176 — «مرفوعة» أزيلت (حلت محلها النقطة) —
+                          // شارة الانتظار وحدها تبقى.
+                          if (!uploaded)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1,
                               ),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  uploaded
-                                      ? Icons.check_rounded
-                                      : Icons.schedule_rounded,
-                                  size: 9,
-                                  color: uploaded
-                                      ? const Color(0xFF22C55E)
-                                      : const Color(0xFFB8860B),
+                              decoration: BoxDecoration(
+                                color:
+                                    const Color.fromRGBO(234, 179, 8, .15),
+                                border: Border.all(
+                                  color:
+                                      const Color.fromRGBO(234, 179, 8, .25),
                                 ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  uploaded ? 'مرفوعة' : 'بانتظار الرفع',
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: uploaded
-                                        ? const Color(0xFF22C55E)
-                                        : const Color(0xFFB8860B),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.schedule_rounded,
+                                    size: 9,
+                                    color: Color(0xFFB8860B),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    'بانتظار الرفع',
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFFB8860B),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ],
@@ -1181,28 +1290,64 @@ class _XraySectionState extends ConsumerState<XraySection> {
           ),
           if (editingKey != key) ...[
             const SizedBox(width: 6),
-            _detBtn(
-              key: Key('xray-rename-btn-$i'),
-              onTap: () => setState(() {
-                editingKey = key;
-                renameCtl.text = name;
-              }),
-              child: const Icon(
-                Icons.edit_rounded,
-                size: 14,
-                color: Color(0xFF6B7280),
+            // م176 — التعديل والحذف مجموعان بقائمة ثلاث نقاطٍ واحدة
+            // (قرار المالك) — بنفس مفاتيح الاختبارات على عنصرَي القائمة.
+            MenuAnchor(
+              style: MenuStyle(
+                backgroundColor:
+                    WidgetStatePropertyAll(BrandColors.surface),
+                elevation: const WidgetStatePropertyAll(6),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: BrandColors.line),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(width: 4),
-            _detBtn(
-              key: Key('xray-del-btn-$i'),
-              bg: const Color.fromRGBO(239, 68, 68, .12),
-              border: const Color.fromRGBO(239, 68, 68, .25),
-              onTap: () => _delete(key),
-              child: const Icon(
-                Icons.delete_outline_rounded,
-                size: 14,
-                color: Color(0xFFF87171),
+              menuChildren: [
+                MenuItemButton(
+                  key: Key('xray-rename-btn-$i'),
+                  onPressed: () => setState(() {
+                    editingKey = key;
+                    renameCtl.text = name;
+                  }),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_rounded,
+                          size: 15, color: Color(0xFF6B7280)),
+                      SizedBox(width: 8),
+                      Text('تعديل الاسم',
+                          style: TextStyle(fontSize: 12.5)),
+                    ],
+                  ),
+                ),
+                MenuItemButton(
+                  key: Key('xray-del-btn-$i'),
+                  onPressed: () => _delete(key),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.delete_outline_rounded,
+                          size: 15, color: Color(0xFFF87171)),
+                      SizedBox(width: 8),
+                      Text('حذف',
+                          style: TextStyle(
+                              fontSize: 12.5, color: Color(0xFFF87171))),
+                    ],
+                  ),
+                ),
+              ],
+              builder: (ctx, controller, _) => _detBtn(
+                key: Key('xray-more-$i'),
+                onTap: () => controller.isOpen
+                    ? controller.close()
+                    : controller.open(),
+                child: const Icon(
+                  Icons.more_vert_rounded,
+                  size: 15,
+                  color: Color(0xFF6B7280),
+                ),
               ),
             ),
           ],
