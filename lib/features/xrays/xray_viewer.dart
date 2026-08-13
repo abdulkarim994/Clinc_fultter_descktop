@@ -22,7 +22,7 @@ import 'package:gal/gal.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../desktop/desktop_gate.dart' show isDesktopUi;
-import 'xray_compare_screen.dart';
+import 'xray_compare_studio.dart';
 
 class XrayViewerScreen extends StatefulWidget {
   const XrayViewerScreen({
@@ -109,14 +109,10 @@ class _XrayViewerScreenState extends State<XrayViewerScreen> {
     }
   }
 
-  /// م174 — ورقة اختيار الصورة الثانية للمقارنة، ثم شاشة القالب —
-  /// الأقدم «قبل» والأحدث «بعد» تلقائياً (وزر تبديل داخل الشاشة).
+  /// م175 — زر «مقارنة» (قرار المالك): أولاً خيارُ العائلة — «قوالب صور
+  /// الابتسامة» أو «قوالب صور الأشعة» — ثم اختيارٌ متعدد (2–6 صور)
+  /// فاستوديو المقارنة بقوالب العائلة.
   void _openCompare(String currentKey) {
-    final others = [
-      for (final k in widget.keys_)
-        if (k != currentKey) k,
-    ];
-    if (others.isEmpty) return;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF10192B),
@@ -125,13 +121,13 @@ class _XrayViewerScreenState extends State<XrayViewerScreen> {
       builder: (sheetCtx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Row(children: [
               Icon(Icons.compare_rounded,
                   size: 17, color: BrandColors.gold),
               SizedBox(width: 7),
               Expanded(
-                child: Text('اختر الصورة الثانية للمقارنة',
+                child: Text('نوع المقارنة',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -141,35 +137,148 @@ class _XrayViewerScreenState extends State<XrayViewerScreen> {
               ),
             ]),
           ),
-          Flexible(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final k in others)
-                  ListTile(
-                    key: Key('xv-cmp-pick-$k'),
-                    dense: true,
-                    leading: _sheetThumb(k),
-                    title: Text(widget.nameOf(k),
-                        style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white)),
-                    subtitle: widget.dateOf == null
-                        ? null
-                        : Text(widget.dateOf!(k),
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.white54)),
-                    onTap: () {
-                      Navigator.pop(sheetCtx);
-                      _pushCompare(currentKey, k);
-                    },
-                  ),
-              ],
-            ),
+          ListTile(
+            key: const Key('xv-cmp-smile'),
+            leading: const Icon(Icons.sentiment_very_satisfied_rounded,
+                color: BrandColors.gold),
+            title: const Text('قوالب صور الابتسامة',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white)),
+            subtitle: const Text('مقاسات النشر على فيسبوك',
+                style: TextStyle(fontSize: 11, color: Colors.white54)),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              _pickImages(currentKey, 'smile');
+            },
+          ),
+          ListTile(
+            key: const Key('xv-cmp-xray'),
+            leading: const Icon(Icons.broken_image_rounded,
+                color: BrandColors.gold),
+            title: const Text('قوالب صور الأشعة',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white)),
+            subtitle: const Text('ثنائي وشريط تسلسل وشبكة',
+                style: TextStyle(fontSize: 11, color: Colors.white54)),
+            onTap: () {
+              Navigator.pop(sheetCtx);
+              _pickImages(currentKey, 'xray');
+            },
           ),
           const SizedBox(height: 8),
         ]),
+      ),
+    );
+  }
+
+  /// م175 — الاختيار المتعدد (2–6 صور، الحالية محددة سلفاً) ثم الاستوديو.
+  void _pickImages(String currentKey, String family) {
+    final picked = <String>{currentKey};
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF10192B),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              child: Row(children: [
+                const Icon(Icons.photo_library_rounded,
+                    size: 17, color: BrandColors.gold),
+                const SizedBox(width: 7),
+                const Expanded(
+                  child: Text('اختر الصور (2–6)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white)),
+                ),
+                Text('${picked.length}',
+                    key: const Key('xv-pick-count'),
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900,
+                        color: BrandColors.gold)),
+              ]),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final k in widget.keys_)
+                    CheckboxListTile(
+                      key: Key('xv-cmp-pick-$k'),
+                      dense: true,
+                      activeColor: BrandColors.gold,
+                      checkColor: const Color(0xFF10192B),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: picked.contains(k),
+                      secondary: _sheetThumb(k),
+                      title: Text(widget.nameOf(k),
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
+                      subtitle: widget.dateOf == null
+                          ? null
+                          : Text(widget.dateOf!(k),
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.white54)),
+                      onChanged: (v) => setSheet(() {
+                        if (v == true) {
+                          if (picked.length >= 6) return;
+                          picked.add(k);
+                        } else if (picked.length > 1) {
+                          picked.remove(k);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: const Key('xv-cmp-go'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: picked.length >= 2
+                        ? BrandColors.gold
+                        : Colors.white24,
+                    foregroundColor: picked.length >= 2
+                        ? const Color(0xFF10192B)
+                        : Colors.white54,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
+                  onPressed: picked.length < 2
+                      ? null
+                      : () {
+                          Navigator.pop(sheetCtx);
+                          _pushStudio(family, picked.toList());
+                        },
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 17),
+                  label: Text(
+                    picked.length < 2
+                        ? 'اختر صورة ثانية على الأقل'
+                        : 'فتح الاستوديو (${picked.length} صور)',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
@@ -190,32 +299,27 @@ class _XrayViewerScreenState extends State<XrayViewerScreen> {
     );
   }
 
-  void _pushCompare(String a, String b) {
-    final ba = widget.bytesOf(a);
-    final bb = widget.bytesOf(b);
-    if (ba == null || bb == null) {
-      _snack('تعذر تحميل إحدى الصورتين');
-      return;
-    }
-    XrayCompareEntry entry(String k, Uint8List bytes) => XrayCompareEntry(
-          bytes: bytes,
-          name: widget.nameOf(k),
-          date: widget.dateOf?.call(k) ?? '',
-          ts: widget.tsOf?.call(k) ?? 0,
-        );
-    var e1 = entry(a, ba);
-    var e2 = entry(b, bb);
-    // الأقدم «قبل» تلقائياً (طوابع صالحة فقط) — والتبديل داخل الشاشة.
-    if (e1.ts > 0 && e2.ts > 0 && e2.ts < e1.ts) {
-      final t = e1;
-      e1 = e2;
-      e2 = t;
+  /// م175 — فتح الاستوديو بالعناصر المختارة (يرتبها تصاعدياً بالتاريخ).
+  void _pushStudio(String family, List<String> keys) {
+    final items = <CompareItem>[];
+    for (final k in keys) {
+      final b = widget.bytesOf(k);
+      if (b == null) {
+        _snack('تعذر تحميل إحدى الصور');
+        return;
+      }
+      items.add(CompareItem(
+        bytes: b,
+        name: widget.nameOf(k),
+        date: widget.dateOf?.call(k) ?? '',
+        ts: widget.tsOf?.call(k) ?? 0,
+      ));
     }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => XrayCompareScreen(
-          before: e1,
-          after: e2,
+        builder: (_) => CompareStudioScreen(
+          family: family,
+          items: items,
           patientName: widget.patientName,
           centerName: widget.centerName,
         ),
