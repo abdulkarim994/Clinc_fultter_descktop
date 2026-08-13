@@ -1227,7 +1227,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
               Text(
-                'PNG/JPG/SVG — يظهر في أعلى صفحة الطباعة',
+                'PNG/JPG/SVG — يظهر في أعلى صفحة الطباعة وبقوالب المقارنة',
                 style: TextStyle(fontSize: 11, color: BrandColors.mut2),
               ),
             ],
