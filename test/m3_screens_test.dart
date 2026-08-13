@@ -262,26 +262,31 @@ void main() {
         await settle(tester);
         expect(find.text('قائمة الانتظار فارغة.'), findsOneWidget);
 
-        // إضافة سريعة تبقى مفتوحة
-        await tapSeen(tester, find.byKey(const Key('queue-add-toggle')));
-        await settle(tester);
+        // م177 — الإضافة صارت ورقةً منبثقة من الزر الدائري وتبقى مفتوحة.
+        await tester.pumpAndSettle();
+        await tapSeen(tester, find.byKey(const Key('queue-fab-add')));
+        await tester.pumpAndSettle();
         await tester.enterText(find.byKey(const Key('queue-add-name')), 'سالم');
         await tapSeen(tester, find.byKey(const Key('queue-add-go')));
         await settle(tester);
         await tester.enterText(find.byKey(const Key('queue-add-name')), 'مريم');
         await tapSeen(tester, find.byKey(const Key('queue-add-go')));
         await settle(tester);
-        // م56 — أغلق لوحة الإضافة لتحرير مساحة القائمة (نافذة ٦٠٠ بكسل):
-        // القائمة كسولة فتبني البطاقتين معاً بعد الإغلاق.
-        await tapSeen(tester, find.byKey(const Key('queue-add-toggle')));
-        await settle(tester);
+        // إغلاق الورقة (نقرة خارجها) لتحرير مساحة القائمة.
+        await tester.tapAt(const Offset(200, 40));
+        await tester.pumpAndSettle();
 
         // v62 — «سالم» الأول يظهر مرتين: لوحة «التالي» البطلة + صفه.
         expect(find.text('سالم'), findsNWidgets(2));
         expect(find.byKey(const Key('hero-name')), findsOneWidget);
         expect(find.byKey(const Key('hero-admit')), findsOneWidget);
         expect(find.text('مريم'), findsOneWidget);
-        expect(find.text('صباح (2)'), findsOneWidget);
+        // م177 — التبويب الكبير «صباحاً» وعدّاده شارةٌ مستقلة.
+        expect(
+            find.descendant(
+                of: find.byKey(const Key('period-morning')),
+                matching: find.text('2')),
+            findsOneWidget);
 
         // كتابات الواجهة دخلت طابور المزامنة فعلاً
         final c = ProviderContainer(
@@ -307,19 +312,27 @@ void main() {
         final salem = rows.firstWhere((r) => r['patient_name'] == 'سالم');
         await tapSeen(tester, find.byKey(Key('admit-${salem['id']}')));
         await settle(tester);
-        expect(find.text('صباح (1)'), findsOneWidget);
-        expect(find.text('الأرشيف (1)'), findsOneWidget);
+        expect(
+            find.descendant(
+                of: find.byKey(const Key('period-morning')),
+                matching: find.text('1')),
+            findsOneWidget);
+        expect(
+            find.descendant(
+                of: find.byKey(const Key('period-archive')),
+                matching: find.text('1')),
+            findsOneWidget);
 
         // الأرشيف يعرض سالم برقم أرشيف 1
         await tapSeen(tester, find.byKey(const Key('period-archive')));
-        await settle(tester);
+        await tester.pumpAndSettle();
         expect(find.text('سالم'), findsOneWidget);
 
         // عودة للانتظار ثم رجوع لاختيار العيادة
         await tapSeen(tester, find.byKey(const Key('period-morning')));
-        await settle(tester);
+        await tester.pumpAndSettle();
         await tapSeen(tester, find.byKey(const Key('queue-back')));
-        await settle(tester);
+        await tester.pumpAndSettle();
         expect(find.text('اختر العيادة'), findsOneWidget);
         expect(find.textContaining('في الانتظار اليوم'), findsOneWidget);
       },
