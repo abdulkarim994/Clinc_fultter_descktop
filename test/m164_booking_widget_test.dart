@@ -273,10 +273,9 @@ void main() {
     expect(find.byKey(const Key('appt-clinic-الصفوة')), findsNothing,
         reason: 'لا رقائق في الرأس عند ≥4 عيادات');
 
-    // فتح الورقة واختيار كاريزما (بعدّاد مواعيد اليوم).
+    // م174 — القائمة تنبثق تحت السهم (لا ورقة سفلية) بعدّاد اليوم.
     await t.tap(find.byKey(const Key('appt-clinic-pill')));
     await t.pumpAndSettle();
-    expect(find.text('اختر العيادة'), findsWidgets);
     expect(find.textContaining('1 اليوم'), findsOneWidget,
         reason: 'عدّاد مواعيد اليوم بجانب كاريزما');
     await t.tap(find.byKey(const Key('appt-clinic-كاريزما')));

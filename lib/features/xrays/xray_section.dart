@@ -22,6 +22,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../core/utils/js_compat.dart' show jsOr;
 import '../desktop/desktop_gate.dart' show isDesktopUi;
 import '../desktop/widgets/desktop_dialogs.dart' show showDesktopDialog;
 import '../../core/theme/app_theme.dart';
@@ -537,6 +538,14 @@ class _XraySectionState extends ConsumerState<XraySection> {
             final n = '${xrayMetaFor(cfg, k)['name'] ?? ''}';
             return n.isEmpty ? 'أشعة' : n;
           },
+          // م174 — ختم التاريخ (العارض والمقارنة) + ترتيب قبل/بعد.
+          dateOf: (k) => _arDateLabel(xrayMetaFor(cfg, k)),
+          tsOf: (k) {
+            final ts = xrayMetaFor(cfg, k)['createdAt'];
+            return ts is num ? ts.toInt() : 0;
+          },
+          patientName: widget.patientName,
+          centerName: '${jsOr(cfg['centerName'], 'المركز')}',
           onDelete: _delete,
         ),
       ),

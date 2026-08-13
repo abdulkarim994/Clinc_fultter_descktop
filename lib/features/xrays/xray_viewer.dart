@@ -3,11 +3,26 @@
 /// وتباين بمصفوفة ألوان (نفس دلالات مرشحات CSS: invert ثم brightness ثم
 /// contrast)، تنقل سابق/تالي، وحذف بتأكيد. النسخة الكاملة من الملف المحلي
 /// وإلا فالمصغرة (سلوك «الأوفلاين» نفسه).
+///
+/// م174 — (قرار المالك):
+///   • تنقلٌ بأسهم لوحة المفاتيح على الكمبيوتر (يمين = السابق، يسار =
+///     التالي — مطابقة أزرار الشاشة بالاتجاه العربي)، وبسحب الإصبع على
+///     الهاتف — فقط حين لا تكبير كي لا يتعارض مع تحريك الصورة المكبرة.
+///   • زر حفظ الصورة لمعرض الهاتف (هاتف فقط — أيقونة حفظ بالترويسة).
+///   • ختم تاريخ الصورة سطراً صغيراً تحت العنوان.
+///   • «مقارنة»: اختيار صورةٍ ثانية من ملف المريض ثم شاشة قالب «قبل/
+///     بعد» الاحترافي [XrayCompareScreen] بختم تاريخٍ تحت كل صورة.
 library;
 
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show KeyDownEvent, LogicalKeyboardKey;
+import 'package:gal/gal.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../desktop/desktop_gate.dart' show isDesktopUi;
+import 'xray_compare_screen.dart';
 
 class XrayViewerScreen extends StatefulWidget {
   const XrayViewerScreen({
@@ -16,6 +31,10 @@ class XrayViewerScreen extends StatefulWidget {
     required this.startIndex,
     required this.bytesOf,
     required this.nameOf,
+    this.dateOf,
+    this.tsOf,
+    this.patientName = '',
+    this.centerName = '',
     this.onDelete,
   });
 
@@ -23,6 +42,17 @@ class XrayViewerScreen extends StatefulWidget {
   final int startIndex;
   final Uint8List? Function(String key) bytesOf;
   final String Function(String key) nameOf;
+
+  /// م174 — تاريخ الصورة المنسق (ختم العارض والمقارنة) — اختياري.
+  final String Function(String key)? dateOf;
+
+  /// م174 — طابع الإنشاء الخام لترتيب «قبل/بعد» تلقائياً — اختياري.
+  final int Function(String key)? tsOf;
+
+  /// م174 — لقالب المقارنة الاحترافي (ترويسة وتذييل).
+  final String patientName;
+  final String centerName;
+
   final void Function(String key)? onDelete;
 
   @override
@@ -62,6 +92,137 @@ class _XrayViewerScreenState extends State<XrayViewerScreen> {
         _reset();
       });
 
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          duration: const Duration(milliseconds: 1200),
+          content: Text(msg)));
+
+  /// م174 — حفظ الصورة الحالية في معرض الهاتف (زر الترويسة).
+  Future<void> _saveToPhone(String key, Uint8List bytes) async {
+    try {
+      final name = widget.nameOf(key).replaceAll(RegExp(r'[^\w؀-ۿ]+'), '_');
+      await Gal.putImageBytes(bytes,
+          name: 'xray_${name}_${DateTime.now().millisecondsSinceEpoch}');
+      _snack('حُفظت الصورة في معرض الهاتف ✓');
+    } catch (_) {
+      _snack('تعذر الحفظ — تحقق من إذن الوصول للصور');
+    }
+  }
+
+  /// م174 — ورقة اختيار الصورة الثانية للمقارنة، ثم شاشة القالب —
+  /// الأقدم «قبل» والأحدث «بعد» تلقائياً (وزر تبديل داخل الشاشة).
+  void _openCompare(String currentKey) {
+    final others = [
+      for (final k in widget.keys_)
+        if (k != currentKey) k,
+    ];
+    if (others.isEmpty) return;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF10192B),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+            child: Row(children: [
+              Icon(Icons.compare_rounded,
+                  size: 17, color: BrandColors.gold),
+              SizedBox(width: 7),
+              Expanded(
+                child: Text('اختر الصورة الثانية للمقارنة',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white)),
+              ),
+            ]),
+          ),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final k in others)
+                  ListTile(
+                    key: Key('xv-cmp-pick-$k'),
+                    dense: true,
+                    leading: _sheetThumb(k),
+                    title: Text(widget.nameOf(k),
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                    subtitle: widget.dateOf == null
+                        ? null
+                        : Text(widget.dateOf!(k),
+                            style: const TextStyle(
+                                fontSize: 11, color: Colors.white54)),
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      _pushCompare(currentKey, k);
+                    },
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+  }
+
+  Widget _sheetThumb(String k) {
+    final b = widget.bytesOf(k);
+    if (b == null) {
+      return const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(Icons.image_not_supported_outlined,
+              color: Colors.white38));
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child:
+          Image.memory(b, width: 44, height: 44, fit: BoxFit.cover),
+    );
+  }
+
+  void _pushCompare(String a, String b) {
+    final ba = widget.bytesOf(a);
+    final bb = widget.bytesOf(b);
+    if (ba == null || bb == null) {
+      _snack('تعذر تحميل إحدى الصورتين');
+      return;
+    }
+    XrayCompareEntry entry(String k, Uint8List bytes) => XrayCompareEntry(
+          bytes: bytes,
+          name: widget.nameOf(k),
+          date: widget.dateOf?.call(k) ?? '',
+          ts: widget.tsOf?.call(k) ?? 0,
+        );
+    var e1 = entry(a, ba);
+    var e2 = entry(b, bb);
+    // الأقدم «قبل» تلقائياً (طوابع صالحة فقط) — والتبديل داخل الشاشة.
+    if (e1.ts > 0 && e2.ts > 0 && e2.ts < e1.ts) {
+      final t = e1;
+      e1 = e2;
+      e2 = t;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => XrayCompareScreen(
+          before: e1,
+          after: e2,
+          patientName: widget.patientName,
+          centerName: widget.centerName,
+        ),
+      ),
+    );
+  }
+
   /// مصفوفة invert→brightness→contrast المركّبة (دلالات مرشحات CSS).
   List<double> _matrix() {
     var a = invert ? -1.0 : 1.0;
@@ -84,17 +245,49 @@ class _XrayViewerScreenState extends State<XrayViewerScreen> {
   Widget build(BuildContext context) {
     final key = widget.keys_.isEmpty ? null : widget.keys_[idx];
     final bytes = key == null ? null : widget.bytesOf(key);
+    final date =
+        key == null || widget.dateOf == null ? '' : widget.dateOf!(key);
+    final desktop = isDesktopUi(context);
 
     return Scaffold(
       backgroundColor: const Color(0xF20B1220),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
-        title: Text(
-          key == null ? '' : '${widget.nameOf(key)} (${idx + 1}/${widget.keys_.length})',
-          style: const TextStyle(fontSize: 14),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              key == null
+                  ? ''
+                  : '${widget.nameOf(key)} (${idx + 1}/${widget.keys_.length})',
+              style: const TextStyle(fontSize: 14),
+            ),
+            // م174 — ختم تاريخ الصورة تحت العنوان.
+            if (date.isNotEmpty)
+              Text(date,
+                  key: const Key('xv-date'),
+                  style: const TextStyle(
+                      fontSize: 10.5, color: Colors.white60)),
+          ],
         ),
         actions: [
+          // م174 — «مقارنة قبل/بعد» (صورتان فأكثر بالملف).
+          if (key != null && widget.keys_.length >= 2)
+            IconButton(
+              key: const Key('xv-compare'),
+              tooltip: 'مقارنة قبل/بعد',
+              icon: const Icon(Icons.compare_rounded),
+              onPressed: () => _openCompare(key),
+            ),
+          // م174 — حفظ للهاتف (هاتف فقط).
+          if (key != null && bytes != null && !desktop)
+            IconButton(
+              key: const Key('xv-save'),
+              tooltip: 'حفظ إلى الهاتف',
+              icon: const Icon(Icons.save_alt_rounded),
+              onPressed: () => _saveToPhone(key, bytes),
+            ),
           if (widget.onDelete != null && key != null)
             IconButton(
               key: const Key('xv-delete'),
@@ -124,102 +317,134 @@ class _XrayViewerScreenState extends State<XrayViewerScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: bytes == null
-                ? const Center(
-                    child: Text('لا صورة',
-                        style: TextStyle(color: Colors.white54)))
-                : InteractiveViewer(
-                    transformationController: _tc,
-                    minScale: 0.5,
-                    maxScale: 5,
-                    child: Center(
-                      child: ColorFiltered(
-                        colorFilter: ColorFilter.matrix(_matrix()),
-                        child: RotatedBox(
-                          quarterTurns: quarterTurns,
-                          child: Image.memory(bytes, gaplessPlayback: true),
+      // م174 — أسهم لوحة المفاتيح (كمبيوتر): يمين = السابق ويسار =
+      // التالي — مطابقة اتجاه أزرار الشاشة العربية حرفياً.
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, e) {
+          if (e is! KeyDownEvent) return KeyEventResult.ignored;
+          if (e.logicalKey == LogicalKeyboardKey.arrowRight) {
+            if (idx > 0) _go(-1);
+            return KeyEventResult.handled;
+          }
+          if (e.logicalKey == LogicalKeyboardKey.arrowLeft) {
+            if (idx < widget.keys_.length - 1) _go(1);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Column(
+          children: [
+            Expanded(
+              child: bytes == null
+                  ? const Center(
+                      child: Text('لا صورة',
+                          style: TextStyle(color: Colors.white54)))
+                  : InteractiveViewer(
+                      transformationController: _tc,
+                      minScale: 0.5,
+                      maxScale: 5,
+                      // م174 — سحب الإصبع (هاتف): قذفة أفقية حين لا
+                      // تكبير تنقل بين الصور — والمكبرة تتحرك كالسابق.
+                      onInteractionEnd: (d) {
+                        final scale = _tc.value.getMaxScaleOnAxis();
+                        if (scale > 1.05) return;
+                        final vx = d.velocity.pixelsPerSecond.dx;
+                        if (vx > 600 && idx > 0) {
+                          _go(-1);
+                        } else if (vx < -600 &&
+                            idx < widget.keys_.length - 1) {
+                          _go(1);
+                        }
+                      },
+                      child: Center(
+                        child: ColorFiltered(
+                          colorFilter: ColorFilter.matrix(_matrix()),
+                          child: RotatedBox(
+                            quarterTurns: quarterTurns,
+                            child:
+                                Image.memory(bytes, gaplessPlayback: true),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 2,
-                children: [
-                  IconButton(
-                    key: const Key('xv-prev'),
-                    tooltip: 'السابق',
-                    onPressed: idx > 0 ? () => _go(-1) : null,
-                    icon: const Icon(Icons.chevron_right_rounded,
-                        color: Colors.white70),
-                  ),
-                  IconButton(
-                    key: const Key('xv-rotate'),
-                    tooltip: 'تدوير',
-                    onPressed: () =>
-                        setState(() => quarterTurns = (quarterTurns + 1) % 4),
-                    icon: const Icon(Icons.rotate_90_degrees_cw_rounded,
-                        color: Colors.white70),
-                  ),
-                  IconButton(
-                    key: const Key('xv-invert'),
-                    tooltip: 'عكس الألوان',
-                    onPressed: () => setState(() => invert = !invert),
-                    icon: Icon(Icons.invert_colors_rounded,
-                        color: invert ? Colors.amber : Colors.white70),
-                  ),
-                  IconButton(
-                    key: const Key('xv-bright-down'),
-                    tooltip: 'سطوع −',
-                    onPressed: () => setState(() =>
-                        brightness = (brightness - 15).clamp(20, 300)),
-                    icon: const Icon(Icons.brightness_low_rounded,
-                        color: Colors.white70),
-                  ),
-                  IconButton(
-                    key: const Key('xv-bright-up'),
-                    tooltip: 'سطوع +',
-                    onPressed: () => setState(() =>
-                        brightness = (brightness + 15).clamp(20, 300)),
-                    icon: const Icon(Icons.brightness_high_rounded,
-                        color: Colors.white70),
-                  ),
-                  IconButton(
-                    key: const Key('xv-contrast-up'),
-                    tooltip: 'تباين +',
-                    onPressed: () =>
-                        setState(() => contrast = (contrast + 15).clamp(20, 300)),
-                    icon: const Icon(Icons.contrast_rounded,
-                        color: Colors.white70),
-                  ),
-                  IconButton(
-                    key: const Key('xv-reset'),
-                    tooltip: 'إعادة ضبط',
-                    onPressed: _reset,
-                    icon: const Icon(Icons.refresh_rounded,
-                        color: Colors.white70),
-                  ),
-                  IconButton(
-                    key: const Key('xv-next'),
-                    tooltip: 'التالي',
-                    onPressed:
-                        idx < widget.keys_.length - 1 ? () => _go(1) : null,
-                    icon: const Icon(Icons.chevron_left_rounded,
-                        color: Colors.white70),
-                  ),
-                ],
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 2,
+                  children: [
+                    IconButton(
+                      key: const Key('xv-prev'),
+                      tooltip: 'السابق',
+                      onPressed: idx > 0 ? () => _go(-1) : null,
+                      icon: const Icon(Icons.chevron_right_rounded,
+                          color: Colors.white70),
+                    ),
+                    IconButton(
+                      key: const Key('xv-rotate'),
+                      tooltip: 'تدوير',
+                      onPressed: () => setState(
+                          () => quarterTurns = (quarterTurns + 1) % 4),
+                      icon: const Icon(Icons.rotate_90_degrees_cw_rounded,
+                          color: Colors.white70),
+                    ),
+                    IconButton(
+                      key: const Key('xv-invert'),
+                      tooltip: 'عكس الألوان',
+                      onPressed: () => setState(() => invert = !invert),
+                      icon: Icon(Icons.invert_colors_rounded,
+                          color: invert ? Colors.amber : Colors.white70),
+                    ),
+                    IconButton(
+                      key: const Key('xv-bright-down'),
+                      tooltip: 'سطوع −',
+                      onPressed: () => setState(() =>
+                          brightness = (brightness - 15).clamp(20, 300)),
+                      icon: const Icon(Icons.brightness_low_rounded,
+                          color: Colors.white70),
+                    ),
+                    IconButton(
+                      key: const Key('xv-bright-up'),
+                      tooltip: 'سطوع +',
+                      onPressed: () => setState(() =>
+                          brightness = (brightness + 15).clamp(20, 300)),
+                      icon: const Icon(Icons.brightness_high_rounded,
+                          color: Colors.white70),
+                    ),
+                    IconButton(
+                      key: const Key('xv-contrast-up'),
+                      tooltip: 'تباين +',
+                      onPressed: () => setState(
+                          () => contrast = (contrast + 15).clamp(20, 300)),
+                      icon: const Icon(Icons.contrast_rounded,
+                          color: Colors.white70),
+                    ),
+                    IconButton(
+                      key: const Key('xv-reset'),
+                      tooltip: 'إعادة ضبط',
+                      onPressed: _reset,
+                      icon: const Icon(Icons.refresh_rounded,
+                          color: Colors.white70),
+                    ),
+                    IconButton(
+                      key: const Key('xv-next'),
+                      tooltip: 'التالي',
+                      onPressed: idx < widget.keys_.length - 1
+                          ? () => _go(1)
+                          : null,
+                      icon: const Icon(Icons.chevron_left_rounded,
+                          color: Colors.white70),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
