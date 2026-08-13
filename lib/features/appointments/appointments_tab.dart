@@ -494,35 +494,98 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab>
                     color: BrandColors.brand700)),
           )
         else
-          InkWell(
-            key: const Key('appt-clinic-pill'),
-            borderRadius: BorderRadius.circular(12),
-            onTap: _openClinicSheet,
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 170),
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w900,
-                          color: none
-                              ? BrandColors.goldDark
-                              : BrandColors.brand700)),
+          // م174 — قائمة منسدلة تنبثق تحت السهم مباشرةً (قرار المالك —
+          // كانت ورقةً سفلية): نفس العناصر حرفياً بعدّاد مواعيد اليوم.
+          MenuAnchor(
+            style: MenuStyle(
+              backgroundColor:
+                  WidgetStatePropertyAll(BrandColors.surface),
+              elevation: const WidgetStatePropertyAll(6),
+              shape: WidgetStatePropertyAll(
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: BrandColors.line),
                 ),
-                Icon(Icons.expand_more_rounded,
-                    size: 19,
-                    color: none
-                        ? BrandColors.goldDark
-                        : BrandColors.brand700),
-              ]),
+              ),
+            ),
+            menuChildren: [
+              for (final c in clinics) _clinicMenuItem(c, c, apptMap, today),
+              if (hasUnassignedClinic(
+                  ref.read(reposProvider).appointments.getAll()))
+                _clinicMenuItem(kNoClinic, 'غير محددة', apptMap, today),
+            ],
+            builder: (ctx, controller, _) => InkWell(
+              key: const Key('appt-clinic-pill'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: () =>
+                  controller.isOpen ? controller.close() : controller.open(),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 170),
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w900,
+                            color: none
+                                ? BrandColors.goldDark
+                                : BrandColors.brand700)),
+                  ),
+                  Icon(Icons.expand_more_rounded,
+                      size: 19,
+                      color: none
+                          ? BrandColors.goldDark
+                          : BrandColors.brand700),
+                ]),
+              ),
             ),
           ),
       ]),
+    );
+  }
+
+  /// م174 — عنصر القائمة المنسدلة لعيادة: اختيارٌ بنقرة + عدّاد مواعيد
+  /// اليوم (توأم صفوف الورقة السفلية السابقة بنفس المفاتيح حرفياً).
+  Widget _clinicMenuItem(String value, String label,
+      Map<String, List<JMap>> apptMap, String today) {
+    final on = ref.read(apptClinicProvider) == value;
+    final n = filterByClinic([...?apptMap[today]], value)
+        .where((a) => !isBreakRow(a) && !isTerminalStatus(a['status']))
+        .length;
+    return MenuItemButton(
+      key: Key('appt-clinic-$value'),
+      onPressed: () =>
+          ref.read(apptClinicProvider.notifier).state = value,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 200),
+        child: Row(children: [
+          Icon(
+            on
+                ? Icons.radio_button_checked_rounded
+                : Icons.radio_button_off_rounded,
+            size: 17,
+            color: on ? BrandColors.brand600 : BrandColors.mut2,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: on ? FontWeight.w900 : FontWeight.w700,
+                    color:
+                        on ? BrandColors.brand700 : BrandColors.ink)),
+          ),
+          Text(n > 0 ? '$n اليوم' : '—',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: n > 0 ? BrandColors.brand600 : BrandColors.mut2)),
+        ]),
+      ),
     );
   }
 
@@ -1032,97 +1095,6 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab>
       '${d.day.toString().padLeft(2, '0')}';
 
 
-  /// م165 — ورقة اختيار العيادة السريعة: اسم + عدّاد مواعيد اليوم لكل
-  /// عيادة (و«غير محددة» عند وجود قديم) — اختيارٌ بنقرة ثم تُغلق.
-  void _openClinicSheet() {
-    final cfg = ref.read(appConfigProvider);
-    final clinics = clinicsOf(cfg);
-    final repos = ref.read(reposProvider);
-    final appointments = repos.appointments.getAll();
-    final today = getCurrentDate();
-    final map = buildApptMap(
-      appointments: appointments,
-      records: repos.records.getAll(),
-      prosthetics: repos.prosthetics.getAll(),
-    );
-    int countOf(String c) => filterByClinic([...?map[today]], c)
-        .where((a) => !isBreakRow(a) && !isTerminalStatus(a['status']))
-        .length;
-    final selected = ref.read(apptClinicProvider);
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: BrandColors.surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
-      builder: (sheetCtx) {
-        Widget row(String value, String label) {
-          final on = selected == value;
-          final n = countOf(value);
-          return InkWell(
-            key: Key('appt-clinic-$value'),
-            onTap: () {
-              ref.read(apptClinicProvider.notifier).state = value;
-              Navigator.pop(sheetCtx);
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 11),
-              child: Row(children: [
-                Icon(
-                  on
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_off_rounded,
-                  size: 17,
-                  color: on ? BrandColors.brand600 : BrandColors.mut2,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(label,
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight:
-                              on ? FontWeight.w900 : FontWeight.w700,
-                          color: on
-                              ? BrandColors.brand700
-                              : BrandColors.ink)),
-                ),
-                Text(n > 0 ? '$n اليوم' : '—',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color:
-                            n > 0 ? BrandColors.brand600 : BrandColors.mut2)),
-              ]),
-            ),
-          );
-        }
-
-        return SafeArea(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(children: [
-                Icon(Icons.medical_services_rounded,
-                    size: 16, color: BrandColors.goldDark),
-                SizedBox(width: 7),
-                Text('اختر العيادة',
-                    style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w900,
-                        color: BrandColors.brand900)),
-              ]),
-            ),
-            for (final c in clinics) row(c, c),
-            if (hasUnassignedClinic(
-                ref.read(reposProvider).appointments.getAll()))
-              row(kNoClinic, 'غير محددة'),
-            const SizedBox(height: 6),
-          ]),
-        );
-      },
-    );
-  }
 
   /// مُطالبة اختيار العيادة — لا جدول قبل تحديدها (التعدد ⇒ إلزامي).
   Widget _clinicPrompt(List<String> clinics) {
