@@ -14,7 +14,7 @@ import 'dart:typed_data';
 import 'package:dental_clinic_flutter/app/providers.dart';
 import 'package:dental_clinic_flutter/features/appointments/appointments_tab.dart';
 import 'package:dental_clinic_flutter/features/desktop/desktop_gate.dart';
-import 'package:dental_clinic_flutter/features/xrays/xray_compare_screen.dart';
+import 'package:dental_clinic_flutter/features/xrays/xray_compare_studio.dart';
 import 'package:dental_clinic_flutter/features/xrays/xray_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
@@ -60,7 +60,12 @@ void main() {
               bytesOf: (k) => kPng,
               nameOf: (k) => 'صورة-$k',
               dateOf: (k) => 'تاريخ-$k',
-              tsOf: (k) => switch (k) { 'k1' => 100, 'k2' => 200, _ => 300 },
+              // طوابع حقيقية متباعدة (لشريحة المدة المحسوبة).
+              tsOf: (k) => switch (k) {
+                'k1' => DateTime(2025, 1, 10).millisecondsSinceEpoch,
+                'k2' => DateTime(2026, 3, 15).millisecondsSinceEpoch,
+                _ => DateTime(2026, 8, 1).millisecondsSinceEpoch,
+              },
               patientName: 'سالم',
               centerName: 'عيادة الصفوة',
             ),
@@ -115,18 +120,27 @@ void main() {
       expect(t.takeException(), isNull);
     });
 
-    testWidgets('المقارنة: الأقدم «قبل» تلقائياً والتبديل يعكس',
+    testWidgets(
+        'م175 — المقارنة: خيار العائلة ثم الاختيار المتعدد فالاستوديو',
         (t) async {
-      // نبدأ من k2 (طابع 200) ونقارن مع k1 (طابع 100) ⇒ k1 قبل.
+      // نبدأ من k2 (طابع 200) ونضيف k1 (طابع 100) ⇒ k1 الأقدم «قبل».
       await pumpViewer(t, start: 1);
       await t.tap(find.byKey(const Key('xv-compare')));
       await t.pumpAndSettle();
+      // خيارا العائلة (قرار المالك).
+      expect(find.byKey(const Key('xv-cmp-smile')), findsOneWidget);
+      expect(find.byKey(const Key('xv-cmp-xray')), findsOneWidget);
+      await t.tap(find.byKey(const Key('xv-cmp-xray')));
+      await t.pumpAndSettle();
+      // الاختيار المتعدد: الحالية (k2) محددة سلفاً — نضيف k1 وننطلق.
       await t.tap(find.byKey(const Key('xv-cmp-pick-k1')));
       await t.pumpAndSettle();
-      expect(find.byType(XrayCompareScreen), findsOneWidget);
+      await t.tap(find.byKey(const Key('xv-cmp-go')));
+      await t.pumpAndSettle();
+      expect(find.byType(CompareStudioScreen), findsOneWidget);
+      // الثنائي الافتراضي: قبل/بعد، والأقدم k1 تحت لوحة «قبل» (يمين RTL).
       expect(find.text('قبل'), findsOneWidget);
       expect(find.text('بعد'), findsOneWidget);
-      // RTL: لوحة «قبل» يمين «بعد»، وتاريخ الأقدم (k1) في لوحة قبل.
       final beforeX = t.getCenter(find.text('قبل')).dx;
       final afterX = t.getCenter(find.text('بعد')).dx;
       expect(beforeX, greaterThan(afterX));
@@ -135,18 +149,58 @@ void main() {
       expect(d1X, greaterThan(d2X),
           reason: 'الأقدم k1 تحت لوحة قبل (يمين)');
       // التبديل يعكس مواضع التاريخين.
-      await t.tap(find.byKey(const Key('xc-swap')));
+      await t.tap(find.byKey(const Key('cs-swap')));
       await t.pumpAndSettle();
       final d1X2 = t.getCenter(find.text('تاريخ-k1')).dx;
       final d2X2 = t.getCenter(find.text('تاريخ-k2')).dx;
       expect(d2X2, greaterThan(d1X2), reason: 'بعد التبديل k2 صار قبل');
-      // أزرار التصدير الثلاثة (هاتف).
-      expect(find.byKey(const Key('xc-save')), findsOneWidget);
-      expect(find.byKey(const Key('xc-share')), findsOneWidget);
-      expect(find.byKey(const Key('xc-pdf')), findsOneWidget);
-      // الترويسة: المركز والمريض.
-      expect(find.text('عيادة الصفوة'), findsWidgets);
+      // أزرار التصدير الثلاثة (هاتف) والعنوان الافتراضي اسم المريض.
+      expect(find.byKey(const Key('cs-save')), findsOneWidget);
+      expect(find.byKey(const Key('cs-share')), findsOneWidget);
+      expect(find.byKey(const Key('cs-pdf')), findsOneWidget);
       expect(find.text('سالم'), findsOneWidget);
+      expect(t.takeException(), isNull);
+    });
+
+    testWidgets(
+        'م175 — الاستوديو: القوالب والعنوان الحر وشريحة المدة والنص التحريري',
+        (t) async {
+      await pumpViewer(t, start: 0);
+      await t.tap(find.byKey(const Key('xv-compare')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const Key('xv-cmp-xray')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const Key('xv-cmp-pick-k2')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const Key('xv-cmp-go')));
+      await t.pumpAndSettle();
+      // تبديل القالب لشريط التسلسل ⇒ نصوص تحريرية بلا قبل/بعد.
+      await t.tap(find.byKey(const Key('cs-tpl-xray_strip')));
+      await t.pumpAndSettle();
+      expect(find.text('قبل'), findsNothing);
+      expect(find.byKey(const Key('cs-caption-0')), findsOneWidget);
+      // تحرير نص الصورة الأولى.
+      await t.tap(find.byKey(const Key('cs-caption-0')));
+      await t.pumpAndSettle();
+      await t.enterText(
+          find.byKey(const Key('cs-edit-field')), 'Pre-op');
+      await t.tap(find.byKey(const Key('cs-edit-ok')));
+      await t.pumpAndSettle();
+      expect(find.text('Pre-op'), findsOneWidget);
+      // العنوان الحر: استبدال اسم المريض بجملة.
+      await t.tap(find.byKey(const Key('cs-edit-title')));
+      await t.pumpAndSettle();
+      await t.enterText(
+          find.byKey(const Key('cs-edit-field')), 'حالة علاج عصب');
+      await t.tap(find.byKey(const Key('cs-edit-ok')));
+      await t.pumpAndSettle();
+      expect(find.text('حالة علاج عصب'), findsOneWidget);
+      expect(find.text('سالم'), findsNothing,
+          reason: 'اسم المريض غير ضروري (قرار المالك)');
+      // شريحة المدة المحسوبة تلقائياً تُدرج بالسطر الثاني عند نقرها.
+      await t.tap(find.byKey(const Key('cs-followup')));
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('cs-subtitle')), findsOneWidget);
       expect(t.takeException(), isNull);
     });
   });

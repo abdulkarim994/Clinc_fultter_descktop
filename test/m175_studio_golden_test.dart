@@ -1,14 +1,15 @@
-/// م174 — لقطة للمراجعة (GOLDENS=1 محلياً فقط): قالب المقارنة «قبل/بعد»
-/// الاحترافي — ترويسة المركز والمريض، لوحتان بختمَي تاريخ، تذييل توقيع،
-/// وأزرار التصدير الثلاثة. عدة الخطوط من م154.
+/// م175 — لقطات للمراجعة (GOLDENS=1 محلياً فقط): القوالب الثمانية
+/// لاستوديو المقارنة — 4 ابتسامة (فيسبوك) + 4 أشعة بمقاسات مختلفة،
+/// بعناوين وشرائح مدةٍ ونصوصٍ واقعية. عدة الخطوط من م154.
 library;
 
 import 'dart:convert' show base64Decode;
 import 'dart:io';
 import 'dart:typed_data' show ByteData, Uint8List;
 
+import 'package:dental_clinic_flutter/app/providers.dart';
 import 'package:dental_clinic_flutter/features/desktop/desktop_gate.dart';
-import 'package:dental_clinic_flutter/features/xrays/xray_compare_screen.dart';
+import 'package:dental_clinic_flutter/features/xrays/xray_compare_studio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,8 +43,8 @@ Future<void> _loadAppFonts() async {
   }
 }
 
-/// عيّنتان بأسلوب صور الأشعة (تدرج داكن/فاتح) — 60×80.
-final Uint8List _before = base64Decode(
+/// عيّنتان بأسلوب صور الأشعة (تدرج داكن/فاتح) — 60×80 (من م174).
+final Uint8List _dark = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAADwAAABQCAIAAADKqIEEAAAHwklEQVR4nNWb1Y5d'
   'RxBF+0scMzMzMzMzMzMzM0Ps2I5jK06k/GK2tKStUvc585KHTEsla9ynpu/qfdep'
   'O3AndenSI6tffunZtWuv7t379OjRt2fPfr17D+jTZ2DfvoP69Rvcv/+QAQOGDhw4'
@@ -88,7 +89,7 @@ final Uint8List _before = base64Decode(
   'WVPle5iqfLdYle/Lq/IdkFW+17TKd/VW+f7pKt+pXuXfBFT51xdV/p1LrX9RVOvf'
   'btX1V3L/Ao5YECWT2m5bAAAAAElFTkSuQmCC',
 );
-final Uint8List _after = base64Decode(
+final Uint8List _light = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAADwAAABQCAIAAADKqIEEAAAFzElEQVR4nNWbV2/k'
   'RhCE5//jcHc65ZxzzjnnnHOOVjjLMgy/u4E6FBo9w/HCD4YGKAELskV+U1vTu0sO'
   '3ZcveV+/5n/7VvD9e2FeXtGPH8X5+SUFBaWFhWVFReXFxRUlJZWlpVVlZdWi8vKa'
@@ -126,32 +127,54 @@ final Uint8List _after = base64Decode(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory tmp;
   setUpAll(_loadAppFonts);
-  tearDown(() => debugForceDesktopUi = null);
+  setUp(() => tmp = Directory.systemTemp.createTempSync('m175g_'));
+  tearDown(() {
+    debugForceDesktopUi = null;
+    tmp.deleteSync(recursive: true);
+  });
 
-  testWidgets('لقطة م174 — قالب المقارنة قبل/بعد', (t) async {
+  int ts(int y, int m, int d) => DateTime(y, m, d).millisecondsSinceEpoch;
+
+  /// عناصر عيّنة بعدد مطلوب (تواريخ متدرجة — الشريحة تحسب مدةً حقيقية).
+  List<CompareItem> items(int n) {
+    final dates = [
+      ('١٠ يناير ٢٠٢٥', ts(2025, 1, 10)),
+      ('٥ أبريل ٢٠٢٥', ts(2025, 4, 5)),
+      ('٢٢ أغسطس ٢٠٢٥', ts(2025, 8, 22)),
+      ('٣ يناير ٢٠٢٦', ts(2026, 1, 3)),
+      ('١٥ مايو ٢٠٢٦', ts(2026, 5, 15)),
+      ('١٢ أغسطس ٢٠٢٦', ts(2026, 8, 12)),
+    ];
+    return [
+      for (var i = 0; i < n; i++)
+        CompareItem(
+          bytes: i.isEven ? _dark : _light,
+          name: 'صورة ${i + 1}',
+          date: dates[i].$1,
+          ts: dates[i].$2,
+        ),
+    ];
+  }
+
+  Future<void> pumpStudio(WidgetTester t, String family, int n,
+      {Size size = const Size(440, 1000)}) async {
     debugForceDesktopUi = false;
-    t.view.physicalSize = const Size(440, 900);
+    t.view.physicalSize = size;
     t.view.devicePixelRatio = 1.0;
     addTearDown(t.view.reset);
     await t.pumpWidget(
       ProviderScope(
+        overrides: [dbDirProvider.overrideWithValue(tmp.path)],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: ThemeData(fontFamily: 'Cairo', useMaterial3: true),
           builder: (ctx, child) => Directionality(
               textDirection: TextDirection.rtl, child: child!),
-          home: XrayCompareScreen(
-            before: XrayCompareEntry(
-                bytes: _before,
-                name: 'أشعة أولية',
-                date: '٣ مايو ٢٠٢٦',
-                ts: 1),
-            after: XrayCompareEntry(
-                bytes: _after,
-                name: 'بعد المعالجة',
-                date: '١٢ أغسطس ٢٠٢٦',
-                ts: 2),
+          home: CompareStudioScreen(
+            family: family,
+            items: items(n),
             patientName: 'محمد حسين المحمد',
             centerName: 'عيادة الصفوة',
           ),
@@ -159,7 +182,76 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
-    await expectLater(find.byType(MaterialApp),
-        matchesGoldenFile('goldens/m174_compare_template.png'));
-  }, skip: !_goldens);
+    // فك ترميز الصور قبل الالتقاط (كاش الصور يتشارك بين الاختبارات —
+    // بدون هذا تظهر الفتحات فارغةً في أول اختبار).
+    final ctx = t.element(find.byType(CompareStudioScreen));
+    await t.runAsync(() async {
+      await precacheImage(MemoryImage(_dark), ctx);
+      await precacheImage(MemoryImage(_light), ctx);
+    });
+    await t.pumpAndSettle();
+  }
+
+  Future<void> shot(WidgetTester t, String name) => expectLater(
+      find.byType(MaterialApp), matchesGoldenFile('goldens/$name.png'));
+
+  Future<void> pickTpl(WidgetTester t, String id) async {
+    await t.tap(find.byKey(Key('cs-tpl-$id')));
+    await t.pumpAndSettle();
+  }
+
+  group('لقطات م175 — قوالب الابتسامة (فيسبوك)', () {
+    testWidgets('الذهبي الفاخر (مربع مكدس)', (t) async {
+      await pumpStudio(t, 'smile', 2);
+      await pickTpl(t, 'smile_gold');
+      await shot(t, 'm175_smile_gold');
+    }, skip: !_goldens);
+
+    testWidgets('الأخضر الملكي (4:5 ثنائي)', (t) async {
+      await pumpStudio(t, 'smile', 2);
+      await pickTpl(t, 'smile_royal');
+      await shot(t, 'm175_smile_royal');
+    }, skip: !_goldens);
+
+    testWidgets('الأبيض النقي (مربع ثنائي)', (t) async {
+      await pumpStudio(t, 'smile', 2);
+      await pickTpl(t, 'smile_pure');
+      await shot(t, 'm175_smile_pure');
+    }, skip: !_goldens);
+
+    testWidgets('الليلي الأنيق (4:5 مكدس)', (t) async {
+      await pumpStudio(t, 'smile', 2);
+      await pickTpl(t, 'smile_night');
+      await shot(t, 'm175_smile_night');
+    }, skip: !_goldens);
+  });
+
+  group('لقطات م175 — قوالب الأشعة', () {
+    testWidgets('الملكي قبل/بعد (ثنائي)', (t) async {
+      await pumpStudio(t, 'xray', 2);
+      await pickTpl(t, 'xray_royal');
+      await shot(t, 'm175_xray_royal');
+    }, skip: !_goldens);
+
+    testWidgets('شريط التسلسل (4 صور عريض)', (t) async {
+      await pumpStudio(t, 'xray', 4);
+      await pickTpl(t, 'xray_strip');
+      // إدراج شريحة المدة المحسوبة بالسطر الثاني.
+      await t.tap(find.byKey(const Key('cs-followup')));
+      await t.pumpAndSettle();
+      await shot(t, 'm175_xray_strip');
+    }, skip: !_goldens);
+
+    testWidgets('الكهرماني الدافئ (3 صور)', (t) async {
+      await pumpStudio(t, 'xray', 3);
+      await pickTpl(t, 'xray_amber');
+      await shot(t, 'm175_xray_amber');
+    }, skip: !_goldens);
+
+    testWidgets('الشبكة السريرية (6 صور)', (t) async {
+      await pumpStudio(t, 'xray', 6);
+      await pickTpl(t, 'xray_grid');
+      await shot(t, 'm175_xray_grid');
+    }, skip: !_goldens);
+  });
 }
