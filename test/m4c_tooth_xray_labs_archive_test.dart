@@ -720,6 +720,9 @@ void main() {
       );
       await settle(tester);
       expect(find.text('بانتظار الرفع'), findsOneWidget);
+      // م176 — التعديل صار داخل قائمة الثلاث نقاط.
+      await tester.tap(find.byKey(const Key('xray-more-0')));
+      await tester.pumpAndSettle();
       await tester.tap(
         find.byKey(const Key('xray-rename-btn-0')),
         warnIfMissed: false,
