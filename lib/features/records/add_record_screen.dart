@@ -19,10 +19,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/error_log.dart' show recordError;
+import '../../core/locked_services.dart' show kLockedServices;
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/js_compat.dart';
 import '../../data/rates/rate_snapshot.dart';
-import '../patients/patients_logic.dart' show distinctIdentityPhones;
+import '../patients/patients_logic.dart'
+    show IdentityIndex, distinctIdentityPhones;
 import '../patients/patients_tab.dart'
     show addVisitDraftProvider, patientsRevProvider;
 import '../print/treatment_tables.dart' show formatNumber;
@@ -578,7 +580,15 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
         if ('${d['clinic'] ?? ''}' == clinic) d,
     ];
     if (rows.isEmpty) return true;
-    final phones = distinctIdentityPhones(rows);
+    // م181 — قرار التوأمة بالحلّال الموروث: دفعةُ ما قبل م181 بلا هاتفٍ
+    // تُحلّ لهوية أصلها فلا تُحسب «بلا هاتف» زوراً.
+    final phones = distinctIdentityPhones(
+        rows,
+        IdentityIndex(
+          repos.records.getAll(),
+          repos.prosthetics.getAll(),
+          repos.debts.getAll(),
+        ));
 
     if (typedPhone.isEmpty) {
       if (phones.isEmpty) return true; // كلاهما بلا هاتف — نفس الملف كما كان.
@@ -1359,8 +1369,12 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                           // فقط، فتبديل المعالجة يُبقي سعر السابقة). الحقل
                           // يبقى حراً للتعديل اليدوي بعد الملء، ومعالجة
                           // بلا سعر مضبوط لا تمس ما كتبه المستخدم.
+                          // م181 — المقفلة (تركيبات) سعرها متغيّر: لا ملء
+                          // تلقائياً أبداً حتى لو تسلّل رقم قديم مخزّن.
                           final prices = config['servicePrices'];
-                          final p0 = prices is Map ? prices[service] : null;
+                          final p0 = kLockedServices.contains(service)
+                              ? null
+                              : (prices is Map ? prices[service] : null);
                           if (jsNumOr0(p0) > 0) {
                             amountCtl.text = jsNumOr0(p0).toStringAsFixed(0);
                           }
@@ -2050,8 +2064,11 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
       ],
       onChanged: (v) => setState(() {
         service = v ?? '';
+        // م181 — المقفلة (تركيبات) سعرها متغيّر: لا ملء تلقائياً أبداً.
         final prices = config['servicePrices'];
-        final p0 = prices is Map ? prices[service] : null;
+        final p0 = kLockedServices.contains(service)
+            ? null
+            : (prices is Map ? prices[service] : null);
         if (jsNumOr0(p0) > 0) {
           amountCtl.text = jsNumOr0(p0).toStringAsFixed(0);
         }
