@@ -331,6 +331,64 @@ Future<Uint8List> dayClosePdf(
 
 // ── طباعة جداول المعالجات (تفصيل الخزينة كاش/تحويل) ─────────────────────────
 
+/// م180 — نسخة الطباعة عند إطفاء ميزة النسب: أربعة أعمدة فقط
+/// (التاريخ/الاسم/الإيراد/الدفع) بلا أي حصص ولا نسب في العناوين.
+Future<Uint8List> _treatmentTablesPdfNoRates(
+  PdfFonts fonts, {
+  required String title,
+  required String subtitle,
+  required String currency,
+  required TreatmentTables tables,
+}) {
+  final c = currency;
+  final grid = <int, pw.TableColumnWidth>{
+    0: const pw.FixedColumnWidth(48), // الدفع
+    1: const pw.FixedColumnWidth(72), // الإيراد
+    2: const pw.FlexColumnWidth(), // الاسم
+    3: const pw.FixedColumnWidth(58), // التاريخ
+  };
+  const heads = ['التاريخ', 'الاسم', 'الإيراد', 'الدفع'];
+  return _doc(fonts, [
+    _h1(title),
+    _sub(subtitle),
+    for (final g in tables.groups) ...[
+      _secTitle(g.service, centered: true),
+      _table(
+        heads,
+        [
+          for (final r in g.rows)
+            [r.date, r.name, '${_n(r.amount)} $c', r.payment],
+        ],
+        totRow: ['المجموع', '', '${_n(g.revenue)} $c', ''],
+        columnWidths: grid,
+      ),
+    ],
+    pw.SizedBox(height: 8),
+    pw.Table(
+      border: pw.TableBorder.all(
+          color: const PdfColor.fromInt(0xFFD9D9D9), width: .6),
+      columnWidths: grid,
+      defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+      children: [
+        pw.TableRow(
+          decoration: const pw.BoxDecoration(
+            color: PdfColor.fromInt(0xFFF2F2F2),
+            border: pw.Border(
+                top: pw.BorderSide(color: PdfColors.black, width: 1.2)),
+          ),
+          children: [
+            for (final v in [
+              '', 'الإجمالي النهائي', '${_n(tables.revenue)} $c', '',
+            ].reversed)
+              _cell(v, bold: true, color: PdfColors.black),
+          ],
+        ),
+      ],
+    ),
+  ]);
+}
+
+
 /// توأم طباعة تفصيل الخزينة في الأصل (TreasuryTab): جدول لكل معالجة
 /// متشابهة بعنوان «نسبة الطبيب X% • نسبة العيادة Y%» وعمودي «طبيب/عيادة»،
 /// وانهيار 0% للإيرادات فقط، ثم «الإجمالي النهائي» — الأعمدة بقرار
@@ -341,8 +399,18 @@ Future<Uint8List> treatmentTablesPdf(
   required String subtitle,
   required String currency,
   required TreatmentTables tables,
+  // م180 — ميزة النسب مطفأة ⇒ عمودا «طبيب/عيادة» يختفيان من الطباعة
+  // بالكامل وعناوين الجداول بلا نِسَب (الإجمالي كله للعيادة).
+  bool showRates = true,
 }) {
   final c = currency;
+  if (!showRates) {
+    return _treatmentTablesPdfNoRates(fonts,
+        title: title,
+        subtitle: subtitle,
+        currency: currency,
+        tables: tables);
+  }
   // م108 — «تناظرٌ رهيب»: شبكة أعمدة واحدة مثبّتة لكل الجداول من أول
   // الورقة لآخرها (المؤشرات بعد عكس RTL: 0=الدفع .. 5=التاريخ) — فيقع
   // الإيراد تحت الإيراد وطبيب تحت طبيب وعيادة تحت عيادة طوال الصفحة،
@@ -822,6 +890,9 @@ Future<Uint8List> prosCasesReportPdf(
   required String currency,
   required List<ProsCaseRow> cases,
   required List<List<JMap>> caseDetails,
+  // م180 — الميزة مطفأة ⇒ عمود «الطبيب» يختفي والعيادة = الدفعة − المخبر،
+  // وعناوين الحالات بلا نِسَب.
+  bool showRates = true,
 }) {
   final c = currency;
   num tUnits = 0, tTotal = 0, tPaid = 0, tRem = 0, tLab = 0;
@@ -841,7 +912,7 @@ Future<Uint8List> prosCasesReportPdf(
     final profit = doc + clin;
     final base =
         '${k.name} — ${k.work} · ${k.date}${k.isDebtPay ? ' · دفعة دين' : ''}';
-    if (profit <= 0) return base;
+    if (!showRates || profit <= 0) return base;
     final pct = (doc / profit * 100).round();
     return '$base — نسبة الطبيب ~$pct% • العيادة ~${100 - pct}%';
   }
@@ -891,7 +962,11 @@ Future<Uint8List> prosCasesReportPdf(
     for (var i = 0; i < cases.length; i++) ...[
       _secTitle(caseTitle(cases[i], caseDetails[i])),
       _table(
-        const ['التاريخ', 'الدفعة', 'الدفع', 'المخبر', 'الطبيب', 'العيادة'],
+        [
+          'التاريخ', 'الدفعة', 'الدفع', 'المخبر',
+          if (showRates) 'الطبيب',
+          'العيادة',
+        ],
         [
           for (final r in caseDetails[i])
             [
@@ -899,8 +974,11 @@ Future<Uint8List> prosCasesReportPdf(
               '${_n(r['amount'])} $c',
               '${r['payment'] ?? ''}',
               '${_n(r['lab'])} $c',
-              '${_n(r['doc'])} $c',
-              '${_n(r['clin'])} $c',
+              if (showRates) '${_n(r['doc'])} $c',
+              // م180 — عند الإطفاء: العيادة = حصتها + حصة الطبيب.
+              showRates
+                  ? '${_n(r['clin'])} $c'
+                  : '${_n(jsNumOr0(r['clin']) + jsNumOr0(r['doc']))} $c',
             ],
         ],
         totRow: [
@@ -908,8 +986,9 @@ Future<Uint8List> prosCasesReportPdf(
           '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['amount'])))} $c',
           '',
           '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['lab'])))} $c',
-          '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['doc'])))} $c',
-          '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['clin'])))} $c',
+          if (showRates)
+            '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(r['doc'])))} $c',
+          '${_n(caseDetails[i].fold<num>(0, (t, r) => t + jsNumOr0(showRates ? r['clin'] : jsNumOr0(r['clin']) + jsNumOr0(r['doc']))))} $c',
         ],
       ),
     ],
@@ -927,14 +1006,18 @@ Future<Uint8List> prosCasesReportPdf(
         }
       }
       return _table(
-        const ['', 'إجمالي الدفعات', 'المخبر', 'نصيب الطبيب', 'نصيب العيادة'],
+        [
+          '', 'إجمالي الدفعات', 'المخبر',
+          if (showRates) 'نصيب الطبيب',
+          'نصيب العيادة',
+        ],
         const [],
         totRow: [
           'المجموع',
           '${_n(aPay)} $c',
           '${_n(aLab)} $c',
-          '${_n(aDoc)} $c',
-          '${_n(aClin)} $c',
+          if (showRates) '${_n(aDoc)} $c',
+          '${_n(showRates ? aClin : aClin + aDoc)} $c',
         ],
       );
     }(),
