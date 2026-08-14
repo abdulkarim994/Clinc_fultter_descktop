@@ -12,6 +12,26 @@ import '../../core/utils/js_compat.dart';
 
 const rateSnapshotVersion = 1;
 
+/// م180 — مفتاح ميزة «نسبة المعالجات» (قرار المالك): **مطفأة افتراضياً**
+/// — طبيبٌ وحده لا يحتاجها والإجمالي كله للعيادة.
+///
+/// الدلالة الثلاثية:
+///  • قيمة صريحة (true/false) ⇒ تُحترم حرفياً (مفتاح الإعدادات).
+///  • غيابها + إعداداتٌ قديمة ضبطت نسباً صراحةً (doctorPct أو
+///    clinicRates) ⇒ **مفعّلة** — دلالة الإرث تحفظ سلوك الحسابات
+///    القائمة (قرار المالك: «يبقى مفعلاً تلقائياً») وكلَّ منطقٍ نقي
+///    قديم مرّر نسباً بلا علم. ترحيل app_shell يثبّتها قيمةً صريحة.
+///  • غيابها بلا أي نسب ⇒ مطفأة (الحسابات الجديدة).
+bool ratesFeatureEnabled(Map<String, Object?> config) {
+  final v = config['ratesEnabled'];
+  if (v != null) return v == true;
+  if (config['doctorPct'] != null) return true;
+  final rates = config['clinicRates'];
+  return rates is Map &&
+      rates['clinics'] is Map &&
+      (rates['clinics'] as Map).isNotEmpty;
+}
+
 double _clampPct(Object? v, [double fallback = 50]) {
   final n = jsNumber(v);
   if (n.isFinite) return n.clamp(0, 100).toDouble();
@@ -19,12 +39,19 @@ double _clampPct(Object? v, [double fallback = 50]) {
 }
 
 /// نسبة الطبيب الفعالة لعملية (نقل resolveDoctorPct).
+///
+/// م180 — **نقطة الخنق المركزية للميزة**: مطفأة ⇒ صفر دائماً، فكل عملية
+/// جديدة تُختم بلقطة `doctorPct: 0` — حصتها كلها للعيادة، وتبقى كذلك حتى
+/// لو أُعيد التفعيل لاحقاً (معنى «تظهر من نفس اليوم»). السجلات القديمة لا
+/// تتأثر: لقطاتها المجمّدة تُقرأ قبل هذه الدالة (effectiveDoctorPct
+/// لقطةً-أولاً) — احتفاظٌ كامل بالقيم التاريخية.
 double resolveDoctorPct(
   Map<String, Object?> config, {
   String? clinic,
   String? service,
   bool isPros = false,
 }) {
+  if (!ratesFeatureEnabled(config)) return 0;
   final rates = config['clinicRates'];
   if (rates is Map) {
     final clinics = rates['clinics'];

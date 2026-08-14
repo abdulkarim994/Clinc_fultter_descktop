@@ -66,7 +66,13 @@ void main() {
       expect(resolveDoctorPct(cfg, clinic: 'ع1', service: 'حشو'), 40);
       expect(resolveDoctorPct(cfg, clinic: 'ع1', isPros: true), 30);
       expect(resolveDoctorPct(cfg, clinic: 'غيرها', service: 'حشو'), 50);
-      expect(resolveDoctorPct(const {}, clinic: 'x', service: 'y'), 50);
+      // م180 — إعدادات بلا أي نسب = ميزة النسب مطفأة ⇒ صفر (كان 50):
+      // الاحتياطي 50 يخص الحسابات التي فعّلت الميزة أو ضبطت نسباً.
+      expect(resolveDoctorPct(const {}, clinic: 'x', service: 'y'), 0);
+      expect(
+          resolveDoctorPct(const {'ratesEnabled': true},
+              clinic: 'x', service: 'y'),
+          50);
 
       final snap = buildRateSnapshot(cfg, clinic: 'ع1', service: 'حشو');
       expect(snap['doctorPct'], 40);

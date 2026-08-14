@@ -64,7 +64,11 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
     final cfg = ref.watch(appConfigProvider);
     final cur = ref.watch(currencyProvider);
     final clinics = ref.watch(clinicsProvider);
-    final doctorPct = jsNumOr0(jsOr(cfg['doctorPct'], 50));
+    // م180 — ميزة النسب: مطفأة ⇒ نسبة الطبيب الحية صفر (السجلات القديمة
+    // بلقطاتها المجمّدة لا تتأثر) وتختفي أعمدة الحصص من كل الجداول.
+    final ratesOn = ref.watch(ratesEnabledProvider);
+    final doctorPct =
+        ratesOn ? jsNumOr0(jsOr(cfg['doctorPct'], 50)) : 0;
     final years = profitYears(records, prosthetics);
     if (!years.contains(selectedYear)) selectedYear = years.first;
 
@@ -136,10 +140,10 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
       Expanded(
         child: switch (view) {
           'statement' => const StatementSection(),
-          'yearly' => _yearlyBody(
-              records, prosthetics, debts, cfg, cur, clinics, doctorPct),
-          _ => _monthlyBody(
-              records, prosthetics, debts, cfg, cur, clinics, doctorPct),
+          'yearly' => _yearlyBody(records, prosthetics, debts, cfg, cur,
+              clinics, doctorPct, ratesOn),
+          _ => _monthlyBody(records, prosthetics, debts, cfg, cur,
+              clinics, doctorPct, ratesOn),
         },
       ),
     ]);
@@ -155,6 +159,7 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
     String cur,
     List<String> clinics,
     num doctorPct,
+    bool ratesOn,
   ) {
     final repos = ref.read(reposProvider);
     final month = '$selectedYear-${'${monthIdx + 1}'.padLeft(2, '0')}';
@@ -219,6 +224,7 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
         ProfitsClinicsTable(
           title: 'أرباح العيادات — ${arMonths[monthIdx]} $selectedYear',
           rows: rows,
+          showDoctor: ratesOn,
         ),
         const SizedBox(height: 4),
         // م178 — جدول الإجمالي العام: المصروفات تحت عمود ربح العيادة.
@@ -227,6 +233,7 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
           doctor: grand.doctorTotal + fDoc,
           clinic: grand.clinicTotal + fClin,
           expenses: ex.total,
+          showDoctor: ratesOn,
         ),
       ],
     );
@@ -242,6 +249,7 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
     String cur,
     List<String> clinics,
     num doctorPct,
+    bool ratesOn,
   ) {
     final repos = ref.read(reposProvider);
     final n = formatNumber;
@@ -289,34 +297,50 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
       children: [
         // ── مؤشرات السنة (شبكة عمودين) ──
         YearKpiCards(items: [
+          // م180 — الميزة مطفأة: الصافي = الإيراد − المصروفات (كله
+          // للعيادة) وتغيب بطاقتا الطبيب/العيادة كلياً.
           YearKpi('إجمالي الإيراد', '${n(rep.revenue)} $cur',
               BrandColors.goldDark,
               keyId: 'prof-year-grand',
               yoy: prev == null ? null : yoyPct(rep.revenue, prev.revenue)),
-          YearKpi('صافي ربح العيادة', '${n(rep.net)} $cur',
+          YearKpi(
+              ratesOn ? 'صافي ربح العيادة' : 'صافي العيادة',
+              '${n(ratesOn ? rep.net : rep.revenue - rep.expenses)} $cur',
               BrandColors.brand900,
               keyId: 'prof-year-net',
-              yoy: prev == null ? null : yoyPct(rep.net, prev.net)),
-          YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur', BrandColors.green,
-              keyId: 'prof-year-doctor'),
-          YearKpi('ربح العيادة', '${n(rep.clinic)} $cur',
-              BrandColors.brand600,
-              keyId: 'prof-year-clinic'),
+              yoy: prev == null
+                  ? null
+                  : yoyPct(
+                      ratesOn ? rep.net : rep.revenue - rep.expenses,
+                      ratesOn
+                          ? prev.net
+                          : prev.revenue - prev.expenses)),
+          if (ratesOn)
+            YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur',
+                BrandColors.green,
+                keyId: 'prof-year-doctor'),
+          if (ratesOn)
+            YearKpi('ربح العيادة', '${n(rep.clinic)} $cur',
+                BrandColors.brand600,
+                keyId: 'prof-year-clinic'),
           YearKpi('المصروفات', '${n(rep.expenses)} $cur', BrandColors.red,
               keyId: 'prof-year-exp'),
-          YearKpi('هامش الصافي', '${rep.marginPct.toStringAsFixed(1)}٪',
+          YearKpi(
+              'هامش الصافي',
+              '${(ratesOn ? rep.marginPct : (rep.revenue == 0 ? 0 : (rep.revenue - rep.expenses) / rep.revenue * 100)).toStringAsFixed(1)}٪',
               BrandColors.goldDark,
               keyId: 'prof-year-margin'),
         ]),
         const SizedBox(height: 8),
         // ── جدول الأرباح والخسائر الشهري (قلب التقرير السنوي) ──
-        YearPnlTable(report: rep, dense: true),
+        YearPnlTable(report: rep, dense: true, showDoctor: ratesOn),
         const SizedBox(height: 4),
         // ── جدول العيادات سنوياً ──
         ProfitsClinicsTable(
           title: 'أرباح العيادات — سنة $selectedYear',
           rows: clinicRows,
           dense: true,
+          showDoctor: ratesOn,
         ),
         const SizedBox(height: 4),
         _yearChart(rep, n),
