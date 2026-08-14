@@ -196,7 +196,6 @@ void main() {
       WidgetTester tester, {
       void Function(ProviderContainer c)? seed,
       ImagePick? logoPick,
-      TextFilePick? jsonPick,
     }) async {
       final c = container();
       final auth = c.read(authServiceProvider);
@@ -211,7 +210,6 @@ void main() {
             staffAdminSession(),
             dbDirProvider.overrideWithValue(tmp.path),
             if (logoPick != null) logoPickProvider.overrideWithValue(logoPick),
-            if (jsonPick != null) jsonPickProvider.overrideWithValue(jsonPick),
           ],
           child: const DentalApp(),
         ),
@@ -499,38 +497,8 @@ void main() {
       expect(find.textContaining('🕐 10:20 AM'), findsOneWidget);
     });
 
-    testWidgets('استعادة JSON عبر المنتقي المحقون تستبدل البيانات', (
-      tester,
-    ) async {
-      final backup = jsonEncode({
-        'records': [
-          {'id': 'rX', 'name': 'مستعاد', 'clinic': 'ع1', 'amount': 77},
-        ],
-        'prosthetics': [],
-        'debts': [],
-        'appointments': [],
-        'config': {...config(), 'centerName': 'مركز الاستعادة'},
-        'exportDate': '2026-01-01',
-      });
-      await boot(tester, jsonPick: () async => backup);
-      await tester.tap(find.byTooltip('الإعدادات'));
-      await settle(tester);
-      await openGroup(tester, 'storage');
-      await hitKey(tester, 'import-json');
-      await tester.tap(
-        find.byKey(const Key('import-json-confirm')),
-        warnIfMissed: false,
-      );
-      await settle(tester);
-
-      final chk = container();
-      addTearDown(chk.dispose);
-      expect(chk.read(reposProvider).records.getById('rX')!['amount'], 77);
-      expect(
-        (chk.read(reposProvider).settings.get('app.config')
-            as Map)['centerName'],
-        'مركز الاستعادة',
-      );
-    });
+    // م179 — اختبار واجهة «استعادة JSON» حُذف: بطاقة النسخ الاحتياطي
+    // أُلغيت بالكامل (قرار المالك). المنطق النقي (buildBackupJson /
+    // restoreBackupJson) يبقى مختبَراً في مجموعة الوحدات أعلاه.
   });
 }
