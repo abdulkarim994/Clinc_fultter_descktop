@@ -20,6 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/locked_services.dart' show kLockedServices;
 import '../../core/utils/js_compat.dart';
 import '../desktop/desktop_gate.dart' show isDesktopUi;
 import '../desktop/widgets/desktop_dialogs.dart' show showDesktopDialog;
@@ -520,7 +521,10 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
                   ],
                   onChanged: (v) => setState(() {
                     service = v ?? '';
-                    final p0 = prices is Map ? prices[service] : null;
+                    // م181 — المقفلة (تركيبات) سعرها متغيّر: لا ملء تلقائي.
+                    final p0 = kLockedServices.contains(service)
+                        ? null
+                        : (prices is Map ? prices[service] : null);
                     if (jsNumOr0(p0) > 0) {
                       amountCtl.text = jsNumOr0(p0).toStringAsFixed(0);
                     }
