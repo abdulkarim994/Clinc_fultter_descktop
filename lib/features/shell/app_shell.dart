@@ -203,8 +203,9 @@ class AppShellScreen extends ConsumerWidget {
     // م116 — تفضيلات العرض العامة (الأرقام/الوقت/فاصل الفترة) تُضبط
     // من الإعدادات لكل المنسقات المركزية.
     applyDisplayPrefs(cfg);
-    final tabBottom = cfg['tabBarPosition'] == 'bottom';
-    final fabVisible = cfg['fabVisible'] != false;
+    // م179 (قرار المالك): شريط التبويبات **أسفل افتراضياً** — الغياب
+    // يعني أسفل، ولا يصعد إلا باختيارٍ صريح 'top' من الإعدادات.
+    final tabBottom = cfg['tabBarPosition'] != 'top';
     // تفعيل/إيقاف المزامنة التلقائية بعد الإطار (خارج البناء — آمن).
     WidgetsBinding.instance
         .addPostFrameCallback((_) => applyAutoSync(ref));
@@ -454,8 +455,10 @@ class AppShellScreen extends ConsumerWidget {
       // الزر العائم — م107: دائرة ShinyFab الخضراء الموحدة، يساراً دائماً.
       // م172 (قرار المالك): سياقيٌّ بالتبويب — «+» في الرئيسية (إدخال
       // اليوم) فقط، «إضافة حجز» دائري في الحجوزات، ولا زر في البقية.
-      floatingActionButton: !fabVisible ||
-              !(staffU == null || staffCan(staffU, 'records.add'))
+      // م179 — الزر العائم **ظاهر دائماً** (خيار fabVisible أُلغي): يبقى
+      // حارس الصلاحية وحده (من لا يملك إضافة السجلات لا يراه).
+      floatingActionButton: !(staffU == null ||
+              staffCan(staffU, 'records.add'))
           ? null
           : switch (active) {
               'home' => Padding(
@@ -547,19 +550,18 @@ class _ShellTabBar extends ConsumerWidget {
             Expanded(
               child: InkWell(
                 onTap: () {
-                  // مغادرة المالية تعيد قسمها للخزينة ما لم يُفعَّل
-                  // keepTabState — نفس onDeactivated في الأصل.
+                  // م179 — مغادرة المالية تعيد قسمها للخزينة **دائماً**:
+                  // خيار keepTabState أُلغي نهائياً (قرار المالك)، والسلوك
+                  // مُثبَّت على ما كان سارياً افتراضياً (إعادة الضبط).
                   final leavingFinance =
                       ref.read(activeTabProvider) == 'finance' &&
                           tab.id != 'finance';
-                  if (leavingFinance &&
-                      ref.read(appConfigProvider)['keepTabState'] !=
-                          true) {
+                  if (leavingFinance) {
                     ref
                         .read(financeSectionProvider.notifier)
                         .state = 'menu';
                     // توأم onDeactivated في DebtsTab: فلتر عيادة
-                    // الديون يُصفَّر أيضاً ما لم يُفعَّل الإبقاء.
+                    // الديون يُصفَّر أيضاً.
                     ref
                         .read(debtsClinicFilterProvider.notifier)
                         .state = '';
