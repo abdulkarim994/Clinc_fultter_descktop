@@ -31,7 +31,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // ذلك الحدّ تماماً. نبدأ من 1360×860 كي تفتح مريحةً داخل التخطيط الواسع
   // لا على تخومه، مع ترك هامش للحافة والمهام في شاشة 1366×768 الشائعة.
   Win32Window::Size size(1360, 860);
-  if (!window.Create(L"طب الأسنان الرقمي", origin, size)) {
+  if (!window.Create(L"DENTSHINE", origin, size)) {
     return EXIT_FAILURE;
   }
   // أدنى حجم منطقي: دون 1000×640 يتكسّر تخطيط سطح المكتب (يهبط تحت حدّ
