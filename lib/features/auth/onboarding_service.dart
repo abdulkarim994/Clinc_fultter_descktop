@@ -12,8 +12,17 @@ import '../../data/db/schema_sql.dart' show migrationTables;
 
 typedef JMap = Map<String, Object?>;
 
+/// م180/٦ — اسم العلامة التجارية (بديل «طب الأسنان الرقمي» في كل التطبيق).
+const kAppBrandName = 'DENTSHINE';
+
 /// اسم المركز الافتراضي — لا يُعدّ إعداداً صحيحاً (توأم DEFAULT_CONFIG).
-const defaultCenterName = 'طب الأسنان الرقمي';
+///
+/// م180/٦ — **قيمتان لا واحدة**: الاسم الجديد والقديم معاً. حسابٌ قديم
+/// اسمُ مركزه «طب الأسنان الرقمي» (الافتراضي وقتها) يجب أن يبقى **غير
+/// مكتمل الإعداد** كما كان — ولو حذفنا القديمة لاعتُبر مكتملاً خطأً
+/// ودخل التطبيق باسمٍ نائب.
+const defaultCenterName = kAppBrandName;
+const legacyDefaultCenterName = 'طب الأسنان الرقمي';
 
 /// هل بيانات الحساب صحيحة؟ اسم مركز حقيقي (غير فارغ وغير الافتراضي) +
 /// عيادة واحدة على الأقل — isAccountConfigured حرفياً.
@@ -24,7 +33,9 @@ bool isAccountConfigured(Map<String, Object?>? config) {
     for (final c in (config['clinics'] as List? ?? const []))
       if ('$c'.trim().isNotEmpty) '$c',
   ];
-  final nameOk = name.isNotEmpty && name != defaultCenterName;
+  final nameOk = name.isNotEmpty &&
+      name != defaultCenterName &&
+      name != legacyDefaultCenterName;
   return nameOk && clinics.isNotEmpty;
 }
 
