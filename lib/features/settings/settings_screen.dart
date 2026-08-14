@@ -618,13 +618,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// بطاقتين أسفل القائمة الرئيسية وانتقلتا قسماً مستقلاً بطلب المالك.
   // ignore: unused_element_parameter
   Widget _aboutBody(JMap cfg) {
-    // م179 — بطاقة «حالة التطبيق والمزامنة» أُلغيت بالكامل (قرار المالك):
-    // زالت معها أسطر آخر مزامنة والتغييرات غير المدفوعة وتنبيه الصفوف
-    // المحجورة وزر إعادة محاولتها. ويبقى **سطر نسخة التطبيق** وحده لأنه
-    // مرجع التحقق من تطابق الأجهزة عند أي بلاغ.
+    // م179 — بطاقة «حالة التطبيق والمزامنة» أُلغيت (قرار المالك): زالت
+    // أسطر آخر مزامنة والتغييرات غير المدفوعة. ويبقى **سطر نسخة التطبيق**
+    // (مرجع التحقق من تطابق الأجهزة) و**تنبيه الصفوف المحجورة** الذي
+    // أعاده المالك — لكنه الآن بطاقةٌ مستقلة **لا تظهر إلا عند وجود
+    // محجورٍ فعلاً** (صفر محجور = لا شيء على الشاشة إطلاقاً).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // ── تنبيه الصفوف المحجورة (م77) — عند وجودها فقط ──
+        _quarantineGlass(),
         // ── نسخة التطبيق ──
         _glass(
           child: Row(
@@ -713,6 +716,75 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  /// م179/ب — تنبيه الصفوف المحجورة (م77) عاد بطلب المالك، بصيغته
+  /// الأضيق: بطاقةٌ مستقلة **لا تُبنى أصلاً إلا عند وجود محجورٍ فعلاً**
+  /// (عناصر أخفقت ثماني مرات فتوقف المحرك عن محاولتها). صفر محجور =
+  /// لا شيء على الشاشة — لا ضجيج على الحالة السليمة. زر «أعد المحاولة»
+  /// هو المقبض الوحيد لـ retryFailedAndSync (الآلية القائمة والمختبَرة).
+  Widget _quarantineGlass() {
+    ref.watch(_archiveRev); // إعادة البناء بعد إعادة المحاولة
+    var quarantined = 0;
+    try {
+      quarantined = ref.read(syncEngineProvider).getEngineStatus().quarantined;
+    } catch (_) {
+      /* أفضل جهد — وضع محلي أو محرك غير جاهز */
+    }
+    if (quarantined <= 0) return const SizedBox.shrink();
+    return _glass(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                size: 15,
+                color: BrandColors.red,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '$quarantined عنصراً تحتاج انتباهاً — '
+                  'لم تصل الخادم بعد محاولات متكررة',
+                  key: const Key('quarantine-notice'),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: BrandColors.red,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const Key('quarantine-retry'),
+              onPressed: () async {
+                try {
+                  await ref.read(syncEngineProvider).retryFailedAndSync();
+                } catch (_) {
+                  /* أفضل جهد */
+                }
+                if (mounted) {
+                  _snack('أُعيدت محاولة العناصر المتوقفة');
+                  ref.read(_archiveRev.notifier).state++;
+                  setState(() {});
+                }
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text(
+                'أعد المحاولة',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
