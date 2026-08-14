@@ -129,6 +129,13 @@ class LocalAuthService implements AuthService {
     _saveMeta(_accountsKey, jsonEncode(accounts));
   }
 
+  /// م180/د — الوضع المحلي بلا خادم بريد: نُفصح بصراحة بدل صمتٍ مضلِّل.
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    throw Exception(
+        'إعادة تعيين كلمة المرور تحتاج اتصالاً بالحساب السحابي');
+  }
+
   @override
   Future<void> logout() async => _saveMeta(_sessionKey, '');
 }

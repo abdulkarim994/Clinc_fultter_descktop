@@ -229,6 +229,16 @@ class SupabaseAuthService implements AuthService {
     await client.signUp(email.trim(), password);
   }
 
+  /// م180/د — إرسال بريد إعادة تعيين كلمة المرور عبر GoTrue.
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    final em = email.trim();
+    if (em.isEmpty || !em.contains('@')) {
+      throw AuthException('أدخل بريداً إلكترونياً صحيحاً');
+    }
+    await client.recoverPassword(em);
+  }
+
   @override
   Future<void> logout() async {
     markExplicitLogout();

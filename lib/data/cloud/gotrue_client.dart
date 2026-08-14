@@ -148,6 +148,18 @@ class GotrueClient {
     return GotrueSession.fromJson(jsonDecode(_utf8Body(res)));
   }
 
+  /// م180/د — supabase.auth.resetPasswordForEmail: يرسل بريد إعادة تعيين
+  /// كلمة المرور. الخادم **لا يفصح** عن وجود البريد من عدمه (سلوك أمني
+  /// مقصود)، فالنجاح هنا يعني «أُرسل إن كان الحساب موجوداً».
+  Future<void> recoverPassword(String email) async {
+    final res = await _http.post(
+      Uri.parse('$baseUrl/auth/v1/recover'),
+      headers: _headers,
+      body: jsonEncode({'email': email}),
+    );
+    if (res.statusCode >= 400) _throwFrom(res);
+  }
+
   /// supabase.auth.refreshSession.
   Future<GotrueSession> refresh(String refreshToken) async {
     final res = await _http.post(

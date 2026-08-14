@@ -91,6 +91,26 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
   final _centerCtl = TextEditingController();
   final List<TextEditingController> _clinicCtls = [TextEditingController()];
 
+  // ═══ م180/ج — معالج الإعداد ثلاثي الخطوات (قرار المالك) ═══
+  // 0 = المركز والعيادات · 1 = المعالجات وأسعارها · 2 = المختبرات وأنواعها.
+  // «حفظ ومتابعة» يكتب خطوته في app.config فوراً ثم ينتقل؛ و«حفظ وإنهاء»
+  // في الأخيرة يختم علم الإكمال ويتابع لشاشة البدء بالسلوك القديم نفسه.
+  int _step = 0;
+
+  /// معالجات الخطوة ٢: (الاسم، السعر) — مبذورة بالافتراضية القائمة.
+  final List<(TextEditingController, TextEditingController)> _svcCtls = [
+    (TextEditingController(text: 'حشو عصب أمامي'), TextEditingController()),
+    (TextEditingController(text: 'حشو عصب خلفي'), TextEditingController()),
+    (TextEditingController(text: 'تركيبات'), TextEditingController()),
+  ];
+
+  /// مختبرات الخطوة ٣: لكل مختبر اسمٌ وقائمة أنواع (اسم، سعر).
+  final List<
+      ({
+        TextEditingController name,
+        List<(TextEditingController, TextEditingController)> types,
+      })> _labCtls = [];
+
   @override
   void initState() {
     super.initState();
@@ -131,6 +151,18 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _centerCtl.dispose();
+    // م180/ج — متحكمات خطوتَي المعالجات والمختبرات.
+    for (final (a, b) in _svcCtls) {
+      a.dispose();
+      b.dispose();
+    }
+    for (final l in _labCtls) {
+      l.name.dispose();
+      for (final (a, b) in l.types) {
+        a.dispose();
+        b.dispose();
+      }
+    }
     _codeCtl.dispose();
     for (final c in _clinicCtls) {
       c.dispose();
@@ -400,6 +432,8 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
     // لا setState: تغيّر حالة المصادقة يعيد بناء الجذر إلى شاشة الدخول.
   }
 
+  /// م180/ج — الخطوة ١: المركز والعيادات ⇒ **حفظ ومتابعة** (تُكتب في
+  /// app.config فوراً، ولا يُختم علم الإكمال قبل الخطوة الأخيرة).
   Future<void> _submitSetup() async {
     final name = _centerCtl.text.trim();
     final clinics = [
@@ -444,8 +478,93 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
     if (_listIsEmpty(cfg['payments'])) {
       cfg['payments'] = <String>['كاش', 'تحويل'];
     }
-    if (_listIsEmpty(cfg['services'])) {
-      cfg['services'] = <String>['حشو عصب أمامي', 'حشو عصب خلفي', 'تركيبات'];
+    repos.settings.set('app.config', cfg);
+    ref.read(configRevProvider.notifier).state++;
+    // م180/ج — لا ختم هنا: ننتقل للخطوة ٢ (المعالجات وأسعارها).
+    setState(() {
+      _saving = false;
+      _formError = '';
+      _state = _GateState.setup;
+      _step = 1;
+    });
+  }
+
+  /// م180/ج — الخطوة ٢: المعالجات وأسعارها (واحدة على الأقل — إلزامية).
+  /// تُكتب `services` و`servicePrices` معاً ثم ننتقل للمختبرات.
+  void _submitServices() {
+    final names = <String>[];
+    final prices = <String, Object?>{};
+    for (final (n, p) in _svcCtls) {
+      final nm = n.text.trim();
+      if (nm.isEmpty) continue;
+      if (names.contains(nm)) {
+        setState(() => _formError = 'المعالجة «$nm» مكررة');
+        return;
+      }
+      names.add(nm);
+      final v = num.tryParse(p.text.trim()) ?? 0;
+      if (v > 0) prices[nm] = v;
+    }
+    if (names.isEmpty) {
+      setState(() => _formError = 'أضِف معالجة واحدة على الأقل');
+      return;
+    }
+    final repos = ref.read(reposProvider);
+    final cur = repos.settings.get('app.config');
+    final cfg = cur is Map
+        ? Map<String, Object?>.from(cur)
+        : <String, Object?>{};
+    cfg['services'] = names;
+    if (prices.isNotEmpty) {
+      final old = cfg['servicePrices'];
+      cfg['servicePrices'] = {
+        if (old is Map) ...Map<String, Object?>.from(old),
+        ...prices,
+      };
+    }
+    repos.settings.set('app.config', cfg);
+    ref.read(configRevProvider.notifier).state++;
+    setState(() {
+      _formError = '';
+      _step = 2;
+    });
+  }
+
+  /// م180/ج — الخطوة ٣: المختبرات وأنواعها ⇒ **حفظ وإنهاء**. المختبرات
+  /// اختيارية (قد لا يتعامل مع مخبر بعد) — والقائمة الفارغة تُنهي الإعداد.
+  /// هنا فقط يُختم علم الإكمال ويتابع لشاشة البدء بالسلوك القديم.
+  Future<void> _submitLabs() async {
+    final labs = <String>[];
+    final byLab = <String, Object?>{};
+    for (final l in _labCtls) {
+      final nm = l.name.text.trim();
+      if (nm.isEmpty) continue;
+      if (labs.contains(nm)) {
+        setState(() => _formError = 'المختبر «$nm» مكرر');
+        return;
+      }
+      labs.add(nm);
+      final types = <Map<String, Object?>>[];
+      for (final (tn, tp) in l.types) {
+        final t = tn.text.trim();
+        if (t.isEmpty) continue;
+        types.add({'name': t, 'defaultPrice': num.tryParse(tp.text.trim()) ?? 0});
+      }
+      if (types.isNotEmpty) byLab[nm] = types;
+    }
+    setState(() {
+      _saving = true;
+      _formError = '';
+      _state = _GateState.preparing;
+    });
+    final repos = ref.read(reposProvider);
+    final cur = repos.settings.get('app.config');
+    final cfg = cur is Map
+        ? Map<String, Object?>.from(cur)
+        : <String, Object?>{};
+    if (labs.isNotEmpty) {
+      cfg['labs'] = labs;
+      if (byLab.isNotEmpty) cfg['labTypesByLab'] = byLab;
     }
     repos.settings.set('app.config', cfg);
     ref.read(configRevProvider.notifier).state++;
@@ -453,6 +572,51 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
     markSetupComplete(r.db, r.uid);
     await Future<void>.delayed(const Duration(milliseconds: 600));
     _goHome();
+  }
+
+  // ── م180/ج — مقابض صفوف الخطوتين ──
+  void _addService() =>
+      setState(() => _svcCtls.add((TextEditingController(),
+          TextEditingController())));
+
+  void _removeService(int i) {
+    if (_svcCtls.length == 1) return;
+    setState(() {
+      final (a, b) = _svcCtls.removeAt(i);
+      a.dispose();
+      b.dispose();
+    });
+  }
+
+  void _addLab() => setState(() => _labCtls.add((
+        name: TextEditingController(),
+        types: <(TextEditingController, TextEditingController)>[
+          (TextEditingController(), TextEditingController()),
+        ],
+      )));
+
+  void _removeLab(int i) {
+    setState(() {
+      final l = _labCtls.removeAt(i);
+      l.name.dispose();
+      for (final (a, b) in l.types) {
+        a.dispose();
+        b.dispose();
+      }
+    });
+  }
+
+  void _addLabType(int li) => setState(() => _labCtls[li].types.add(
+        (TextEditingController(), TextEditingController()),
+      ));
+
+  void _removeLabType(int li, int ti) {
+    if (_labCtls[li].types.length == 1) return;
+    setState(() {
+      final (a, b) = _labCtls[li].types.removeAt(ti);
+      a.dispose();
+      b.dispose();
+    });
   }
 
   @override
@@ -499,7 +663,11 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
                 ),
                 child: switch (_state) {
                   _GateState.activation => _activationCard(),
-                  _GateState.setup => _setupCard(),
+                  _GateState.setup => switch (_step) {
+                    1 => _servicesCard(),
+                    2 => _labsCard(),
+                    _ => _setupCard(),
+                  },
                   _GateState.welcome => _welcomeCard(),
                   _GateState.preparing => _spinnerCard(
                     'يرجى الانتظار قليلاً...',
@@ -935,6 +1103,274 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
         ),
       );
 
+  // ═══ م180/ج — عناصر معالج الإعداد المشتركة (هوية البطاقة نفسها) ═══
+
+  /// مؤشر التقدم: ثلاث حبّات ذهبية — المكتملة والحالية ممتلئتان.
+  Widget _stepDots() => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < 3; i++) ...[
+            if (i > 0)
+              Container(
+                width: 22,
+                height: 2,
+                color: i <= _step
+                    ? const Color.fromRGBO(201, 162, 75, .7)
+                    : const Color.fromRGBO(20, 80, 59, .14),
+              ),
+            Container(
+              key: Key('gate-step-dot-$i'),
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: i <= _step
+                    ? _goldD
+                    : const Color.fromRGBO(20, 80, 59, .16),
+              ),
+            ),
+          ],
+        ],
+      );
+
+  /// ترويسة خطوة: عنوان ذهبي + سطر شرح + مؤشر التقدم.
+  Widget _stepHead(String title, String sub) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              height: 1.25,
+              fontWeight: FontWeight.w900,
+              color: _goldL,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            sub,
+            textAlign: TextAlign.center,
+            style:
+                TextStyle(fontSize: 12, color: _ink.withValues(alpha: .75)),
+          ),
+          const SizedBox(height: 12),
+          _stepDots(),
+          const SizedBox(height: 18),
+        ],
+      );
+
+  /// الزر الأخضر الرئيسي (نفس كبسولة «بدء تجهيز الحساب» حرفياً).
+  Widget _primaryBtn(String label, VoidCallback? onTap, {required Key key}) =>
+      Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(50),
+        child: InkWell(
+          key: key,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(50),
+          child: Ink(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(50),
+              gradient: const LinearGradient(
+                begin: Alignment(-0.34, -0.94),
+                end: Alignment(0.34, 0.94),
+                colors: [Color(0xFF15604A), Color(0xFF0A3024)],
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color.fromRGBO(10, 48, 36, .25),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .5,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  /// كبسولة «إضافة …» بحد ذهبي (توأم «إضافة عيادة»).
+  Widget _addBtn(String label, VoidCallback onTap, {required Key key}) =>
+      Material(
+        color: const Color.fromRGBO(201, 162, 75, .08),
+        borderRadius: BorderRadius.circular(50),
+        child: InkWell(
+          key: key,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(50),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(50),
+              border:
+                  Border.all(color: const Color.fromRGBO(201, 162, 75, .3)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.add_rounded, size: 15, color: _goldD),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: _goldD,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _errorLine() => _formError.isEmpty
+      ? const SizedBox.shrink()
+      : Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(
+            _formError,
+            key: const Key('gate-error'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
+          ),
+        );
+
+  /// م180/ج — الخطوة ٢: المعالجات وأسعارها.
+  Widget _servicesCard() => _glass(
+        maxWidth: 400,
+        padding: const EdgeInsets.fromLTRB(26, 32, 26, 26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _stepHead('المعالجات وأسعارها',
+                'أضِف معالجات عيادتك وسعر كلٍّ منها — يملأ السعر قيمة '
+                'السجل تلقائياً عند اختيار المعالجة.'),
+            _secH('المعالجات'),
+            const SizedBox(height: 8),
+            for (var i = 0; i < _svcCtls.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _inp(_svcCtls[i].$1, 'اسم المعالجة',
+                          key: Key('gate-svc-name-$i')),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: _inp(_svcCtls[i].$2, 'السعر',
+                          key: Key('gate-svc-price-$i')),
+                    ),
+                    const SizedBox(width: 8),
+                    _pgDel(
+                      enabled: _svcCtls.length > 1,
+                      onTap: () => _removeService(i),
+                    ),
+                  ],
+                ),
+              ),
+            _addBtn('إضافة معالجة', _addService,
+                key: const Key('gate-add-service')),
+            _errorLine(),
+            const SizedBox(height: 18),
+            _primaryBtn('حفظ ومتابعة', _saving ? null : _submitServices,
+                key: const Key('gate-services-next')),
+          ],
+        ),
+      );
+
+  /// م180/ج — الخطوة ٣: المختبرات وأنواعها (اختيارية) ⇒ حفظ وإنهاء.
+  Widget _labsCard() => _glass(
+        maxWidth: 400,
+        padding: const EdgeInsets.fromLTRB(26, 32, 26, 26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _stepHead('المختبرات التي تتعامل معها',
+                'أضِف كل مختبر وأنواع التركيبات وأسعارها لديه. يمكنك '
+                'تخطّي هذه الخطوة وإضافتها لاحقاً من الإعدادات.'),
+            for (var li = 0; li < _labCtls.length; li++)
+              Container(
+                key: Key('gate-lab-$li'),
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color.fromRGBO(20, 80, 59, .03),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: const Color.fromRGBO(20, 80, 59, .12)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _inp(_labCtls[li].name, 'اسم المختبر',
+                              key: Key('gate-lab-name-$li')),
+                        ),
+                        const SizedBox(width: 8),
+                        _pgDel(enabled: true, onTap: () => _removeLab(li)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    for (var ti = 0; ti < _labCtls[li].types.length; ti++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: _inp(_labCtls[li].types[ti].$1,
+                                  'نوع التركيبة',
+                                  key: Key('gate-labtype-$li-$ti')),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 2,
+                              child: _inp(_labCtls[li].types[ti].$2, 'السعر',
+                                  key: Key('gate-labprice-$li-$ti')),
+                            ),
+                            const SizedBox(width: 8),
+                            _pgDel(
+                              enabled: _labCtls[li].types.length > 1,
+                              onTap: () => _removeLabType(li, ti),
+                            ),
+                          ],
+                        ),
+                      ),
+                    _addBtn('إضافة نوع', () => _addLabType(li),
+                        key: Key('gate-add-labtype-$li')),
+                  ],
+                ),
+              ),
+            _addBtn('إضافة مختبر', _addLab, key: const Key('gate-add-lab')),
+            _errorLine(),
+            const SizedBox(height: 18),
+            _primaryBtn('حفظ وإنهاء', _saving ? null : _submitLabs,
+                key: const Key('gate-labs-finish')),
+          ],
+        ),
+      );
+
   // ── شاشة الإعداد الإجباري (setup) — توأم القالب حرفياً ─────────────────────
   Widget _setupCard() => _glass(
     maxWidth: 400,
@@ -960,7 +1396,10 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: _ink.withValues(alpha: .75)),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
+        // م180/ج — مؤشر خطوات المعالج (١ المركز · ٢ المعالجات · ٣ المختبرات).
+        _stepDots(),
+        const SizedBox(height: 18),
 
         // اسم المركز أو الطبيب (إجباري).
         _secH('اسم المركز أو الطبيب'),
@@ -1069,7 +1508,7 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
               child: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 14),
                 child: Text(
-                  'بدء تجهيز الحساب',
+                  'حفظ ومتابعة',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,

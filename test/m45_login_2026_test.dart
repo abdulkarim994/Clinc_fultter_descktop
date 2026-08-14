@@ -6,7 +6,6 @@ library;
 
 import 'dart:io';
 
-import 'package:dental_clinic_flutter/features/shell/tab_icons.dart';
 import 'package:dental_clinic_flutter/app/providers.dart';
 import 'package:dental_clinic_flutter/main.dart';
 import 'package:flutter/material.dart' hide Row;
@@ -34,17 +33,22 @@ void main() {
     expect((card.decoration as BoxDecoration).color, Colors.white,
         reason: 'بطاقة بيضاء كنمط شاشة الإعداد');
 
-    // الشعار بأيقونة السن المخططة.
+    // م180/د — الشعار صار أيقونة DENTSHINE الرسمية بدل أيقونة التبويب.
     expect(
-        find.byWidgetPredicate(
-            (w) => w is TabIcon && w.id == 'labs'),
+        find.byWidgetPredicate((w) =>
+            w is Image &&
+            w.image is AssetImage &&
+            (w.image as AssetImage).assetName ==
+                'assets/icon/icon-512.png'),
         findsOneWidget);
 
     // زر الدخول الذهبي بمفتاحه + النصوص الحرفية.
     expect(find.byKey(const Key('login-btn')), findsOneWidget);
     expect(find.text('تسجيل الدخول'), findsWidgets);
+    // م180/د — «إنشاء حساب جديد» صار تبويباً في المبدّل المنزلق.
+    expect(find.byKey(const Key('auth-switcher')), findsOneWidget);
     expect(find.text('إنشاء حساب جديد'), findsOneWidget);
-    expect(find.text('طب الأسنان الرقمي'), findsOneWidget);
+    expect(find.text('DENTSHINE'), findsOneWidget);
 
     // الترتيب الحرفي: 0 بريد، 1 كلمة مرور (تكتب وتقرأ بالمواضع).
     await tester.enterText(
@@ -52,15 +56,20 @@ void main() {
     await tester.enterText(find.byType(TextField).at(1), 'secret12');
     expect(find.text('doc@clinic.ly'), findsOneWidget);
 
-    // فتح قسم إنشاء الحساب: الحقلان 2 و3 وزر «إنشاء الحساب».
-    // م88 — أُضيف زرّ «المتابعة باستخدام Google» فوقه، والبطاقة قابلة
-    // للتمرير (SingleChildScrollView)، فيُمرَّر إليه قبل النقر في شاشة
-    // الاختبار الصغيرة. لا يغيّر ما يُفحَص: الحقول الأربعة وترتيبها.
-    await tester.ensureVisible(find.text('إنشاء حساب جديد').first);
+    // م180/د — وضع الدخول يعرض حقليه وحدهما (الإنشاء خلف تبويبه).
+    expect(find.byType(TextField), findsNWidgets(2));
+    // «نسيت كلمة المرور؟» متاح في وضع الدخول.
+    expect(find.byKey(const Key('forgot-password')), findsOneWidget);
+
+    // التبديل لتبويب «إنشاء حساب جديد»: حقلاه وزره، وبلا حقول الدخول.
+    await tester.ensureVisible(find.byKey(const Key('auth-tab-register')));
     await tester.pump();
-    await tester.tap(find.text('إنشاء حساب جديد').first);
+    await tester.tap(find.byKey(const Key('auth-tab-register')));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(TextField), findsNWidgets(4));
+    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byKey(const Key('forgot-password')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('register-btn')));
+    await tester.pump();
     expect(find.byKey(const Key('register-btn')), findsOneWidget);
     expect(find.text('إنشاء الحساب'), findsOneWidget);
   });

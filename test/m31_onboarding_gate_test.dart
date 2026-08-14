@@ -24,9 +24,16 @@ void main() {
           isFalse);
       expect(
           isAccountConfigured(
-              {'centerName': 'طب الأسنان الرقمي', 'clinics': ['ع']}),
+              {'centerName': 'DENTSHINE', 'clinics': ['ع']}),
           isFalse,
           reason: 'الاسم الافتراضي لا يُعدّ إعداداً');
+      // م180/٦ — الاسم الافتراضي **القديم** يبقى غير مكتمل أيضاً: حسابٌ
+      // قائم به لا يجوز أن يُعتبر مُعَدّاً فجأة بعد إعادة التسمية.
+      expect(
+          isAccountConfigured(
+              {'centerName': 'طب الأسنان الرقمي', 'clinics': ['ع']}),
+          isFalse,
+          reason: 'الاسم الافتراضي القديم كذلك');
       expect(
           isAccountConfigured({'centerName': 'مركز', 'clinics': const []}),
           isFalse);
@@ -90,12 +97,23 @@ void main() {
       expect(find.text('مرحباً بك'), findsOneWidget);
       expect(find.byType(AppShellScreen), findsNothing);
 
-      // إكمال: اسم + عيادة ثم بدء التجهيز.
+      // م180/ج — الإعداد صار معالجاً بثلاث خطوات: المركز والعيادات ⇒
+      // المعالجات وأسعارها ⇒ المختبرات، والختم في الأخيرة وحدها.
+      // الخطوة ١: اسم + عيادة ثم «حفظ ومتابعة».
       await tester.enterText(
           find.byKey(const Key('gate-center-name')), 'مركز الأمل');
       await tester.enterText(
           find.byKey(const Key('gate-clinic-0')), 'العيادة أ');
       await tester.tap(find.byKey(const Key('gate-submit')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      // الخطوة ٢: المعالجات مبذورة بالافتراضية — «حفظ ومتابعة».
+      expect(find.byKey(const Key('gate-svc-name-0')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('gate-services-next')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      // الخطوة ٣: بلا مختبرات (اختيارية) — «حفظ وإنهاء».
+      await tester.tap(find.byKey(const Key('gate-labs-finish')));
       for (var i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 400));
       }

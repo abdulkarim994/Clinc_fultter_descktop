@@ -56,18 +56,23 @@ void main() {
       await settle(tester);
       expect(find.textContaining('لا يوجد حساب'), findsOneWidget);
 
-      // إنشاء حساب
-      await tapSeen(tester, find.text('إنشاء حساب جديد').first);
+      // م180/د — إنشاء الحساب صار تبويباً في المبدّل المنزلق: التبديل
+      // يستبدل حقلَي الدخول بحقلَي الإنشاء (فالمؤشران 0 و1 لا 2 و3).
+      await tapSeen(tester, find.byKey(const Key('auth-tab-register')));
       await settle(tester);
       final fields = find.byType(TextField);
-      await tester.ensureVisible(fields.at(2));
-      await tester.enterText(fields.at(2), 'doc@clinic.ly');
-      await tester.enterText(fields.at(3), 'secret12');
+      await tester.ensureVisible(fields.at(0));
+      await tester.enterText(fields.at(0), 'doc@clinic.ly');
+      await tester.enterText(fields.at(1), 'secret12');
       await tapSeen(tester, find.text('إنشاء الحساب'));
       await settle(tester);
       expect(find.textContaining('تم إنشاء الحساب'), findsOneWidget);
 
       // دخول ناجح لحساب جديد ⇒ بوابة الإعداد الإجبارية (م31) لا الصدفة.
+      // (إنشاء الحساب يعيد المبدّل لتبويب الدخول تلقائياً.)
+      await tester.enterText(
+          find.byType(TextField).at(0), 'doc@clinic.ly');
+      await tester.enterText(find.byType(TextField).at(1), 'secret12');
       await tapSeen(tester, find.text('تسجيل الدخول').last);
       await settle(tester);
       expect(find.text('مرحباً بك'), findsOneWidget);
@@ -83,6 +88,16 @@ void main() {
         'العيادة 1',
       );
       await tapSeen(tester, find.byKey(const Key('gate-submit')));
+      // م180/ج — المعالج صار ثلاث خطوات: نُكمل الخطوتين التاليتين
+      // (المعالجات مبذورة، والمختبرات اختيارية) حتى يُختم الإعداد.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('gate-services-next')),
+          warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('gate-labs-finish')),
+          warnIfMissed: false);
       for (var i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 400));
       }

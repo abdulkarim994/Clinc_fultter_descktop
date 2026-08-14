@@ -356,6 +356,9 @@ void main() {
           oauthSignInProvider.overrideWithValue(_FakeOAuth(_googleUser)),
         ],
       );
+      // م180/د — البطاقة أطول بالمبدّل المنزلق: يُمرَّر للزر قبل النقر.
+      await tester.ensureVisible(find.byKey(const Key('google-signin-btn')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('google-signin-btn')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -368,6 +371,16 @@ void main() {
         'العيادة أ',
       );
       await tester.tap(find.byKey(const Key('gate-submit')));
+      // م180/ج — المعالج صار ثلاث خطوات: نُكمل الخطوتين التاليتين
+      // (المعالجات مبذورة، والمختبرات اختيارية) حتى يُختم الإعداد.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('gate-services-next')),
+          warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('gate-labs-finish')),
+          warnIfMissed: false);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 700));
       await tester.pump(const Duration(milliseconds: 100));

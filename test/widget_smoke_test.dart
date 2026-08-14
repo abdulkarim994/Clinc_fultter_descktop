@@ -32,7 +32,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.text('طب الأسنان الرقمي'), findsOneWidget);
+    expect(find.text('DENTSHINE'), findsOneWidget);
     // م133 — نظام الموظفين (م118) أضاف جدولي employees/expenses فصار
     // expectedTables خمسة عشر جدولاً لا ثلاثة عشر (schema_sql.dart). والمقام
     // في شاشة الإثبات صار مربوطاً بطول القائمة نفسها (expectedTableCount)
