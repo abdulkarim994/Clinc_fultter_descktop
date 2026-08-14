@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/legacy.dart';
 
 import '../../app/providers.dart';
 import '../../core/display_prefs.dart' show applyDisplayPrefs;
+import '../../core/locked_services.dart' show kLockedServices;
 import '../../core/theme/app_theme.dart';
 import '../desktop/desktop_gate.dart' show isDesktopUi;
 import '../desktop/desktop_shell.dart' show DesktopShell;
@@ -112,6 +113,51 @@ void _maybeMigrateRatesFlag(WidgetRef ref) {
   } catch (_) {
     // ترحيل تحسيني — فشله لا يوقف الإقلاع ويعاد بالإقلاع التالي.
     _ratesMigrationRan = false;
+  }
+}
+
+/// م181 — تطهير أسعار المعالجات المقفلة (مرة لكل إقلاع، عديم الأثر
+/// بعدها): «تركيبات» سعرها متغيّر بطبيعته فلا يجوز بقاء رقمٍ مخزّن لها
+/// من عهد ما قبل م181 يملأ حقل القيمة تلقائياً. الكتابة تمرّ بلقطة
+/// الأساس (configBase) فيولّد مخزنُ الإعدادات صفَّ حذفٍ ورقيّاً
+/// (cfg.leaf بشاهد قبر) للمفتاح الزائل — فلا يعيده الدمج من جهازٍ لم
+/// يتحدّث بعد (خريطة `_tombs` غير مُدارة في نظام الصفوف — الفرق هو
+/// المصدر).
+bool _lockedPricesPurgeRan = false;
+
+@visibleForTesting
+void resetLockedPricesPurgeGuard() => _lockedPricesPurgeRan = false;
+
+/// الحساب النقي للتطهير: يعيد الإعدادات الجديدة أو null إن كانت نظيفة.
+/// (منفصل عن الكتابة ليُختبر مباشرة وليبقى القرار في مكان واحد.)
+Map<String, Object?>? purgedLockedServicePrices(Map<String, Object?> cfg) {
+  final prices = cfg['servicePrices'];
+  if (prices is! Map) return null;
+  final stale = [
+    for (final s in kLockedServices)
+      if (prices.containsKey(s)) s,
+  ];
+  if (stale.isEmpty) return null; // نظيف سلفاً — لا كتابة.
+  final nextPrices = Map<String, Object?>.from(prices);
+  for (final s in stale) {
+    nextPrices.remove(s);
+  }
+  return {...cfg, 'servicePrices': nextPrices};
+}
+
+void _maybePurgeLockedServicePrices(WidgetRef ref) {
+  if (_lockedPricesPurgeRan) return;
+  _lockedPricesPurgeRan = true;
+  try {
+    final cfg = ref.read(appConfigProvider);
+    final next = purgedLockedServicePrices(cfg);
+    if (next == null) return;
+    final repos = ref.read(reposProvider);
+    repos.settings.set('app.config', next, configBase: cfg);
+    ref.read(configRevProvider.notifier).state++;
+  } catch (_) {
+    // تطهير تحسيني — فشله لا يوقف الإقلاع ويعاد بالإقلاع التالي.
+    _lockedPricesPurgeRan = false;
   }
 }
 
@@ -278,6 +324,9 @@ class AppShellScreen extends ConsumerWidget {
     // م180 — ترحيل مفتاح النسب (خارج البناء — كتابة إعدادات آمنة).
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeMigrateRatesFlag(ref));
+    // م181 — تطهير سعر «تركيبات» المخزّن (سعر متغيّر — لا رقم ثابتاً).
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybePurgeLockedServicePrices(ref));
     // تذكير مواعيد اليوم والغد عند فتح التطبيق — showApptNotification.
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeShowApptNotif(context, ref));
