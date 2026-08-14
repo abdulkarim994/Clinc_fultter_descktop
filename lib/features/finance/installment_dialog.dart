@@ -21,7 +21,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/js_compat.dart';
-import '../patients/patients_logic.dart' show identityOfRow;
+import '../patients/patients_logic.dart' show navIdentityOf;
 import '../print/treatment_tables.dart' show formatNumber;
 import '../staff/staff_gate.dart' show staffAllowed;
 import '../records/day_close_store.dart' show confirmClosedDayWrite;
@@ -399,7 +399,10 @@ Future<void> showDebtPaymentsDialog(
                                         onOpenPatient(
                                             '${debt['name'] ?? ''}',
                                             '${debt['clinic'] ?? ''}',
-                                            identityOfRow(debt));
+                                            // م181 — هوية الحلّال الموروث
+                                            navIdentityOf(
+                                                ref.read(reposProvider),
+                                                debt));
                                       },
                                       child: Text(
                                           '${debt['name'] ?? ''}',
