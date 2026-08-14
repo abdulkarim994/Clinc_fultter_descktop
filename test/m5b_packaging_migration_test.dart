@@ -18,7 +18,7 @@ void main() {
       final manifest =
           File('android/app/src/main/AndroidManifest.xml')
               .readAsStringSync();
-      expect(manifest, contains('android:label="طب الأسنان الرقمي"'));
+      expect(manifest, contains('android:label="DENTSHINE"'));
       expect(manifest, contains('android.permission.INTERNET'));
       expect(
           File('android/app/src/main/kotlin/com/dental/clinic/MainActivity.kt')
@@ -43,7 +43,7 @@ void main() {
       expect(pubspec, contains('flutter_launcher_icons:'));
       final mainCpp =
           File('windows/runner/main.cpp').readAsStringSync();
-      expect(mainCpp, contains('طب الأسنان الرقمي'));
+      expect(mainCpp, contains('DENTSHINE'));
     });
   });
 }
