@@ -30,7 +30,8 @@ import '../records/add_record_screen.dart' show openAddRecordSheet;
 import '../staff/staff_login_screen.dart' show StaffLoginScreen;
 import '../staff/staff_account_screen.dart' show StaffAccountScreen;
 import '../staff/staff_session.dart'
-    show currentStaffProvider, staffCan, staffIsAdmin;
+    show applyStaffSession, currentStaffProvider, kCurrentStaff, staffCan,
+        staffIsAdmin;
 import '../staff/staff_store.dart' show StaffStore;
 import '../staff/staff_gate.dart' show gateStaff;
 import '../records/daily_income_screen.dart';
@@ -86,6 +87,33 @@ final activeTabProvider = StateProvider<String>((ref) => 'home');
 /// و«اسم|عيادة» ← مفتاح هاتف صف المريض. التفاصيل في clinic_scope.dart —
 /// عزل المالك: ممنوع تشارك المعلومات الطبية بين مشابهي الاسم.
 bool _medicalMigrationRan = false;
+
+/// م180 — ترحيل مفتاح ميزة النسب (مرة لكل إقلاع، عديم الأثر بعدها):
+/// الميزة مطفأة افتراضياً للحسابات الجديدة، لكن حساباً قائماً ضبط نسباً
+/// صراحةً (doctorPct أو clinicRates) يجب أن يبقى مفعّلاً بعد التحديث —
+/// قرار المالك: «يبقى مفعلاً تلقائياً». الغائب كلياً يبقى غائباً (= مطفأ).
+bool _ratesMigrationRan = false;
+
+void _maybeMigrateRatesFlag(WidgetRef ref) {
+  if (_ratesMigrationRan) return;
+  _ratesMigrationRan = true;
+  try {
+    final cfg = ref.read(appConfigProvider);
+    if (cfg.containsKey('ratesEnabled')) return; // مضبوط سلفاً — لا شيء.
+    final legacyRates = cfg['doctorPct'] != null ||
+        (cfg['clinicRates'] is Map &&
+            ((cfg['clinicRates'] as Map)['clinics'] is Map) &&
+            ((cfg['clinicRates'] as Map)['clinics'] as Map).isNotEmpty);
+    if (!legacyRates) return; // حساب جديد/لم يستعمل النسب ⇒ مطفأة.
+    final repos = ref.read(reposProvider);
+    repos.settings.set('app.config', {...cfg, 'ratesEnabled': true},
+        configBase: cfg);
+    ref.read(configRevProvider.notifier).state++;
+  } catch (_) {
+    // ترحيل تحسيني — فشله لا يوقف الإقلاع ويعاد بالإقلاع التالي.
+    _ratesMigrationRan = false;
+  }
+}
 
 void _maybeMigrateMedicalKeys(WidgetRef ref) {
   if (_medicalMigrationRan) return;
@@ -183,9 +211,44 @@ class AppShellScreen extends ConsumerWidget {
     // لا شاشة دخول ولا كلمة مرور — يفتح التطبيق مباشرةً بصلاحياتٍ كاملة
     // (staffAllowed(null) ⇒ سماحٌ كامل). تفعيل النظام اختيارٌ من الإعدادات.
     // وحين يوجد حسابٌ فأكثر: تسجيل الدخول مطلوبٌ كالسابق تماماً.
-    final staffConfigured =
-        StaffStore(ref.watch(reposProvider).settings).hasAnyUser;
-    if (staffConfigured && ref.watch(currentStaffProvider) == null) {
+    final staffStore = StaffStore(ref.watch(reposProvider).settings);
+    final staffConfigured = staffStore.hasAnyUser;
+    final session = ref.watch(currentStaffProvider);
+    // م180 — حارس الجلسة العالقة (علة الكمبيوتر): النظام أُوقف من جهاز
+    // آخر (المزامنة صفّرت المستخدمين) بينما جلسة الإدارة القديمة حيّة في
+    // ذاكرة هذا الجهاز — كان يستمر عاملاً بالنظام حتى إعادة التشغيل.
+    // التصفير هنا يعيد الجهاز للوضع الفردي لحظة وصول المزامنة.
+    // قيدان يحصرانه في العلة الحقيقية:
+    //  • جلسات الإدارة حصراً (جلسة موظفٍ مقيّدة تُبقي قيودها — الأشد
+    //    أماناً وعقد اختبار فصل الأذونات).
+    //  • تطابق المرآة العامة مع المزوّد (على الجهاز الحقيقي يضبطهما
+    //    الدخول معاً) — فلا يمسح الحارس مرآةً مقيّدة زرعها اختبارٌ
+    //    مع تجاوز مزوّدٍ إداري.
+    if (!staffConfigured &&
+        staffIsAdmin(session) &&
+        identical(kCurrentStaff, session)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        applyStaffSession(null);
+        ref.read(currentStaffProvider.notifier).state = null;
+      });
+    }
+    // م180 — الحارس المقابل: النظام مفعّل وجلستي لمستخدمٍ حُذف أو عُطّل
+    // من جهازٍ آخر ⇒ خروجٌ إجباري لشاشة الدخول (لا صلاحيات شبح).
+    if (staffConfigured && session != null) {
+      final id = '${session['id'] ?? ''}';
+      final live = [
+        for (final u in staffStore.listActive())
+          if ('${u['id'] ?? ''}' == id) u,
+      ];
+      if (live.isEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          applyStaffSession(null);
+          ref.read(currentStaffProvider.notifier).state = null;
+        });
+        return const StaffLoginScreen();
+      }
+    }
+    if (staffConfigured && session == null) {
       return const StaffLoginScreen();
     }
     // نبضة «زيارة جديدة» من قائمة مرضى العيادة ⇒ الانتقال للرئيسية.
@@ -212,6 +275,9 @@ class AppShellScreen extends ConsumerWidget {
     // م96 — هجرة مفاتيح المعلومات الطبية (مرة لكل إقلاع، خارج البناء).
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeMigrateMedicalKeys(ref));
+    // م180 — ترحيل مفتاح النسب (خارج البناء — كتابة إعدادات آمنة).
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _maybeMigrateRatesFlag(ref));
     // تذكير مواعيد اليوم والغد عند فتح التطبيق — showApptNotification.
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _maybeShowApptNotif(context, ref));
