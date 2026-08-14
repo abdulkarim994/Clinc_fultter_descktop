@@ -51,11 +51,16 @@ class ProfitsClinicsTable extends StatelessWidget {
     required this.title,
     required this.rows,
     this.dense = false,
+    this.showDoctor = true,
   });
 
   final String title;
   final List<ClinicProfitRow> rows;
   final bool dense;
+
+  /// م180 — ميزة النسب مطفأة ⇒ يبقى عمود الإيراد وحده (كله للعيادة):
+  /// عمودا «ربح الطبيب/ربح العيادة» يختفيان تماماً.
+  final bool showDoctor;
 
   @override
   Widget build(BuildContext context) {
@@ -84,8 +89,8 @@ class ProfitsClinicsTable extends StatelessWidget {
                     flex: 2,
                     child: Text('العيادة', style: _headStyle())),
                 _headCell('الإيراد'),
-                _headCell('ربح الطبيب'),
-                _headCell('ربح العيادة'),
+                if (showDoctor) _headCell('ربح الطبيب'),
+                if (showDoctor) _headCell('ربح العيادة'),
               ]),
             ),
             const SizedBox(height: 4),
@@ -122,10 +127,12 @@ class ProfitsClinicsTable extends StatelessWidget {
                     ),
                     _numCell(n(rows[i].revenue),
                         color: BrandColors.goldDark, fs: fs),
-                    _numCell(n(rows[i].doctor),
-                        color: BrandColors.green, fs: fs),
-                    _numCell(n(rows[i].clinicShare),
-                        color: BrandColors.brand600, fs: fs),
+                    if (showDoctor)
+                      _numCell(n(rows[i].doctor),
+                          color: BrandColors.green, fs: fs),
+                    if (showDoctor)
+                      _numCell(n(rows[i].clinicShare),
+                          color: BrandColors.brand600, fs: fs),
                   ]),
                 ),
               ],
@@ -147,7 +154,12 @@ class ProfitsGrandTable extends StatelessWidget {
     required this.expenses,
     this.title = 'الإجمالي العام لجميع العيادات',
     this.dense = false,
+    this.showDoctor = true,
   });
+
+  /// م180 — الميزة مطفأة ⇒ الإجمالي كله للعيادة: عمود قيمة واحد
+  /// (الإجمالي/المصروفات/الصافي) بلا أعمدة طبيب/عيادة.
+  final bool showDoctor;
 
   final num revenue;
   final num doctor;
@@ -214,60 +226,100 @@ class ProfitsGrandTable extends StatelessWidget {
                       color: BrandColors.goldDark)),
             ),
             const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(children: [
-                const Expanded(flex: 2, child: SizedBox()),
-                _headCell('الإيراد'),
-                _headCell('ربح الطبيب'),
-                _headCell('ربح العيادة'),
-              ]),
-            ),
-            const SizedBox(height: 4),
-            Divider(height: 1, color: BrandColors.line),
-            row(
-              'الإجمالي',
-              _numCell(n(revenue),
-                  color: BrandColors.goldDark,
-                  bold: true,
-                  fs: fs,
-                  key: const Key('prof-grand-revenue')),
-              _numCell(n(doctor),
-                  color: BrandColors.green,
-                  bold: true,
-                  fs: fs,
-                  key: const Key('prof-grand-doctor')),
-              _numCell(n(clinic),
-                  color: BrandColors.brand600,
-                  bold: true,
-                  fs: fs,
-                  key: const Key('prof-grand-clinic')),
-            ),
-            Divider(height: 1, color: BrandColors.line),
-            // صف المصروفات: قيمته تحت عمود ربح العيادة حصراً (طلب المالك).
-            row(
-              'المصروفات (−)',
-              spacer(),
-              dash,
-              _numCell(n(expenses),
-                  color: BrandColors.red,
-                  bold: true,
-                  fs: fs,
-                  key: const Key('prof-grand-exp')),
-              key: const Key('prof-grand-exp-row'),
-            ),
-            const SizedBox(height: 8),
-            row(
-              'صافي ربح العيادة',
-              spacer(),
-              dash,
-              _numCell(n(clinic - expenses),
-                  color: BrandColors.brand900,
-                  bold: true,
-                  fs: fs,
-                  key: const Key('prof-grand-clinic-net')),
-              emphasize: true,
-            ),
+            if (showDoctor) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(children: [
+                  const Expanded(flex: 2, child: SizedBox()),
+                  _headCell('الإيراد'),
+                  _headCell('ربح الطبيب'),
+                  _headCell('ربح العيادة'),
+                ]),
+              ),
+              const SizedBox(height: 4),
+              Divider(height: 1, color: BrandColors.line),
+              row(
+                'الإجمالي',
+                _numCell(n(revenue),
+                    color: BrandColors.goldDark,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-revenue')),
+                _numCell(n(doctor),
+                    color: BrandColors.green,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-doctor')),
+                _numCell(n(clinic),
+                    color: BrandColors.brand600,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-clinic')),
+              ),
+              Divider(height: 1, color: BrandColors.line),
+              // صف المصروفات: قيمته تحت عمود ربح العيادة (طلب المالك).
+              row(
+                'المصروفات (−)',
+                spacer(),
+                dash,
+                _numCell(n(expenses),
+                    color: BrandColors.red,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-exp')),
+                key: const Key('prof-grand-exp-row'),
+              ),
+              const SizedBox(height: 8),
+              row(
+                'صافي ربح العيادة',
+                spacer(),
+                dash,
+                _numCell(n(clinic - expenses),
+                    color: BrandColors.brand900,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-clinic-net')),
+                emphasize: true,
+              ),
+            ] else ...[
+              // م180 — الميزة مطفأة: الإجمالي كله للعيادة — عمود قيمة
+              // واحد، والصافي = الإيراد − المصروفات (لا حصص إطلاقاً).
+              Divider(height: 1, color: BrandColors.line),
+              row(
+                'الإجمالي',
+                spacer(),
+                spacer(),
+                _numCell(n(revenue),
+                    color: BrandColors.goldDark,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-revenue')),
+              ),
+              Divider(height: 1, color: BrandColors.line),
+              row(
+                'المصروفات (−)',
+                spacer(),
+                spacer(),
+                _numCell(n(expenses),
+                    color: BrandColors.red,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-exp')),
+                key: const Key('prof-grand-exp-row'),
+              ),
+              const SizedBox(height: 8),
+              row(
+                'صافي العيادة',
+                spacer(),
+                spacer(),
+                _numCell(n(revenue - expenses),
+                    color: BrandColors.brand900,
+                    bold: true,
+                    fs: fs,
+                    key: const Key('prof-grand-clinic-net')),
+                emphasize: true,
+              ),
+            ],
           ],
         ),
       ),
@@ -282,10 +334,15 @@ class YearPnlTable extends StatelessWidget {
     super.key,
     required this.report,
     this.dense = false,
+    this.showDoctor = true,
   });
 
   final YearReport report;
   final bool dense;
+
+  /// م180 — الميزة مطفأة ⇒ أعمدة الشهر/الإيراد/المصروفات/الصافي فقط،
+  /// والصافي = الإيراد − المصروفات (الإجمالي كله للعيادة).
+  final bool showDoctor;
 
   @override
   Widget build(BuildContext context) {
@@ -324,13 +381,15 @@ class YearPnlTable extends StatelessWidget {
           ),
           _numCell(muted ? '—' : n(m.revenue),
               color: c(BrandColors.goldDark), fs: fs),
-          _numCell(muted ? '—' : n(m.doctor),
-              color: c(BrandColors.green), fs: fs),
-          _numCell(muted ? '—' : n(m.clinic),
-              color: c(BrandColors.brand600), fs: fs),
+          if (showDoctor)
+            _numCell(muted ? '—' : n(m.doctor),
+                color: c(BrandColors.green), fs: fs),
+          if (showDoctor)
+            _numCell(muted ? '—' : n(m.clinic),
+                color: c(BrandColors.brand600), fs: fs),
           _numCell(muted ? '—' : n(m.expenses),
               color: c(BrandColors.red), fs: fs),
-          _numCell(muted ? '—' : n(m.net),
+          _numCell(muted ? '—' : n(showDoctor ? m.net : m.revenue - m.expenses),
               color: c(BrandColors.brand900), bold: true, fs: fs),
         ]),
       );
@@ -360,8 +419,8 @@ class YearPnlTable extends StatelessWidget {
                     width: dense ? 52 : 66,
                     child: Text('الشهر', style: _headStyle())),
                 _headCell('الإيراد'),
-                _headCell('الطبيب'),
-                _headCell('العيادة'),
+                if (showDoctor) _headCell('الطبيب'),
+                if (showDoctor) _headCell('العيادة'),
                 _headCell('المصروفات'),
                 _headCell('الصافي'),
               ]),
@@ -395,13 +454,18 @@ class YearPnlTable extends StatelessWidget {
                 ),
                 _numCell(n(report.revenue),
                     color: BrandColors.goldDark, bold: true, fs: fs),
-                _numCell(n(report.doctor),
-                    color: BrandColors.green, bold: true, fs: fs),
-                _numCell(n(report.clinic),
-                    color: BrandColors.brand600, bold: true, fs: fs),
+                if (showDoctor)
+                  _numCell(n(report.doctor),
+                      color: BrandColors.green, bold: true, fs: fs),
+                if (showDoctor)
+                  _numCell(n(report.clinic),
+                      color: BrandColors.brand600, bold: true, fs: fs),
                 _numCell(n(report.expenses),
                     color: BrandColors.red, bold: true, fs: fs),
-                _numCell(n(report.net),
+                _numCell(
+                    n(showDoctor
+                        ? report.net
+                        : report.revenue - report.expenses),
                     color: BrandColors.brand900, bold: true, fs: fs),
               ]),
             ),
