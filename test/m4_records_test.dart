@@ -328,6 +328,11 @@ void main() {
       await settle(tester);
       expect(find.text('تم حفظ السجل'), findsOneWidget);
 
+      // م179 — الشريط صار **أسفل** افتراضياً، والشعار السفلي يغطيه حتى
+      // ينقضي: يُصرَّف أولاً وإلا التقط نقرةَ التبويب (فخ القسم 11).
+      await tester.pump(const Duration(seconds: 5));
+      await settle(tester);
+
       // تبويب السجلات ← بطاقة المريض ← الملف
       await tester.tap(find.text('السجلات'), warnIfMissed: false);
       await settle(tester);
