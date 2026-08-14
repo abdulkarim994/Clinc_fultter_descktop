@@ -54,7 +54,11 @@ class _DesktopProfitsScreenState
     final cfg = ref.watch(appConfigProvider);
     final cur = ref.watch(currencyProvider);
     final clinics = ref.watch(clinicsProvider);
-    final doctorPct = jsNumOr0(jsOr(cfg['doctorPct'], 50));
+    // م180 — ميزة النسب: مطفأة ⇒ نسبة الطبيب الحية صفر (السجلات القديمة
+    // بلقطاتها المجمّدة لا تتأثر) وتختفي أعمدة الحصص من كل الجداول.
+    final ratesOn = ref.watch(ratesEnabledProvider);
+    final doctorPct =
+        ratesOn ? jsNumOr0(jsOr(cfg['doctorPct'], 50)) : 0;
     final years = profitYears(records, prosthetics);
     if (!years.contains(selectedYear)) selectedYear = years.first;
 
@@ -166,9 +170,9 @@ class _DesktopProfitsScreenState
         child: switch (view) {
           'statement' => const StatementSection(),
           'yearly' => _yearlyBody(records, prosthetics, debts, cfg, cur,
-              clinics, doctorPct),
+              clinics, doctorPct, ratesOn),
           _ => _monthlyBody(records, prosthetics, debts, cfg, cur,
-              clinics, doctorPct),
+              clinics, doctorPct, ratesOn),
         },
       ),
     ]);
@@ -184,6 +188,7 @@ class _DesktopProfitsScreenState
     String cur,
     List<String> clinics,
     num doctorPct,
+    bool ratesOn,
   ) {
     final repos = ref.read(reposProvider);
     final month = '$selectedYear-${'${monthIdx + 1}'.padLeft(2, '0')}';
@@ -220,6 +225,7 @@ class _DesktopProfitsScreenState
               title:
                   'أرباح العيادات — ${arMonths[monthIdx]} $selectedYear',
               rows: rows,
+              showDoctor: ratesOn,
             ),
           ),
           const SizedBox(width: 10),
@@ -230,6 +236,7 @@ class _DesktopProfitsScreenState
               doctor: grand.doctorTotal + fDoc,
               clinic: grand.clinicTotal + fClin,
               expenses: ex.total,
+              showDoctor: ratesOn,
             ),
           ),
         ]),
@@ -247,6 +254,7 @@ class _DesktopProfitsScreenState
     String cur,
     List<String> clinics,
     num doctorPct,
+    bool ratesOn,
   ) {
     final repos = ref.read(reposProvider);
     final n = formatNumber;
@@ -292,30 +300,46 @@ class _DesktopProfitsScreenState
       children: [
         // ── شريط المؤشرات الأفقي ──
         YearKpiCards(wide: true, items: [
+          // م180 — الميزة مطفأة: الصافي = الإيراد − المصروفات (كله
+          // للعيادة) وتغيب بطاقتا الطبيب/العيادة كلياً.
           YearKpi('إجمالي الإيراد', '${n(rep.revenue)} $cur',
               BrandColors.goldDark,
               keyId: 'prof-year-grand',
               yoy: prev == null ? null : yoyPct(rep.revenue, prev.revenue)),
-          YearKpi('صافي ربح العيادة', '${n(rep.net)} $cur',
+          YearKpi(
+              ratesOn ? 'صافي ربح العيادة' : 'صافي العيادة',
+              '${n(ratesOn ? rep.net : rep.revenue - rep.expenses)} $cur',
               BrandColors.brand900,
               keyId: 'prof-year-net',
-              yoy: prev == null ? null : yoyPct(rep.net, prev.net)),
-          YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur',
-              BrandColors.green,
-              keyId: 'prof-year-doctor'),
-          YearKpi('ربح العيادة', '${n(rep.clinic)} $cur',
-              BrandColors.brand600,
-              keyId: 'prof-year-clinic'),
+              yoy: prev == null
+                  ? null
+                  : yoyPct(
+                      ratesOn ? rep.net : rep.revenue - rep.expenses,
+                      ratesOn
+                          ? prev.net
+                          : prev.revenue - prev.expenses)),
+          if (ratesOn)
+            YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur',
+                BrandColors.green,
+                keyId: 'prof-year-doctor'),
+          if (ratesOn)
+            YearKpi('ربح العيادة', '${n(rep.clinic)} $cur',
+                BrandColors.brand600,
+                keyId: 'prof-year-clinic'),
           YearKpi('المصروفات', '${n(rep.expenses)} $cur', BrandColors.red,
               keyId: 'prof-year-exp'),
-          YearKpi('هامش الصافي', '${rep.marginPct.toStringAsFixed(1)}٪',
+          YearKpi(
+              'هامش الصافي',
+              '${(ratesOn ? rep.marginPct : (rep.revenue == 0 ? 0 : (rep.revenue - rep.expenses) / rep.revenue * 100)).toStringAsFixed(1)}٪',
               BrandColors.goldDark,
               keyId: 'prof-year-margin'),
         ]),
         const SizedBox(height: 10),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // جدول الأرباح والخسائر — عمود الصدارة بعرض مريح.
-          Expanded(flex: 5, child: YearPnlTable(report: rep)),
+          Expanded(
+              flex: 5,
+              child: YearPnlTable(report: rep, showDoctor: ratesOn)),
           const SizedBox(width: 10),
           // العمود الجانبي: العيادات سنوياً + مخطط الأشهر.
           Expanded(
@@ -325,6 +349,7 @@ class _DesktopProfitsScreenState
                 title: 'أرباح العيادات — سنة $selectedYear',
                 rows: clinicRows,
                 dense: true,
+                showDoctor: ratesOn,
               ),
               const SizedBox(height: 4),
               _yearChart(rep, n),
