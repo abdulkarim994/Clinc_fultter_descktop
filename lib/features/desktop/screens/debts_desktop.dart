@@ -30,7 +30,8 @@ import '../../finance/installment_dialog.dart'
     show showDebtPaymentsDialog, showInstallmentDialog;
 import '../../finance/treasury_logic.dart' show activeInstallments;
 import '../../patients/patient_profile_screen.dart' show PatientProfileScreen;
-import '../../patients/patients_logic.dart' show identityOfRow;
+import '../../patients/patients_logic.dart'
+    show identityOfRow, navIdentityOf;
 import '../../print/print_service.dart' show loadPdfBrand, printOrSharePdf;
 import '../../print/reports.dart' show simpleTablePdf;
 import '../../print/treatment_tables.dart' show formatNumber;
@@ -179,8 +180,11 @@ class _DesktopDebtsScreenState extends ConsumerState<DesktopDebtsScreen> {
           onEdit: () => _openEditDialog(dd),
           onForgive: () => _forgive(dd),
           onDelete: () => _confirmDelete(dd),
-          onOpenPatient: (name, clinic, identity) =>
-              _goPatient(name, clinic: clinic, identity: identity),
+          // م181 — هوية الحلّال الموروث من الصف نفسه (لا وسيط اللوحة
+          // الخام): دينُ ما قبل م181 بلا هاتفٍ يتبع سجلَّه.
+          onOpenPatient: (name, clinic, _) => _goPatient(name,
+              clinic: clinic,
+              identity: navIdentityOf(ref.read(reposProvider), dd)),
           onCopyName: () {
             Clipboard.setData(
                 ClipboardData(text: '${dd['name'] ?? ''}'));
@@ -363,6 +367,7 @@ class _DesktopDebtsScreenState extends ConsumerState<DesktopDebtsScreen> {
         context,
         ref,
         debtRow,
+        // م181 — نافذة الدفعات تحلّ الهوية داخلياً (installment_dialog).
         onOpenPatient: (name, clinic, identity) =>
             _goPatient(name, clinic: clinic, identity: identity),
         onChanged: _bump,
