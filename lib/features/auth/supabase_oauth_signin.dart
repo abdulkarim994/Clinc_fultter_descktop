@@ -114,7 +114,7 @@ class LoopbackCodeReceiver {
 
   static String _page(bool ok) => '''
 <!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8">
-<title>طب الأسنان الرقمي</title></head>
+<title>DENTSHINE</title></head>
 <body style="font-family:sans-serif;background:#0A3024;color:#fff;
 display:flex;align-items:center;justify-content:center;height:100vh;margin:0">
 <div style="text-align:center">
