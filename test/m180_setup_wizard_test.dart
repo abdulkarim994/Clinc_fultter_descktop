@@ -81,17 +81,18 @@ void main() {
     expect(find.byKey(const Key('gate-svc-name-0')), findsOneWidget);
     expect(setupFlag(tester), isFalse,
         reason: 'لا ختم قبل الخطوة الأخيرة');
+    // م181 — «تركيبات» صف مثبت (لا اسم يحرَّر ولا سعر ولا حذف) يُكتب
+    // تلقائياً في ذيل القائمة — صفان حرّان فقط مبذوران.
+    expect(find.byKey(const Key('gate-svc-locked-تركيبات')),
+        findsOneWidget);
+    expect(find.byKey(const Key('gate-svc-name-2')), findsNothing,
+        reason: 'الصف الثالث كان «تركيبات» وصار مثبتاً بلا محرِّرات');
     await tester.enterText(
         find.byKey(const Key('gate-svc-name-0')), 'حشو');
     await tester.enterText(find.byKey(const Key('gate-svc-price-0')), '150');
     await tester.enterText(
         find.byKey(const Key('gate-svc-name-1')), 'تنظيف');
     await tester.enterText(find.byKey(const Key('gate-svc-price-1')), '80');
-    // حذف الصف الثالث المبذور.
-    await tester.tap(find.byKey(const Key('gate-svc-name-2')));
-    await settle(tester);
-    await tester.enterText(
-        find.byKey(const Key('gate-svc-name-2')), 'تركيبات');
     await tester.tap(find.byKey(const Key('gate-services-next')));
     await settle(tester);
 
@@ -151,8 +152,9 @@ void main() {
     expect(find.byType(AppShellScreen), findsOneWidget);
     final cfg = readCfg();
     expect(cfg.containsKey('labs'), isFalse, reason: 'لا مفتاح فارغ');
-    // المعالجات الافتراضية المبذورة كُتبت كما هي.
-    expect((cfg['services'] as List).length, 3);
+    // المعالجات المبذورة كُتبت كما هي + «تركيبات» المثبتة (م181).
+    expect(cfg['services'],
+        ['حشو عصب أمامي', 'حشو عصب خلفي', 'تركيبات']);
     expect(setupFlag(tester), isTrue);
   });
 
@@ -164,7 +166,9 @@ void main() {
     await tester.enterText(find.byKey(const Key('gate-clinic-0')), 'ع1');
     await tester.tap(find.byKey(const Key('gate-submit')));
     await settle(tester);
-    for (var i = 0; i < 3; i++) {
+    // م181 — الصفان الحرّان فقط يُفرَّغان («تركيبات» المثبتة لا تُحرَّر
+    // أصلاً) — ويبقى الشرط: معالجة حرة واحدة على الأقل.
+    for (var i = 0; i < 2; i++) {
       await tester.enterText(find.byKey(Key('gate-svc-name-$i')), '');
     }
     await tester.tap(find.byKey(const Key('gate-services-next')));
