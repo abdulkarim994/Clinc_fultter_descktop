@@ -136,6 +136,16 @@ void main() {
         'العيادة الحقيقية',
       );
       await tester.tap(find.byKey(const Key('gate-submit')));
+      // م180/ج — المعالج صار ثلاث خطوات: نُكمل الخطوتين التاليتين
+      // (المعالجات مبذورة، والمختبرات اختيارية) حتى يُختم الإعداد.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('gate-services-next')),
+          warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('gate-labs-finish')),
+          warnIfMissed: false);
       for (var i = 0; i < 4; i++) {
         await tester.pump(const Duration(milliseconds: 400));
       }
