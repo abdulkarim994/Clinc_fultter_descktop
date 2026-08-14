@@ -30,7 +30,7 @@
          usesCleartextTraffic: كان يعتمد على الافتراض الضمني لـ targetSdk؛
          التصريح به يجعله قراراً ثابتاً لا أثراً جانبياً لإعداد آخر. -->
     <application
-        android:label="طب الأسنان الرقمي"
+        android:label="DENTSHINE"
         android:name="${applicationName}"
         android:allowBackup="false"
         android:fullBackupContent="@xml/backup_rules"
