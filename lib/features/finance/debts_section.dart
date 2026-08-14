@@ -25,7 +25,7 @@ import '../../core/utils/js_compat.dart';
 import '../../core/widgets/double_confirm.dart';
 import '../archive/month_stats.dart' show sortByDateNewest;
 import '../patients/patient_profile_screen.dart' show PatientProfileScreen;
-import '../patients/patients_logic.dart' show identityOfRow;
+import '../patients/patients_logic.dart' show navIdentityOf;
 import '../patients/patients_tab.dart' show patientSearchProvider;
 import '../print/print_service.dart';
 import '../print/reports.dart' show simpleTablePdf;
@@ -488,9 +488,11 @@ class _DebtsSectionState extends ConsumerState<DebtsSection> {
             child: InkWell(
               key: Key('debt-name-$id'),
               // م89/م90 — عيادة الصف نفسه + هويته: لا خطف لسميٍّ آخر.
+              // م181 — هوية الحلّال الموروث (لا الهاتف الخام وحده).
               onTap: () => _goPatient(name,
                   clinic: '${d['clinic'] ?? ''}',
-                  identity: identityOfRow(d)),
+                  identity:
+                      navIdentityOf(ref.read(reposProvider), d)),
               // م116 — توسيط الاسم وسطره الفرعي تحت رأس العمود مباشرة.
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -713,9 +715,11 @@ class _DebtsSectionState extends ConsumerState<DebtsSection> {
                 label: 'فتح ملف المريض',
                 onTap: () {
                   Navigator.pop(sheetCtx);
+                  // م181 — هوية الحلّال الموروث.
                   _goPatient(name,
                       clinic: '${d['clinic'] ?? ''}',
-                      identity: identityOfRow(d));
+                      identity:
+                          navIdentityOf(ref.read(reposProvider), d));
                 },
               ),
               if (staffAllowed('debts.manage'))
