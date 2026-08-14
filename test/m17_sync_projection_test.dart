@@ -102,7 +102,8 @@ void main() {
       addTearDown(c.dispose);
       // قبل: لا إعدادات — الافتراضات الفارغة (شكوى المستخدم حرفياً).
       expect(c.read(appConfigProvider), isEmpty);
-      expect(c.read(centerNameProvider), 'طب الأسنان الرقمي');
+      // م180/٦ — الاسم البديل صار DENTSHINE.
+      expect(c.read(centerNameProvider), 'DENTSHINE');
       final cfg0 = c.read(configRevProvider);
       final pat0 = c.read(patientsRevProvider);
       final fin0 = c.read(financeRevProvider);
@@ -164,7 +165,7 @@ void main() {
         // م31 — الجهاز الفارغ غير مُعَدّ محلياً: البوابة (لا الرئيسية) تظهر
         // وتسحب إعدادات الحساب من الخادم قبل الحكم — الهيدر الافتراضي «ما
         // يطلع» لأن الرئيسية محجوبة خلف البوابة (هذا جوهر الإصلاح).
-        expect(find.text('طب الأسنان الرقمي'), findsNothing);
+        expect(find.text('DENTSHINE'), findsNothing);
 
         // البوابة: loading → سحب → (مُعَدّ عبر الخادم) → ترحيب → الرئيسية.
         // ننتظر السحب + الترحيب (300ms ظهور + 2800ms قراءة + 500ms تلاشٍ).
