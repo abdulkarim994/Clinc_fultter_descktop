@@ -1576,18 +1576,22 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
                         BrandColors.goldDark,
                         key: const Key('pros-net'),
                       ),
-                      _previewRow(
-                        'نسبة الطبيب (${prosPctLive.toStringAsFixed(0)}%):',
-                        n(prosDocShare),
-                        const Color(0xFF065F46),
-                        key: const Key('pros-doc'),
-                      ),
-                      _previewRow(
-                        'نسبة العيادة (${(100 - prosPctLive).toStringAsFixed(0)}%):',
-                        n(prosClinShare),
-                        const Color(0xFF047857),
-                        key: const Key('pros-clin'),
-                      ),
+                      // م180 — الميزة مطفأة ⇒ صفا النسب يختفيان
+                      // (الصافي كله للعيادة).
+                      if (ref.watch(ratesEnabledProvider)) ...[
+                        _previewRow(
+                          'نسبة الطبيب (${prosPctLive.toStringAsFixed(0)}%):',
+                          n(prosDocShare),
+                          const Color(0xFF065F46),
+                          key: const Key('pros-doc'),
+                        ),
+                        _previewRow(
+                          'نسبة العيادة (${(100 - prosPctLive).toStringAsFixed(0)}%):',
+                          n(prosClinShare),
+                          const Color(0xFF047857),
+                          key: const Key('pros-clin'),
+                        ),
+                      ],
                     ],
                   ),
                 ),
