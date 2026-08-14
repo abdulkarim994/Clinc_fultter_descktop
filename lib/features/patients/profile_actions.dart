@@ -14,7 +14,7 @@ import '../../data/sync/merge/config_tombs.dart';
 import '../../core/utils/js_compat.dart';
 import '../../data/db/local_db.dart' show LocalDb;
 import 'clinic_scope.dart' show clinicScopedRemove;
-import 'patients_logic.dart' show rowMatchesIdentity;
+import 'patients_logic.dart' show IdentityIndex, rowMatchesIdentity;
 import '../xrays/xray_store.dart' show xrayGalleryKey;
 import '../../data/rates/rate_snapshot.dart';
 import '../../data/repositories/repositories.dart';
@@ -265,13 +265,20 @@ int deletePatientData(
   if (nm.isEmpty) return 0;
   final cl = clinic.trim();
   final idPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+  // م181 — نطاق الهوية بالحلّال الموروث: دفعةُ ما قبل م181 بلا هاتفٍ
+  // تتبع دينَها فتُحذف مع صاحبها (كانت تفلت من الحذف فتبقى شبحاً يتيماً).
+  final idIdx = IdentityIndex(
+    repos.records.getAll(),
+    repos.prosthetics.getAll(),
+    repos.debts.getAll(),
+  );
   // م35 (قرار مالك): [clinic] غير الفارغة تحصر الحذف بصفوف تلك العيادة
   // — مريض العيادة الأخرى بنفسه الاسم لا يُمس. الصف **بلا عيادة** (إرث)
   // يظهر في كل الملفات فيُحذف مع أي منها (سياسة الأشعة نفسها).
   // م-عزل الهوية — الهوية غير الفارغة تحصر أكثر: صفوف تلك الهوية وحدها.
   bool inScope(JMap r) {
     if ('${r['name'] ?? ''}'.trim() != nm) return false;
-    if (!rowMatchesIdentity(r, identity)) return false;
+    if (!rowMatchesIdentity(r, identity, idIdx)) return false;
     if (cl.isEmpty) return true;
     final rc = '${r['clinic'] ?? ''}'.trim();
     return rc.isEmpty || rc == cl;
