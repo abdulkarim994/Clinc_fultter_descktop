@@ -824,7 +824,8 @@ final fontScaleProvider = StateProvider<double>((ref) {
 final centerNameProvider = Provider<String>((ref) {
   final cfg = ref.watch(appConfigProvider);
   final n = cfg['centerName'];
-  return (n is String && n.trim().isNotEmpty) ? n : 'طب الأسنان الرقمي';
+  // م180/٦ — اسم العلامة الجديد بديلاً حين لا اسم مركز مضبوط.
+  return (n is String && n.trim().isNotEmpty) ? n : kAppBrandName;
 });
 
 /// الشهر المحدد في الهيدر (yyyy-MM) — توأم appStore.selectedMonth.
