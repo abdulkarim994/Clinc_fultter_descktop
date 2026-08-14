@@ -38,6 +38,10 @@ abstract interface class AuthService {
   Future<AuthUser> login(String email, String password, {bool remember});
   Future<void> register(String email, String password);
   Future<void> logout();
+
+  /// م180/د — «نسيت كلمة المرور»: يرسل بريد إعادة التعيين. الوضع المحلي
+  /// (بلا سحابة) يرمي [AuthException] برسالة عربية صريحة — لا صمت.
+  Future<void> sendPasswordReset(String email);
 }
 
 /// ============================================================================
