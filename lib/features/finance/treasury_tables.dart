@@ -295,6 +295,8 @@ class _TreasuryMovesTableState extends ConsumerState<TreasuryMovesTable> {
         subtitle: widget.subtitle,
         currency: cur,
         tables: buildTreatmentTables(rows, fallbackPct: widget.doctorPct),
+        // م180 — الميزة مطفأة ⇒ الطباعة بلا أعمدة حصص إطلاقاً.
+        showRates: ref.read(ratesEnabledProvider),
       );
       final msg = await printOrSharePdf(
           ref.read(dbDirProvider), bytes, 'treasury_moves.pdf');
@@ -762,6 +764,8 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
               allPros: allPros,
               doctorPct: widget.doctorPct),
       ],
+      // م180 — الميزة مطفأة ⇒ بلا عمود طبيب ولا نِسَب في العناوين.
+      showRates: ref.read(ratesEnabledProvider),
     );
     final msg = await printOrSharePdf(
         ref.read(dbDirProvider), bytes, 'treasury_pros.pdf');
@@ -776,6 +780,9 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
     final n = formatNumber;
     final cur = ref.watch(currencyProvider);
     final fs = widget.dense ? 11.5 : 12.5;
+    // م180 — ميزة النسب مطفأة ⇒ عمود «الطبيب» يختفي من جدول الدفعات
+    // والعيادة تعرض الصافي كاملاً (الدفعة − المعمل).
+    final ratesOn = ref.watch(ratesEnabledProvider);
 
     // ── المستوى الثاني (م158): تفاصيل الحالة الواحدة المفتوحة ──────────
     if (_openCase != null) {
@@ -911,7 +918,9 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
                   child: Text('الدفع',
                       textAlign: TextAlign.center, style: head())),
               num6('المعمل', bold: true),
-              num6('الطبيب', bold: true),
+              // م180 — الميزة مطفأة ⇒ عمود «الطبيب» يختفي والعيادة
+              // تُعرض بكامل الصافي (الدفعة − المعمل).
+              if (ratesOn) num6('الطبيب', bold: true),
               num6('العيادة', bold: true),
             ]),
           ),
@@ -955,9 +964,13 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
                     ),
                   ),
                   num6(n(jsNumOr0(r['lab'])), color: BrandColors.ink),
-                  num6(n(jsNumOr0(r['doc'])),
-                      color: BrandColors.goldDark),
-                  num6(n(jsNumOr0(r['clin'])),
+                  if (ratesOn)
+                    num6(n(jsNumOr0(r['doc'])),
+                        color: BrandColors.goldDark),
+                  num6(
+                      n(ratesOn
+                          ? jsNumOr0(r['clin'])
+                          : jsNumOr0(r['clin']) + jsNumOr0(r['doc'])),
                       color: BrandColors.brand700),
                 ]),
               ),
@@ -992,8 +1005,10 @@ class _TreasuryProsTableState extends ConsumerState<TreasuryProsTable> {
                               fontSize: 9.5,
                               color: BrandColors.mut2)))),
               num6(n(tLab), color: BrandColors.ink, bold: true),
-              num6(n(tDoc), color: BrandColors.goldDark, bold: true),
-              num6(n(tClin), color: BrandColors.brand700, bold: true),
+              if (ratesOn)
+                num6(n(tDoc), color: BrandColors.goldDark, bold: true),
+              num6(n(ratesOn ? tClin : tClin + tDoc),
+                  color: BrandColors.brand700, bold: true),
             ]),
           ),
         ],
