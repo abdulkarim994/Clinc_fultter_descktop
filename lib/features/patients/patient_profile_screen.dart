@@ -58,6 +58,7 @@ import '../records/tooth_label_widget.dart';
 import '../records/tooth_summary.dart';
 import 'patients_logic.dart'
     show
+        IdentityIndex,
         PatientAgg,
         TreatmentCardGroup,
         distinctIdentityPhones,
@@ -135,21 +136,36 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
       if (_inClinic(d)) d,
   ];
 
+  /// م181 — حلّال الهوية الموروث للملف: من قوائم المستودعات **الكاملة**
+  /// (لا المرشّحة بالاسم) كي تجد دفعةُ ما قبل م181 دينَها وسجلَّها حتى
+  /// خارج ترشيح العيادة، فتتبع هوية صاحبها لا «بلا رقم».
+  IdentityIndex _identityIdx() {
+    final repos = ref.read(reposProvider);
+    return IdentityIndex(
+      repos.records.getAll(),
+      repos.prosthetics.getAll(),
+      repos.debts.getAll(),
+    );
+  }
+
   /// م90 — الهوية الفعلية الآن: تُعتمد هوية الفتح ما دامت مجموعة
   /// (اسم|عيادة) منقسمة فعلاً (هاتفان مختلفان فأكثر بين كل صفوفها)؛ وإلا
   /// أُهملت — فتعديلُ بياناتٍ وحَّد الهواتف لا يُخفي صفوفاً من الملف.
   String _identityNow() {
     if (widget.identity.isEmpty) return '';
     final rows = [..._recordsRaw, ..._prosRaw, ..._debtsRaw];
-    return distinctIdentityPhones(rows).length >= 2 ? widget.identity : '';
+    return distinctIdentityPhones(rows, _identityIdx()).length >= 2
+        ? widget.identity
+        : '';
   }
 
   List<JMap> _byIdentity(List<JMap> rows) {
     final id = _identityNow();
     if (id.isEmpty) return rows;
+    final idx = _identityIdx();
     return [
       for (final r in rows)
-        if (rowMatchesIdentity(r, id)) r,
+        if (rowMatchesIdentity(r, id, idx)) r,
     ];
   }
 
@@ -959,6 +975,7 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
       prosthetics: repos.prosthetics.getAll(),
       debts: repos.debts.getAll(),
       identity: idNow,
+      idx: _identityIdx(), // م181 — الوراثة عبر الروابط
     );
     final tpDone = stages.where((st) => st['done'] == true).length;
 
@@ -2661,20 +2678,32 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
       phone: phoneCtl.text.trim(),
       phone2: phone2Ctl.text.trim(),
       clinic: clinic, // م35 — الاكتساح محصور بعيادة الملف.
+      // م181 — كان الاكتساح بلا حصر هوية: تعديلُ بيانات سميٍّ كان يكتب
+      // اسمه وهاتفه فوق **كل** صفوف الاسم في العيادة (صفوف سميّه معه!).
+      // الهوية الفعلية تحصر الاكتساح بصفوف هذا الملف وحدها.
+      identity: _identityNow(),
     );
     ref.read(patientsRevProvider.notifier).state++;
     // ترحيل treatmentPlans مع الاسم يكتب app.config — نبضة الإعدادات.
     ref.read(configRevProvider.notifier).state++;
-    if (nameCtl.text.trim() != name && mounted) {
-      // الاسم تغير — أعد فتح الملف بالاسم الجديد.
+    // م181 — هوية إعادة الفتح تلاحق الهاتف الجديد: تغييرُ الهاتف يغيّر
+    // هوية p:<هاتف> نفسها؛ وإبقاء القديمة كان يفتح ملفاً فارغاً.
+    final newPhone =
+        phoneCtl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+    final nextIdentity = widget.identity.isEmpty
+        ? ''
+        : (newPhone.isEmpty ? widget.identity : 'p:$newPhone');
+    if ((nameCtl.text.trim() != name ||
+            nextIdentity != widget.identity) &&
+        mounted) {
+      // الاسم أو الهوية تغيّرا — أعد فتح الملف بهما.
       final nn = nameCtl.text.trim();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => PatientProfileScreen(
-            // م90 — الهاتف لم يتغيّر بإعادة التسمية: الهوية تُورَّث.
             patientName: nn,
             clinic: clinic,
-            identity: widget.identity,
+            identity: nextIdentity,
           ),
         ),
       );
@@ -2693,8 +2722,9 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
     // عدّ صفوف هذه الهوية وحدها فلا يعرض العدّاد صفوف السميّ.
     final idNow = _identityNow();
     final idPhone = _medPhone();
+    final idIdx = _identityIdx(); // م181 — الوراثة عبر الروابط
     bool mine(JMap r) =>
-        r['name'] == name && _inClinic(r) && rowMatchesIdentity(r, idNow);
+        r['name'] == name && _inClinic(r) && rowMatchesIdentity(r, idNow, idIdx);
     final patRecs = repos.records.getAll().where(mine).length;
     final patPros = repos.prosthetics.getAll().where(mine).length;
     final patDebts = repos.debts.getAll().where(mine).length;
