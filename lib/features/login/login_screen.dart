@@ -11,7 +11,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
-import '../shell/tab_icons.dart' show TabIcon;
 
 // لوحة الهوية (نفس الشريط/الهيدر).
 const _brand600 = Color(0xFF15604A);
@@ -29,6 +28,162 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  /// م180/د — مبدّل منزلق أعلى البطاقة: يمين «تسجيل الدخول» ويسار
+  /// «إنشاء حساب جديد»، بخطٍّ متحرك تحت الخيار النشط (هوية مؤشر
+  /// تبويبات م173). يستبدل القسم القابل للطي أسفل الشاشة.
+  Widget _authSwitcher() => Container(
+        key: const Key('auth-switcher'),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color.fromRGBO(20, 80, 59, .05),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color.fromRGBO(20, 80, 59, .10)),
+        ),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final w = (box.maxWidth - 8) / 2;
+            return SizedBox(
+              height: 40,
+              child: Stack(
+                children: [
+                  // الخط/الحبة المنزلقة: يمين للدخول ويسار للإنشاء.
+                  AnimatedAlign(
+                    duration: const Duration(milliseconds: 260),
+                    curve: Curves.easeOutCubic,
+                    alignment: _showRegister
+                        ? Alignment.centerLeft
+                        : Alignment.centerRight,
+                    child: Container(
+                      width: w,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(11),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color.fromRGBO(10, 48, 36, .10),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                        border: Border(
+                          bottom: BorderSide(color: _goldD, width: 2.5),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Row(children: [
+                    _switchTab('تسجيل الدخول', !_showRegister,
+                        () => setState(() {
+                              _showRegister = false;
+                              _error = '';
+                            }),
+                        key: const Key('auth-tab-login')),
+                    _switchTab('إنشاء حساب جديد', _showRegister,
+                        () => setState(() {
+                              _showRegister = true;
+                              _error = '';
+                            }),
+                        key: const Key('auth-tab-register')),
+                  ]),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+  Widget _switchTab(String label, bool on, VoidCallback onTap,
+          {required Key key}) =>
+      Expanded(
+        child: InkWell(
+          key: key,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(11),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: on ? FontWeight.w900 : FontWeight.w700,
+                color: on
+                    ? const Color(0xFF114A38)
+                    : const Color(0xFF0F2A20).withValues(alpha: .55),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  /// م180/د — «نسيت كلمة المرور؟»: حوار يؤكد البريد ثم إرسال حقيقي عبر
+  /// Supabase (نقطة recover). الخادم لا يفصح عن وجود الحساب — فالرسالة
+  /// محايدة عمداً.
+  Future<void> _forgotPassword() async {
+    final ctl = TextEditingController(text: _email.text.trim());
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          key: const Key('forgot-dialog'),
+          title: const Text('إعادة تعيين كلمة المرور',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'أدخل بريد حسابك وسنرسل لك رابط إعادة التعيين.',
+                style: TextStyle(fontSize: 12.5, height: 1.6),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                key: const Key('forgot-email'),
+                controller: ctl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  hintText: 'البريد الإلكتروني',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dctx, false),
+                child: const Text('إلغاء')),
+            FilledButton(
+              key: const Key('forgot-send'),
+              onPressed: () => Navigator.pop(dctx, true),
+              child: const Text('إرسال'),
+            ),
+          ],
+        ),
+      ),
+    );
+    final email = ctl.text.trim();
+    ctl.dispose();
+    if (ok != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await ref.read(authServiceProvider).sendPasswordReset(email);
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = '';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('أرسلنا رابط إعادة التعيين إلى بريدك إن كان مسجلاً'),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = '$e'.replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _regEmail = TextEditingController();
@@ -244,30 +399,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       offset: const Offset(0, 10)),
                 ],
               ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _brand900,
+              // م180/د — شعار DENTSHINE الرسمي بدل أيقونة التبويب.
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/icon/icon-512.png',
+                  width: 84,
+                  height: 84,
+                  fit: BoxFit.cover,
                 ),
-                alignment: Alignment.center,
-                child: const TabIcon('labs', size: 42, color: _goldL),
               ),
             ),
           ),
           const SizedBox(height: 16),
+          // م180/د — اسم العلامة بخط غامق من هوية التطبيق.
           const Text(
-            'طب الأسنان الرقمي',
+            'DENTSHINE',
             textAlign: TextAlign.center,
+            textDirection: TextDirection.ltr,
             style: TextStyle(
               color: Color(0xFF114A38), // أخضر داكن — تباين واضح جداً
-              fontSize: 22,
+              fontSize: 26,
               fontWeight: FontWeight.w900,
-              letterSpacing: .3,
+              letterSpacing: 2.5,
             ),
           ),
           const SizedBox(height: 4),
           const Text(
-            'نظام إدارة العيادة المتكامل',
+            'لعيادة أكثر ذكاءً وتنظيمًا',
             textAlign: TextAlign.center,
             style: TextStyle(
                 color: _goldD,
@@ -277,6 +435,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 24),
 
           // ── الحقول (الترتيب الحرفي: 0 بريد، 1 كلمة المرور) ──
+          // م180/د — المبدّل المنزلق أعلى الحقول (بدل الطي أسفل الشاشة).
+          _authSwitcher(),
+          const SizedBox(height: 14),
+          if (!_showRegister) ...[
           TextField(
             controller: _email,
             keyboardType: TextInputType.emailAddress,
@@ -420,6 +582,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
+          // م180/د — «نسيت كلمة المرور؟» أسفل زر الدخول مباشرة.
+          const SizedBox(height: 10),
+          Center(
+            child: InkWell(
+              key: const Key('forgot-password'),
+              onTap: _loading ? null : _forgotPassword,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  'نسيت كلمة المرور؟',
+                  style: TextStyle(
+                    color: _goldD,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    decoration: TextDecoration.underline,
+                    decorationColor: _goldD.withValues(alpha: .5),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          ], // نهاية كتلة «تسجيل الدخول» (م180/د)
+
           // ── م88 — المتابعة باستخدام Google ──
           const SizedBox(height: 12),
           Material(
@@ -470,34 +657,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Material(
-            color: _gold.withValues(alpha: .08),
-            borderRadius: BorderRadius.circular(50),
-            child: InkWell(
-              onTap: () =>
-                  setState(() => _showRegister = !_showRegister),
-              borderRadius: BorderRadius.circular(50),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(50),
-                  border: Border.all(
-                      color: _gold.withValues(alpha: .3)),
-                ),
-                child: const Text(
-                  'إنشاء حساب جديد',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      color: _goldD,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800),
-                ),
-              ),
-            ),
-          ),
-
-          // ── إنشاء حساب (قابل للطي بحركة) ──
+          // م180/د — قسم إنشاء الحساب: يظهر باختيار تبويبه من المبدّل
+          // المنزلق (زال زر الطي القديم أسفل الشاشة).
           AnimatedSize(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
@@ -506,19 +667,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Divider(
-                          color: Color.fromRGBO(20, 80, 59, .12),
-                          height: 24),
-                      Text(
-                        'إنشاء حساب جديد',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: const Color(0xFF0F2A20)
-                                .withValues(alpha: .7),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 4),
                       TextField(
                         controller: _regEmail,
                         keyboardType: TextInputType.emailAddress,
