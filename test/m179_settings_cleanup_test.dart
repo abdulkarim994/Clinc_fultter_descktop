@@ -156,6 +156,10 @@ void main() {
       expect(find.text(kDeveloperEmail), findsOneWidget);
       // نسخة التطبيق تبقى مرجعاً للتحقق.
       expect(find.byKey(const Key('appinfo-version')), findsOneWidget);
+      // م179/ب — تنبيه المحجور عاد بطلب المالك لكنه **مشروط**: صفر
+      // عناصر محجورة (حالة هذا الاختبار) = لا بطاقة ولا زر إطلاقاً.
+      expect(find.byKey(const Key('quarantine-notice')), findsNothing);
+      expect(find.byKey(const Key('quarantine-retry')), findsNothing);
     });
   });
 
