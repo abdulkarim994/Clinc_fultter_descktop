@@ -273,8 +273,6 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
           )
         : null;
 
-    final y = yearTotals(selectedYear,
-        records: records, prosthetics: prosthetics, debts: debts);
     final clinicRows = yearlyClinicRows(
       selectedYear,
       records: records,
@@ -322,8 +320,8 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
         ),
         const SizedBox(height: 4),
         _yearChart(rep, n),
-        const SizedBox(height: 4),
-        _cashXferCard(y, cur, n),
+        // م179 — بطاقة «قنوات القبض» (كاش/تحويل/تركيبات) أُلغيت بالكامل
+        // من المنصتين (قرار المالك). التفصيل نفسه متاح في الخزينة.
       ],
     );
   }
@@ -398,83 +396,6 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
       ),
     );
   }
-
-  /// تفصيل قنوات القبض السنوية: كاش/تحويل/تركيبات (+ تفصيل تركيبات
-  /// الطبيب) — بمفاتيح م117 القائمة حرفياً.
-  Widget _cashXferCard(YearTotals y, String cur, String Function(num) n) {
-    return Card(
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(children: [
-          Text('قنوات القبض — سنة $selectedYear',
-              style: TextStyle(fontSize: 11, color: BrandColors.mut)),
-          const SizedBox(height: 8),
-          Row(children: [
-            _yCell('كاش', n(y.cash), BrandColors.green,
-                key: const Key('prof-year-cash')),
-            Container(width: 1, height: 26, color: BrandColors.line),
-            _yCell('تحويل', n(y.xfer), BrandColors.brand600,
-                key: const Key('prof-year-xfer')),
-            Container(width: 1, height: 26, color: BrandColors.line),
-            // م117 — التركيبات بالمقبوض الكامل ليطابق مجموع الخلايا
-            // الإجمالي (كاش + تحويل + تركيبات = الإجمالي).
-            _yCell('تركيبات (مقبوض)', n(y.prosPaid), BrandColors.goldDark,
-                key: const Key('prof-year-prospaid')),
-          ]),
-          if (y.prosDoc > 0) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: BrandColors.surface2,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(children: [
-                Expanded(
-                  child: Text('تفصيل تركيبات الطبيب',
-                      style: TextStyle(
-                          fontSize: 11, color: BrandColors.mut2)),
-                ),
-                Text('كاش ${n(y.prosCash)}',
-                    style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: BrandColors.green)),
-                const SizedBox(width: 10),
-                Text('تحويل ${n(y.prosXfer)}',
-                    style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: BrandColors.brand600)),
-              ]),
-            ),
-          ],
-        ]),
-      ),
-    );
-  }
-
-  Widget _yCell(String label, String value, Color color, {Key? key}) =>
-      Expanded(
-        child: Column(children: [
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11.5, color: BrandColors.mut2)),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(value,
-                key: key,
-                style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: color)),
-          ),
-        ]),
-      );
 
   /// v53 — حبة مبدّل العرض بهوية أزرار أقسام المالية (صارت ثلاثاً).
   Widget _viewPill(String id, String label) {
