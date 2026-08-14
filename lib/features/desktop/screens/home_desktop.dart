@@ -34,6 +34,7 @@ import '../../expenses/expenses_report.dart'
 import '../../expenses/expenses_screen.dart' show expensesRefreshProvider;
 import '../../finance/finance_screen.dart' show financeRevProvider;
 import '../../patients/patient_profile_screen.dart' show PatientProfileScreen;
+import '../../patients/patients_logic.dart' show navIdentityOf;
 import '../../patients/patients_tab.dart' show patientsRevProvider;
 import '../../patients/profile_actions.dart' show deleteEntryCascade;
 import '../../patients/quick_info_dialog.dart' show showQuickInfoDialog;
@@ -825,6 +826,20 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
   }
 
   /// فتح ملف المريض داخل لوحة مكتبية (لا صفحة فوق الشاشة كلها) —
+  /// م181 — هوية الملاحة من صف الدفتر نفسه (توأم دخل اليوم في الهاتف):
+  /// الكيان الأصلي من مستودعه ثم الحلّال الموروث — الفتح بلا هوية كان
+  /// يدمج كل صفوف الاسم فيخلط سميّاً بسميّه.
+  String _rowIdentity(LedgerRow row) {
+    if (row.id.isEmpty) return '';
+    final repos = ref.read(reposProvider);
+    final src = row.kind == 'p'
+        ? repos.prosthetics.getById(row.id)
+        : repos.records.getById(row.id);
+    if (src != null) return navIdentityOf(repos, src);
+    final ph = row.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    return ph.isEmpty ? '' : 'p:$ph';
+  }
+
   /// الدفعات الداخلية للملف محصورة في Navigator اللوحة.
   void _openProfile(LedgerRow row) {
     if (row.isExpense) return;
@@ -837,6 +852,7 @@ class _DesktopHomeScreenState extends ConsumerState<DesktopHomeScreen> {
         child: PatientProfileScreen(
           patientName: row.name,
           clinic: row.clinic == kNoClinic ? '' : row.clinic,
+          identity: _rowIdentity(row),
         ),
       ),
     );
