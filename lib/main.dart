@@ -1,4 +1,4 @@
-/// طب الأسنان الرقمي — نسخة Flutter.
+/// DENTSHINE — نسخة Flutter.
 /// بوابة الدخول: جلسة محفوظة ⇒ الصدفة مباشرة، وإلا شاشة تسجيل الدخول
 /// (توأم حارس المسارات في router/index.js).
 library;
@@ -175,7 +175,7 @@ class DentalApp extends ConsumerWidget {
           child: child ?? const SizedBox.shrink(),
         ),
       ),
-      title: 'طب الأسنان الرقمي',
+      title: 'DENTSHINE',
       debugShowCheckedModeBanner: false,
       locale: const Locale('ar'),
       supportedLocales: const [Locale('ar'), Locale('en')],
