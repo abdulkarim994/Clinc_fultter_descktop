@@ -89,7 +89,9 @@ class ArchivePolicy {
   /// لم تصله — أغلقه حارس المؤشر الخادمي (المهاجرة 0022): الأرشفة تتوقف
   /// عند أدنى مؤشر بين الأجهزة النشطة وتستأنف حين يعود الغائب ويلحق.
   ///
-  /// قابلة للضبط من الإعدادات (90/180/365) — انظر [ColdArchive.windowDays].
+  /// م179 — لم تبقَ قابلةً للضبط: النافذة الفعّالة **180 يوماً ثابتة**
+  /// لكل الأجهزة (قرار المالك) — انظر [ColdArchive.kFixedWindowDays].
+  /// هذه القيمة (90) صارت أرضيةً تاريخيةً لا تُقرأ في مسار الانتقاء.
   final int recordsDays;
   final int xraysDays;
 
@@ -149,8 +151,8 @@ String _idxCountKey(String uid) => 'archive_idx_bundles_$uid';
 
 /// م77 — تمييز الحالات الثلاث التي كان `null` يبتلعها جميعاً.
 enum ArchiveIndexRead { ok, absent, failed }
-String _enabledKey(String uid) => 'archive_enabled_$uid';
-String _windowKey(String uid) => 'archive_window_days_$uid';
+// م179 — مفتاحا التفعيل والنافذة (archive_enabled_* / archive_window_days_*)
+// حُذفا: الأرشفة مفعّلة دائماً بنافذة 180 يوماً ثابتة، فلا تفضيل يُقرأ.
 String _reportKey(String uid) => 'archive_report_day_$uid';
 String _restoredKey(String uid) => 'archive_auto_restored_$uid';
 
@@ -176,24 +178,21 @@ class ColdArchive {
 
   // ── حالة التفعيل والتوقيت ─────────────────────────────────────────────────
 
-  bool get enabled => '${getMetaValue(_db, _enabledKey(_uid)) ?? ''}' != '0';
-
-  set enabled(bool v) =>
-      setMetaValue(_db, _enabledKey(_uid), v ? '1' : '0', _uid);
+  /// م179 — الأرشفة **مفعّلة دائماً** (قرار المالك): زال مفتاح التحكم من
+  /// الإعدادات، فتعمل في الخلفية بلا قرارٍ من المستخدم. القيمة المخزّنة
+  /// (إن وُجدت من نسخة أقدم) تُهمَل عمداً كي لا يبقى جهازٌ معطَّلاً بصمت.
+  bool get enabled => true;
 
   int get lastRunMs =>
       int.tryParse('${getMetaValue(_db, _lastRunKey(_uid)) ?? ''}') ?? 0;
 
-  /// م73 — النافذة الفعّالة: إعداد المستخدم إن وُجد، وإلا الافتراضي.
-  /// تُقرأ حيّةً عند كل تشغيل فيسري التغيير فوراً بلا إعادة تشغيل.
-  int get windowDays {
-    final v = int.tryParse('${getMetaValue(_db, _windowKey(_uid)) ?? ''}');
-    if (v == null || v < policy.serverMinAgeDays) return policy.recordsDays;
-    return v;
-  }
+  /// م179 — النافذة الساخنة **ستة أشهر ثابتة** (180 يوماً) بقرار المالك:
+  /// زال منتقي (٣/٦/١٢) من الإعدادات، ولا قيمة مخزَّنة تُقرأ بعده — رقمٌ
+  /// واحدٌ لكل الأجهزة فلا تتفاوت نوافذها. (كان الافتراضي 90 مع إمكان
+  /// الضبط — م73.)
+  static const int kFixedWindowDays = 180;
 
-  set windowDays(int d) =>
-      setMetaValue(_db, _windowKey(_uid), '$d', _uid);
+  int get windowDays => kFixedWindowDays;
 
   /// مؤشر هذا الجهاز (آخر txid آمن بلغه السحب).
   int get _cursor =>
