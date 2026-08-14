@@ -377,6 +377,12 @@ SaveRecordResult saveNewRecord(
           'service': 'تركيبات (دفعة أولى)',
           'payment': f.payment,
           'incomeDate': ?incomeDay,
+          // م181 — سكّ الهوية على سجل الدفعة الأولى (كان بلا هاتف ولا
+          // معرّف): صفٌّ بلا هوية في مجموعةٍ منقسمة كان يلد مريض «بلا
+          // رقم» شبحاً بصفر قيم — أصل بلاغ المالك «ملفان بدل ملف».
+          'phone': f.phone.isEmpty ? null : f.phone,
+          'phone2': f.phone2.isEmpty ? null : f.phone2,
+          'patient_id': ?pid,
           'isDebt': 0,
           'isPros': 0,
           'isDebtPayment': 1,
@@ -481,6 +487,11 @@ SaveRecordResult saveNewRecord(
           'service': 'دفعة أولى (دين)',
           'payment': f.payment,
           'incomeDate': ?incomeDay,
+          // م181 — سكّ الهوية (توأم فرع التركيبات أعلاه): بلا هوية كان
+          // هذا الصف يلد «بلا رقم» شبحاً عند تشابه الأسماء.
+          'phone': f.phone.isEmpty ? null : f.phone,
+          'phone2': f.phone2.isEmpty ? null : f.phone2,
+          'patient_id': ?pid,
           'isDebt': 0,
           'isPros': 0,
           'isDebtPayment': 1,
@@ -535,6 +546,10 @@ SaveRecordResult saveNewRecord(
         'patient_name': name,
         'amount': aPrice,
         'patient_id': ?pid,
+        // م181 — الهاتف أيضاً (كان patient_id وحده): كل صفٍّ يحمل هويته
+        // كاملةً فلا يعتمد العرض على استنتاجٍ من صفوفٍ أخرى.
+        'phone': f.phone.isEmpty ? null : f.phone,
+        'phone2': f.phone2.isEmpty ? null : f.phone2,
         'clinic': f.clinic,
         'clinic_id': f.clinic,
         'service': 'تحاليل',
