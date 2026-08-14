@@ -40,7 +40,7 @@ class ProofScreen extends ConsumerWidget {
             child: Column(
               children: [
                 const Text(
-                  'طب الأسنان الرقمي',
+                  'DENTSHINE',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white,
