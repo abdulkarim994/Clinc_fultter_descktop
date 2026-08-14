@@ -421,30 +421,25 @@ void m73() {
         ],
       );
 
-  group('م73 — النافذة 90 يوماً', () {
-    test('الافتراضي 90: صف 100 يوم يُلتقط و60 يوماً لا', () {
-      seedRec('r100d', 100);
-      seedRec('r60d', 60);
-      final ids = {for (final it in arch().selectEligible()) it.row['id']};
-      expect(ids, {'r100d'});
-    });
-
-    test('النافذة قابلة للضبط ويسري تغييرها فوراً', () {
-      seedRec('r100d', 100);
+  group('م179 — النافذة 180 يوماً ثابتة', () {
+    test('صف 200 يوم يُلتقط و100 يوماً لا (النافذة 180)', () {
       seedRec('r200d', 200);
-      final a = arch();
-      expect(a.windowDays, 90);
-      expect(a.selectEligible().length, 2);
-
-      a.windowDays = 180; // المستخدم يوسّعها
-      expect(a.windowDays, 180);
-      expect({for (final it in a.selectEligible()) it.row['id']}, {'r200d'});
+      seedRec('r100d', 100);
+      final ids = {for (final it in arch().selectEligible()) it.row['id']};
+      expect(ids, {'r200d'});
     });
 
-    test('قيمة أقل من أرضية الخادم تُرفض وتعود للافتراضي', () {
+    // م179 — النافذة صارت **ثابتة 180 يوماً** (قرار المالك: ستة أشهر
+    // بلا تحكم مستخدم): زال الضابط، فنتحقق من الرقم الثابت وأثره على
+    // الانتقاء بدل التحقق من قابلية الضبط.
+    test('النافذة ثابتة 180 يوماً ولا تُضبَط', () {
       final a = arch();
-      a.windowDays = 10; // أقل من 90 — لا يجوز
-      expect(a.windowDays, 90, reason: 'الأرضية الخادمية تحكم');
+      expect(a.windowDays, 180);
+      expect(ColdArchive.kFixedWindowDays, 180);
+    });
+
+    test('الأرشفة مفعّلة دائماً بلا مفتاح تحكم', () {
+      expect(arch().enabled, isTrue);
     });
   });
 
@@ -467,7 +462,7 @@ void m73() {
 
     test('المؤشر يُمرَّر لنداء الأرشفة (حارس الخادم)', () async {
       setMetaValue(db, 'sync.cursor.txid', '777');
-      seedRec('r100d', 100);
+      seedRec('r200d', 200); // م179 — نافذة 180 يوماً
       await arch().run();
       expect(transport.calls.single.txid, 777);
     });
@@ -476,7 +471,7 @@ void m73() {
   group('م73 — الاسترجاع التلقائي عند الفجوة', () {
     test('مؤشر تحت الأفق ⇒ استرجاع تلقائي مرة واحدة لكل أفق', () async {
       // حساب أرشف سابقاً ⇒ توجد حزمة على R2
-      seedRec('r100d', 100);
+      seedRec('r200d', 200); // م179 — نافذة 180 يوماً
       await arch().run();
       final bundles = remote.store.keys.where((k) => k.endsWith('.gz')).length;
       expect(bundles, 1);
@@ -496,7 +491,7 @@ void m73() {
       expect(r, isNotNull);
       expect(r!.ok, isTrue);
       expect(r.bundles, 1);
-      expect(db2.queryFirst('SELECT * FROM records WHERE id = ?', ['r100d']),
+      expect(db2.queryFirst('SELECT * FROM records WHERE id = ?', ['r200d']),
           isNotNull, reason: 'الصف المؤرشَف رُطِّب');
 
       // لا تكرار لنفس الأفق
@@ -515,7 +510,7 @@ void m73() {
     });
 
     test('استرجاع ناقص لا يُسجَّل ⇒ يُعاد في المرة التالية', () async {
-      seedRec('r100d', 100);
+      seedRec('r200d', 200); // م179 — نافذة 180 يوماً
       await arch().run();
       final bk = remote.store.keys.firstWhere((k) => k.endsWith('.gz'));
       remote.store[bk] = Uint8List.fromList([9, 9, 9]); // إفساد الحزمة

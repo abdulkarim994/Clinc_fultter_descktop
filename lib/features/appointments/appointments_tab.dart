@@ -1960,8 +1960,12 @@ class _AppointmentsTabState extends ConsumerState<AppointmentsTab>
               setState(() => selectedDay = wDate);
               _bump();
               ref.read(patientsRevProvider.notifier).state++;
-              // العودة التلقائية لتبويب الإضافة بعد موعد المتابعة.
-              if (followUp && cfg['followUpAuto'] != false) {
+              // م179 — العودة التلقائية لتبويب الإضافة بعد موعد المتابعة
+              // صارت **دائمة**: خيار followUpAuto أُلغي نهائياً (قرار
+              // المالك) والسلوك مُثبَّت على ما كان سارياً فعلياً (الافتراضي
+              // كان `!= false` أي مفعّلاً — وإن كان مفتاح الإعدادات يعرضه
+              // مطفأً، وهو تناقضٌ زال بإلغاء الخيار).
+              if (followUp) {
                 ref.read(activeTabProvider.notifier).state = 'home';
               }
             });

@@ -276,8 +276,6 @@ class _DesktopProfitsScreenState
             frozenRowsOf: frozenOf,
           )
         : null;
-    final y = yearTotals(selectedYear,
-        records: records, prosthetics: prosthetics, debts: debts);
     final clinicRows = yearlyClinicRows(
       selectedYear,
       records: records,
@@ -319,7 +317,7 @@ class _DesktopProfitsScreenState
           // جدول الأرباح والخسائر — عمود الصدارة بعرض مريح.
           Expanded(flex: 5, child: YearPnlTable(report: rep)),
           const SizedBox(width: 10),
-          // العمود الجانبي: العيادات سنوياً + المخطط + قنوات القبض.
+          // العمود الجانبي: العيادات سنوياً + مخطط الأشهر.
           Expanded(
             flex: 4,
             child: Column(children: [
@@ -330,8 +328,7 @@ class _DesktopProfitsScreenState
               ),
               const SizedBox(height: 4),
               _yearChart(rep, n),
-              const SizedBox(height: 4),
-              _channelsCard(y, cur, n),
+              // م179 — بطاقة «قنوات القبض» أُلغيت بالكامل (قرار المالك).
             ]),
           ),
         ]),
@@ -406,80 +403,6 @@ class _DesktopProfitsScreenState
               ],
             ),
           ),
-        ]),
-      ),
-    );
-  }
-
-  /// قنوات القبض السنوية (كاش/تحويل/تركيبات) — مفاتيح م117 القائمة.
-  Widget _channelsCard(YearTotals y, String cur, String Function(num) n) {
-    Widget cell(String label, String value, Color color, {Key? key}) =>
-        Expanded(
-          child: Column(children: [
-            Text(label,
-                textAlign: TextAlign.center,
-                style:
-                    TextStyle(fontSize: 11.5, color: BrandColors.mut2)),
-            const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(value,
-                  key: key,
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: color)),
-            ),
-          ]),
-        );
-    return Card(
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(children: [
-          Text('قنوات القبض — سنة $selectedYear',
-              style: TextStyle(fontSize: 11, color: BrandColors.mut)),
-          const SizedBox(height: 8),
-          Row(children: [
-            cell('كاش', n(y.cash), BrandColors.green,
-                key: const Key('prof-year-cash')),
-            Container(width: 1, height: 26, color: BrandColors.line),
-            cell('تحويل', n(y.xfer), BrandColors.brand600,
-                key: const Key('prof-year-xfer')),
-            Container(width: 1, height: 26, color: BrandColors.line),
-            cell('تركيبات (مقبوض)', n(y.prosPaid), BrandColors.goldDark,
-                key: const Key('prof-year-prospaid')),
-          ]),
-          if (y.prosDoc > 0) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: BrandColors.surface2,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(children: [
-                Expanded(
-                  child: Text('تفصيل تركيبات الطبيب',
-                      style: TextStyle(
-                          fontSize: 11, color: BrandColors.mut2)),
-                ),
-                Text('كاش ${n(y.prosCash)}',
-                    style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: BrandColors.green)),
-                const SizedBox(width: 10),
-                Text('تحويل ${n(y.prosXfer)}',
-                    style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: BrandColors.brand600)),
-              ]),
-            ),
-          ],
         ]),
       ),
     );

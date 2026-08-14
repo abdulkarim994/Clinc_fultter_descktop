@@ -7,7 +7,6 @@
 /// الخزينة، قالب واتساب، تصدير النسخة الاحتياطية VACUUM INTO).
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:dental_clinic_flutter/app/providers.dart';
@@ -722,77 +721,9 @@ void main() {
       expect(find.text('مرحباً هدى من مركز الاختبار'), findsOneWidget);
     });
 
-    testWidgets('تصدير النسخة الاحتياطية ينتج قاعدة صالحة في exports', (
-      tester,
-    ) async {
-      await boot(
-        tester,
-        seed: (c) {
-          saveNewRecord(
-            c.read(reposProvider),
-            _config(),
-            SaveRecordInput(
-              name: 'أ',
-              date: getCurrentDate(),
-              amount: 100,
-              clinic: 'ع1',
-              service: 'حشو',
-              payment: 'كاش',
-            ),
-          );
-        },
-      );
-      await tester.tap(find.byTooltip('الإعدادات'));
-      await settle(tester);
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('group-storage')),
-        300,
-        scrollable: vScrollable(),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const Key('group-storage')),
-        warnIfMissed: false,
-      );
-      await settle(tester);
-      await tester.ensureVisible(find.byKey(const Key('export-json')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const Key('export-json')),
-        warnIfMissed: false,
-      );
-      await settle(tester);
-      // تصريف Snackbar التصدير ثم تثبيت الزر الثاني قبل نقره.
-      await tester.pump(const Duration(seconds: 5));
-      await tester.ensureVisible(find.byKey(const Key('export-excel')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const Key('export-excel')),
-        warnIfMissed: false,
-      );
-      await settle(tester);
-
-      // JSON بنفس مفاتيح الأصل وبياناته.
-      final jsonFiles = Directory('${tmp.path}/exports')
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.json'))
-          .toList();
-      expect(jsonFiles, hasLength(1));
-      final data = jsonDecode(jsonFiles.single.readAsStringSync()) as Map;
-      expect((data['records'] as List), hasLength(1));
-      expect((data['config'] as Map)['centerName'], 'مركز الاختبار');
-      expect(data.containsKey('exportDate'), isTrue);
-
-      // Excel: ملف xlsx حقيقي (zip يبدأ بتوقيع PK).
-      final xlsxFiles = Directory('${tmp.path}/exports')
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.xlsx'))
-          .toList();
-      expect(xlsxFiles, hasLength(1));
-      final head = xlsxFiles.single.openSync().readSync(2);
-      expect(String.fromCharCodes(head), 'PK');
-    });
+    // م179 — اختبار «تصدير النسخة الاحتياطية» حُذف: بطاقة النسخ
+    // الاحتياطي (Excel/JSON/استعادة) أُلغيت بالكامل من الإعدادات بقرار
+    // المالك، فلا أزرار تُنقر. بُناة الحزم النقية (buildBackupXlsx /
+    // buildBackupJson) تبقى مختبَرة في m7_settings_11.
   });
 }

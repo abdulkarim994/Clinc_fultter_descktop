@@ -9,7 +9,6 @@ library;
 
 import 'dart:async' show unawaited;
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_selector/file_selector.dart';
@@ -17,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart'
     show StateController, StateProvider;
-import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/providers.dart';
@@ -100,9 +98,11 @@ void setXrayDeleteUndoSecs(LocalDb db, int secs) {
   } catch (_) {/* أفضل جهد */}
 }
 
+/// م179 — بريد المطور (بطاقة التواصل في «حول التطبيق»).
+const String kDeveloperEmail = 'abdulkareem.1994@hotmail.com';
+
 /// منتقيات قابلة للحقن للاختبارات.
 typedef ImagePick = Future<(String, Uint8List)?> Function();
-typedef TextFilePick = Future<String?> Function();
 
 Future<(String, Uint8List)?> _defaultImagePick() async {
   const group = XTypeGroup(
@@ -114,15 +114,9 @@ Future<(String, Uint8List)?> _defaultImagePick() async {
   return (f.name, await f.readAsBytes());
 }
 
-Future<String?> _defaultJsonPick() async {
-  const group = XTypeGroup(label: 'JSON', extensions: ['json']);
-  final f = await openFile(acceptedTypeGroups: [group]);
-  if (f == null) return null;
-  return utf8.decode(await f.readAsBytes(), allowMalformed: true);
-}
-
 final logoPickProvider = Provider<ImagePick>((ref) => _defaultImagePick);
-final jsonPickProvider = Provider<TextFilePick>((ref) => _defaultJsonPick);
+// م179 — منتقي JSON ومزوّده (TextFilePick/jsonPickProvider) حُذفا مع
+// «استعادة JSON»: لا مستدعٍ لهما بعد إلغاء النسخ الاحتياطي.
 
 /// م70 — نبضة إعادة بناء بطاقة الأرشفة (حالتها تعيش في sync_meta لا هنا).
 final _archiveRev = StateProvider<int>((ref) => 0);
@@ -192,6 +186,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final newLabTypePriceCtl = TextEditingController();
 
   // «التحاليل الثلاثية» — متحكم سعر التحليل الثابت وعقدة تركيزه.
+  // م179 — علمَا «لمس المستخدم»: الالتزام لا يكتب إلا لحقلٍ عدّله
+  // المستخدم فعلاً في هذه الجلسة. بدونهما كان `_closeSection` يلتزم
+  // بمتحكمٍ فارغ (بطاقة التحاليل لم تُبنَ) فيكتب 0 فوق السعر المحفوظ —
+  // «افتح الإعدادات ← أي قسم ← رجوع» كان يمحو السعر (بلاغ المالك).
+  bool _triAnalPriceTouched = false;
+  bool _triAnalRepeatTouched = false;
+
   final triAnalPriceCtl = TextEditingController();
   final triAnalPriceFocus = FocusNode(debugLabel: 'tri-anal-price');
   // م149 — متحكم «المدة المسموح بها لإعادة التحليل (بالأشهر)» وعقدته.
@@ -617,205 +618,176 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// بطاقتين أسفل القائمة الرئيسية وانتقلتا قسماً مستقلاً بطلب المالك.
   // ignore: unused_element_parameter
   Widget _aboutBody(JMap cfg) {
+    // م179 — بطاقة «حالة التطبيق والمزامنة» أُلغيت بالكامل (قرار المالك):
+    // زالت معها أسطر آخر مزامنة والتغييرات غير المدفوعة وتنبيه الصفوف
+    // المحجورة وزر إعادة محاولتها. ويبقى **سطر نسخة التطبيق** وحده لأنه
+    // مرجع التحقق من تطابق الأجهزة عند أي بلاغ.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── v28: هوية البناء وحالة المزامنة (للتحقق من تطابق الأجهزة) ──
+        // ── نسخة التطبيق ──
+        _glass(
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline_rounded,
+                size: 16,
+                color: BrandColors.brandIcon,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'نسخة التطبيق',
+                style: TextStyle(fontSize: 12, color: BrandColors.mut2),
+              ),
+              const Spacer(),
+              Text(
+                appBuildLabel,
+                key: const Key('appinfo-version'),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: BrandColors.brandText,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // ── م179 — التواصل مع المطور: واتساب + بريد بهوية التطبيق ──
+        // بطاقة زجاجية بترويسة ذهبية وزرَّين متساويَي المقاس: الأول بلون
+        // واتساب الرسمي والثاني بلون العلامة — أيقونة + عنوان + العنوان
+        // الفعلي أسفلها، بزوايا 14 وحدٍّ شعري بلون الزر (هوية البطاقات).
         _glass(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
                 children: [
                   Icon(
-                    Icons.info_outline_rounded,
-                    size: 16,
-                    color: BrandColors.brandIcon,
+                    Icons.support_agent_rounded,
+                    size: 17,
+                    color: BrandColors.goldDark,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    'حالة التطبيق والمزامنة',
+                    'التواصل مع المطور',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w800,
                       color: BrandColors.brandText,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Builder(
-                builder: (context) {
-                  final st = ref.watch(syncUiProvider);
-                  final engine = ref.read(syncEngineProvider);
-                  var pending = st.pending;
-                  var quarantined = 0;
-                  int? lastTs;
-                  try {
-                    final es = engine.getEngineStatus();
-                    pending = es.pending;
-                    // م77 — الصفوف المحجورة كانت تُحسب وتُطرح من العدّاد
-                    // ثم لا تُعرض في أي مكان: `EngineStatus.quarantined`
-                    // بلا مستهلك واحد. فكانت الشاشة تقول «صفر معلّق ·
-                    // تمّت المزامنة الآن» بينما زيارة أو دفعة أو صورة
-                    // أشعة لم تصل الخادم قطّ — وهذا أسوأ من عطل ظاهر.
-                    quarantined = es.quarantined;
-                    lastTs = es.lastSyncTs;
-                  } catch (_) {
-                    /* أفضل جهد */
-                  }
-                  final last =
-                      st.lastOk ??
-                      (lastTs != null
-                          ? DateTime.fromMillisecondsSinceEpoch(lastTs)
-                          : null);
-                  String two(int v) => v.toString().padLeft(2, '0');
-                  final lastTxt = last == null
-                      ? '—'
-                      : '${two(last.hour)}:${two(last.minute)}';
-                  Widget line(String k, String v, {Color? color}) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Text(
-                          k,
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: BrandColors.mut2,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          v,
-                          key: Key('appinfo-\$k'),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: color,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                  return Column(
-                    children: [
-                      line('نسخة التطبيق', appBuildLabel),
-                      line('آخر مزامنة ناجحة', lastTxt),
-                      line(
-                        'تغييرات غير مدفوعة',
-                        '\$pending',
-                        color: pending > 0
-                            ? BrandColors.red
-                            : BrandColors.green,
+              const SizedBox(height: 10),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _contactTile(
+                        key: const Key('support-wa'),
+                        icon: Icons.chat_rounded,
+                        title: 'واتساب',
+                        value: '0919292258',
+                        color: const Color(0xFF25D366),
+                        onTap: () => _openUri('https://wa.me/218919292258'),
                       ),
-                      // م77 — لا يظهر السطر إلا عند وجود محجور فعلاً، فلا
-                      // ضجيج على الحالة السليمة. ووجوده يعني أن صفوفاً
-                      // أخفقت ثماني مرات وتوقّف المحرك عن محاولتها.
-                      if (quarantined > 0) ...[
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              size: 15,
-                              color: BrandColors.red,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '\$quarantined عنصراً تحتاج انتباهاً — '
-                                'لم تصل الخادم بعد محاولات متكررة',
-                                key: const Key('quarantine-notice'),
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: BrandColors.red,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            key: const Key('quarantine-retry'),
-                            onPressed: () async {
-                              // `retryFailedAndSync` كانت موجودة ومختبَرة
-                              // و**بلا مستدعٍ في كامل lib**: الآلية جاهزة
-                              // وينقصها مقبض فقط.
-                              try {
-                                await engine.retryFailedAndSync();
-                              } catch (_) {
-                                /* أفضل جهد */
-                              }
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'أُعيدت محاولة العناصر المتوقفة',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.refresh_rounded, size: 16),
-                            label: const Text(
-                              'أعد المحاولة',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-
-        // ── الدعم الفني ──
-        _glass(
-          child: Column(
-            children: [
-              Text(
-                'الدعم الفني',
-                style: TextStyle(fontSize: 11, color: BrandColors.mut2),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton.icon(
-                  key: const Key('support-wa'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF25D366),
-                    backgroundColor: const Color(
-                      0xFF25D366,
-                    ).withValues(alpha: .1),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-                  onPressed: () => launchUrl(
-                    Uri.parse('https://wa.me/218919292258'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                  icon: const Icon(Icons.chat_rounded, size: 17),
-                  label: const Text(
-                    'تواصل مع المطور — 0919292258',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _contactTile(
+                        key: const Key('support-mail'),
+                        icon: Icons.alternate_email_rounded,
+                        title: 'البريد',
+                        value: kDeveloperEmail,
+                        color: BrandColors.brand600,
+                        onTap: () => _openUri('mailto:$kDeveloperEmail'),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  /// م179 — فتح رابطٍ خارجي بأفضل جهد مع إبلاغ فشلٍ صريح (لا صمت).
+  Future<void> _openUri(String uri) async {
+    try {
+      final ok = await launchUrl(
+        Uri.parse(uri),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok && mounted) _snack('تعذّر فتح التطبيق المطلوب');
+    } catch (_) {
+      if (mounted) _snack('تعذّر فتح التطبيق المطلوب');
+    }
+  }
+
+  /// م179 — بلاطة تواصل: أيقونة في مربع ملوّن + عنوان + القيمة، بخلفية
+  /// 8٪ من لون القناة وحدٍّ 22٪ وزوايا 14 — توأم بطاقات الأقسام.
+  Widget _contactTile({
+    required Key key,
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: color.withValues(alpha: .08),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        key: key,
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withValues(alpha: .22)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 18, color: color),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(fontSize: 10.5, color: BrandColors.mut2),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1691,14 +1663,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   /// يُبذر متحكمَي السعر والمدة من المخزون ويتحدّثان بالمزامنة إلا أثناء
   /// الكتابة (بنمط _svcPriceCtl تماماً).
+  ///
+  /// م179 — تحصينان ضد بلاغ المالك «أخرج من الإعدادات وأعود فأجد حقل سعر
+  /// التحاليل فارغاً والقيمة محفوظة»:
+  ///  ١) **القراءة طازجةٌ من المخزن** ([_readConfig]) لا من لقطة البناء:
+  ///     أي لقطةٍ متأخرة (نبضة إعادة قراءة لم تُطلق بعد، أو كتابةٌ من
+  ///     مزامنةٍ لحظتها) كانت تعطي سعراً صفراً فيُفرَّغ الحقل.
+  ///  ٢) **لا تفريغ لحقلٍ ممتلئ**: القيمة الغائبة/الصفر لا تمحو ما يعرضه
+  ///     الحقل — التفريغ قرار المستخدم وحده (ويلتزم به [_commitTriAnalPrice]).
+  /// فصار الثابت: ما دامت قيمةٌ محفوظةً موجودة، الحقل يعرضها ولا يفرغ.
   void _seedTriAnalPrice(JMap cfg) {
-    final nn = triAnalysesPrice(cfg);
+    final fresh = _readConfig();
+    final nn = triAnalysesPrice(fresh.isEmpty ? cfg : fresh);
     final want = nn > 0 ? nn.toStringAsFixed(0) : '';
-    if (!triAnalPriceFocus.hasFocus && triAnalPriceCtl.text.trim() != want) {
+    if (!triAnalPriceFocus.hasFocus &&
+        want.isNotEmpty &&
+        triAnalPriceCtl.text.trim() != want) {
       triAnalPriceCtl.text = want;
     }
     // م149 — المدة بالأشهر (الافتراضي 6؛ 0 = القاعدة معطّلة).
-    final wantR = triRepeatMonths(cfg).toInt().toString();
+    final wantR = triRepeatMonths(fresh.isEmpty ? cfg : fresh).toInt().toString();
     if (!triAnalRepeatFocus.hasFocus &&
         triAnalRepeatCtl.text.trim() != wantR) {
       triAnalRepeatCtl.text = wantR;
@@ -1747,9 +1731,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   /// يلتزم بسعر التحاليل الثلاثية عند تغيّرٍ حقيقي فقط (توأم _commitSvcPrice).
   void _commitTriAnalPrice({bool ui = true}) {
+    // م179 — لا كتابة من حقلٍ لم يلمسه المستخدم (يحمي السعر المحفوظ).
+    if (!_triAnalPriceTouched) return;
     final cfg = _readConfig();
     final stored = triAnalysesPrice(cfg);
     final now = jsNumOr0(triAnalPriceCtl.text);
+    _triAnalPriceTouched = false;
     if (now == stored) return;
     final repos = _repos;
     if (repos == null) return;
@@ -1777,10 +1764,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// م149 — يلتزم بمدة إعادة التحليل (بالأشهر) عند تغيّرٍ حقيقي فقط.
   /// السالب يُقصّ إلى صفر (صفر = القاعدة معطّلة صراحةً).
   void _commitTriAnalRepeat({bool ui = true}) {
+    // م179 — نفس حارس السعر (تناظرٌ يمنع كتابة مدةٍ من حقلٍ غير مبنيّ).
+    if (!_triAnalRepeatTouched) return;
     final cfg = _readConfig();
     final stored = triRepeatMonths(cfg).toInt();
     var now = jsNumOr0(triAnalRepeatCtl.text).toInt();
     if (now < 0) now = 0;
+    _triAnalRepeatTouched = false;
     if (now == stored) return;
     final repos = _repos;
     if (repos == null) return;
@@ -1844,6 +1834,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       vertical: 8,
                     ),
                   ),
+                  // م179 — أي تعديلٍ يرفع علم اللمس فيصير الالتزام مسموحاً.
+                  onChanged: (_) => _triAnalPriceTouched = true,
                   // اللمس خارج الحقل يُفقده التركيز فيمر مستمع الالتزام.
                   onTapOutside: (_) => triAnalPriceFocus.unfocus(),
                   onSubmitted: (_) => _commitTriAnalPrice(),
@@ -1894,6 +1886,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       vertical: 8,
                     ),
                   ),
+                  onChanged: (_) => _triAnalRepeatTouched = true,
                   onTapOutside: (_) => triAnalRepeatFocus.unfocus(),
                   onSubmitted: (_) => _commitTriAnalRepeat(),
                 ),
@@ -3005,41 +2998,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           (v) => _update((c) => {...c, 'apptNotif': v}),
           key: const Key('set-apptnotif'),
         ),
-        _toggleRow(
-          'العودة التلقائية لتبويب الإضافة',
-          'بعد حفظ موعد المتابعة',
-          cfg['followUpAuto'] == true,
-          (v) => _update((c) => {...c, 'followUpAuto': v}),
-          key: const Key('set-followup'),
-        ),
-        _toggleRow(
-          'حفظ حالة التبويب',
-          'عند الخروج من السجلات أو المالية يحفظ مكانك',
-          cfg['keepTabState'] == true,
-          (v) => _update((c) => {...c, 'keepTabState': v}),
-          key: const Key('set-keeptab'),
-        ),
+        // م179 — خيارا «العودة التلقائية لتبويب الإضافة» و«حفظ حالة
+        // التبويب» أُلغيا نهائياً (قرار المالك). السلوك مُثبَّت على
+        // الافتراضي الذي كان سارياً: لا عودة تلقائية بعد موعد المتابعة،
+        // ومغادرة السجلات/المالية تعيد القسم إلى بدايته.
         // المرحلة هـ — إظهار/إخفاء زر تحميل التحديث في نافذة «تحديث متوفّر».
         // تفضيلٌ محليٌّ لكل جهاز (sync_meta، لا config المُزامَن) فلا يُكتب
         // عبر _update — نقرأ/نكتب مباشرةً ثم نُعيد البناء بـ setState.
         _glass(
-          child: SwitchListTile(
-            key: const Key('pref-show-update'),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            title: const Text(
-              'إظهار زر تحديث التطبيق',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+          // م179 — Material شفافة تحتضن SwitchListTile: البطاقة الزجاجية
+          // خلفيةٌ ملوّنة تُخفي رشقة الحبر وتُطلق تأكيد الإطار «ListTile
+          // background color or ink splashes may be invisible» عند فتح
+          // القسم في بناء التنقيح. (كُشف باختبار م179.)
+          child: Material(
+            type: MaterialType.transparency,
+            child: SwitchListTile(
+              key: const Key('pref-show-update'),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text(
+                'إظهار زر تحديث التطبيق',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(
+                'عند توفّر تحديث، يظهر زر «تحميل التحديث» في التنبيه',
+                style: TextStyle(fontSize: 11.5, color: BrandColors.mut2),
+              ),
+              value: showUpdateButtonPref(ref.read(localDbProvider)),
+              onChanged: (v) {
+                setShowUpdateButtonPref(ref.read(localDbProvider), v);
+                setState(() {});
+              },
             ),
-            subtitle: Text(
-              'عند توفّر تحديث، يظهر زر «تحميل التحديث» في التنبيه',
-              style: TextStyle(fontSize: 11.5, color: BrandColors.mut2),
-            ),
-            value: showUpdateButtonPref(ref.read(localDbProvider)),
-            onChanged: (v) {
-              setShowUpdateButtonPref(ref.read(localDbProvider), v);
-              setState(() {});
-            },
           ),
         ),
       ],
@@ -3204,7 +3194,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ('أكبر', 1.45),
     ];
     final tabBottom = cfg['tabBarPosition'] == 'bottom';
-    final fabVisible = cfg['fabVisible'] != false;
     final fabPos = '${jsOr(cfg['fabPosition'], 'center')}';
 
     Widget segBtn(String label, bool on, VoidCallback onTap, {Key? key}) =>
@@ -3349,28 +3338,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _secH('الزر العائم (+)'),
+              // م179 — خيار «إظهار الزر العائم» أُلغي نهائياً (قرار
+              // المالك): الزر ظاهرٌ دائماً، ويبقى ضبط موقعه وحده.
               Text(
-                'تحكم بموقع زر الإضافة السريع أو إخفائه',
+                'تحكم بموقع زر الإضافة السريع',
                 style: TextStyle(fontSize: 11, color: BrandColors.mut2),
               ),
+              const SizedBox(height: 4),
               Row(
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'إظهار الزر العائم',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  Switch(
-                    key: const Key('fab-visible'),
-                    value: fabVisible,
-                    onChanged: (v) => _update((c) => {...c, 'fabVisible': v}),
-                  ),
-                ],
-              ),
-              if (fabVisible)
-                Row(
-                  children: [
                     segBtn(
                       'يمين',
                       fabPos == 'right',
@@ -3518,10 +3494,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // ═══ 8) التخزين والنسخ الاحتياطي ═══
 
-  /// م70 — بطاقة الأرشفة الباردة (سحابي + R2 فقط). المنطق كله في
-  /// ColdArchive؛ هنا عرضٌ وأزرار لا غير.
+  /// م179 — بطاقة الأرشفة الباردة صارت **معلوماتية + استرجاع فقط** (قرار
+  /// المالك): زال مفتاح التفعيل ومنتقي النافذة وزر «أرشفة الآن» — الأرشفة
+  /// مفعّلة دائماً بنافذة ستة أشهر وتعمل في الخلفية بلا تدخّل. ويبقى
+  /// الاسترجاع لأنه حاجة الجهاز الجديد (يملأ الناقص ولا يمسّ الأحدث).
   Widget _archiveGlass() {
-    ref.watch(_archiveRev); // إعادة البناء بعد تبديل/تشغيل
+    ref.watch(_archiveRev); // إعادة البناء بعد الاسترجاع
     final arch = ref.read(coldArchiveProvider);
     if (arch == null) return const SizedBox.shrink();
     final last = arch.lastRunMs;
@@ -3533,100 +3511,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _secH('الأرشفة الباردة'),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'نقل القديم تلقائياً لتخزين أرخص',
-                  style: TextStyle(fontSize: 12, color: BrandColors.mut),
-                ),
-              ),
-              Switch(
-                key: const Key('set-archive'),
-                value: arch.enabled,
-                onChanged: (v) {
-                  arch.enabled = v;
-                  ref.read(_archiveRev.notifier).state++;
-                },
-              ),
-            ],
-          ),
           // م94 — بلا أسماء بنيةٍ تحتية في نصوص الواجهة (تفضيل المالك).
           Text(
-            'ما يتجاوز النافذة أدناه يُحزَم إلى التخزين السحابي ثم يُزال '
-            'من قاعدة المزامنة — أجهزتك تحتفظ بنسخها كاملةً، ولا حذف قبل '
-            'التأكد من وصول الحزمة ومن أن كل أجهزتك استلمت الصفوف. $lastTxt',
+            'تعمل تلقائياً في الخلفية كل ستة أشهر: ما يتجاوز النافذة يُحزَم '
+            'إلى التخزين السحابي ثم يُزال من قاعدة المزامنة — أجهزتك تحتفظ '
+            'بنسخها كاملةً، ولا حذف قبل التأكد من وصول الحزمة ومن أن كل '
+            'أجهزتك استلمت الصفوف.',
             style: TextStyle(fontSize: 11, color: BrandColors.mut2),
           ),
           const SizedBox(height: 6),
-          // م73 — النافذة الساخنة قابلة للاختيار. الأقصر أوفر تخزيناً؛
-          // الأطول يجعل جهازاً جديداً يرى تاريخاً أوسع بلا استرجاع.
           Row(
             children: [
-              Text(
-                'الاحتفاظ على الخادم: ',
-                style: TextStyle(fontSize: 12, color: BrandColors.mut),
+              Icon(
+                Icons.schedule_rounded,
+                size: 14,
+                color: BrandColors.brandIcon,
               ),
-              Expanded(
-                child: DropdownButton<int>(
-                  key: const Key('archive-window'),
-                  isExpanded: true,
-                  isDense: true,
-                  value: arch.windowDays,
-                  items: const [
-                    DropdownMenuItem(value: 90, child: Text('٣ أشهر (الأوفر)')),
-                    DropdownMenuItem(value: 180, child: Text('٦ أشهر')),
-                    DropdownMenuItem(value: 365, child: Text('سنة كاملة')),
-                  ],
-                  onChanged: (v) {
-                    if (v == null) return;
-                    arch.windowDays = v;
-                    ref.read(_archiveRev.notifier).state++;
-                  },
+              const SizedBox(width: 5),
+              Text(
+                lastTxt,
+                key: const Key('archive-last-run'),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: BrandColors.strong,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('archive-now'),
-                  onPressed: () async {
-                    _snack('جاري الأرشفة…');
-                    final r = await arch.run(manual: true);
-                    ref.read(_archiveRev.notifier).state++;
-                    _snack(r.ok ? r.reason : 'لم تكتمل: ${r.reason}');
-                  },
-                  icon: const Icon(Icons.archive_rounded, size: 15),
-                  label: const Text(
-                    'أرشفة الآن',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              key: const Key('archive-restore'),
+              onPressed: () async {
+                _snack('جاري الاسترجاع من الأرشيف…');
+                final r = await arch.restore();
+                // ترطيب صفوف يستوجب تحديث الإسقاطات (كما بعد السحب).
+                ref.read(patientsRevProvider.notifier).state++;
+                ref.read(configRevProvider.notifier).state++;
+                ref.read(_archiveRev.notifier).state++;
+                _snack(r.reason);
+              },
+              icon: const Icon(Icons.unarchive_rounded, size: 15),
+              label: const Text(
+                'استرجاع الأرشيف',
+                style: TextStyle(fontSize: 12),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: OutlinedButton.icon(
-                  key: const Key('archive-restore'),
-                  onPressed: () async {
-                    _snack('جاري الاسترجاع من الأرشيف…');
-                    final r = await arch.restore();
-                    // ترطيب صفوف يستوجب تحديث الإسقاطات (كما بعد السحب).
-                    ref.read(patientsRevProvider.notifier).state++;
-                    ref.read(configRevProvider.notifier).state++;
-                    ref.read(_archiveRev.notifier).state++;
-                    _snack(r.reason);
-                  },
-                  icon: const Icon(Icons.unarchive_rounded, size: 15),
-                  label: const Text(
-                    'استرجاع الأرشيف',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 2),
           Text(
@@ -3737,126 +3669,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         // م70 — الأرشفة الباردة: تُعرض بالوضع السحابي مع R2 فقط (خارجه
         // يكون coldArchive = null فلا بطاقة — لا مفاتيح ميتة في الواجهة).
         if (ref.watch(coldArchiveProvider) != null) _archiveGlass(),
-        _glass(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _secH('النسخ الاحتياطي'),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  key: const Key('export-excel'),
-                  onPressed: _exportExcel,
-                  icon: const Icon(Icons.table_chart_rounded, size: 15),
-                  label: const Text(
-                    'تصدير Excel',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  key: const Key('export-json'),
-                  onPressed: _exportJson,
-                  icon: const Icon(Icons.description_rounded, size: 15),
-                  label: const Text(
-                    'نسخة محلية JSON',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  key: const Key('import-json'),
-                  onPressed: _importJson,
-                  icon: const Icon(Icons.restore_rounded, size: 15),
-                  label: const Text(
-                    'استعادة JSON',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        // م179 — بطاقة «النسخ الاحتياطي» (تصدير Excel + نسخة JSON +
+        // استعادة JSON) أُلغيت بالكامل بقرار المالك؛ وحُذفت دوالها.
       ],
     );
   }
 
-  String get _exportsDir {
-    final d = Directory(p.join(ref.read(dbDirProvider), 'exports'));
-    d.createSync(recursive: true);
-    return d.path;
-  }
-
-  Future<void> _exportExcel() async {
-    try {
-      final cfg = ref.read(appConfigProvider);
-      final name = '${jsOr(cfg['centerName'], 'export')}';
-      final path = p.join(
-        _exportsDir,
-        'dental_${name}_${getCurrentDate()}.xlsx',
-      );
-      File(path).writeAsBytesSync(buildBackupXlsx(ref.read(reposProvider)));
-      _snack('تم تصدير Excel — $path');
-    } catch (e) {
-      _snack('خطأ في التصدير: $e');
-    }
-  }
-
-  Future<void> _exportJson() async {
-    try {
-      final path = p.join(
-        _exportsDir,
-        'dental_backup_${getCurrentDate()}.json',
-      );
-      File(path).writeAsStringSync(buildBackupJson(ref.read(reposProvider)));
-      _snack('تم تصدير النسخة الاحتياطية — $path');
-    } catch (e) {
-      _snack('خطأ في التصدير: $e');
-    }
-  }
-
-  Future<void> _importJson() async {
-    final text = await ref.read(jsonPickProvider)();
-    if (text == null) return;
-    if (!mounted) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('استعادة النسخة الاحتياطية'),
-        content: const Text(
-          'استعادة النسخة الاحتياطية ستستبدل جميع البيانات الحالية.\n\nمتأكد؟',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            key: const Key('import-json-confirm'),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('استعادة'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    try {
-      final count = restoreBackupJson(ref.read(reposProvider), text);
-      ref.read(configRevProvider.notifier).state++;
-      ref.read(patientsRevProvider.notifier).state++;
-      _seeded = false;
-      setState(() {});
-      _snack('تمت الاستعادة بنجاح — $count صفاً');
-    } catch (_) {
-      _snack('خطأ في قراءة الملف');
-    }
-  }
+  // م179 — دوال النسخ الاحتياطي (_exportsDir / _exportExcel / _exportJson /
+  // _importJson) حُذفت مع بطاقتها: لم يبق لها مستدعٍ في الواجهة.
 
   // ═══ 9) قوالب واتساب ═══
 
