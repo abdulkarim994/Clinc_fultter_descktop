@@ -31,6 +31,8 @@ import '../staff/staff_users_screen.dart' show StaffUsersScreen;
 import '../staff/activity_log_screen.dart' show ActivityLogScreen;
 import '../staff/staff_account_screen.dart' show StaffAccountCard;
 import '../../core/app_build.dart';
+import '../../core/locked_services.dart'
+    show kLockedServices, kVariablePriceLabel;
 import '../../core/theme/app_theme.dart';
 import '../labs/lab_logo.dart';
 import '../xrays/storage_meter.dart'
@@ -70,10 +72,12 @@ typedef JMap = Map<String, Object?>;
 
 // م143 — الافتراضات المقفولة: طرق الدفع كاش/تحويل لا تُحذف (والإضافة
 // موقوفة حالياً)، والمعالجة «تركيبات» لا تُحذف — حمايةً من بثِّ حذفٍ
-// (شاهد قبر) لافتراضٍ إلى كل الأجهزة. الأسعار تبقى قابلة للتعديل للجميع،
-// وحذف/تعديل باقي المعالجات (حشوا العصب وأيّ إضافة) يبقى متاحاً.
+// (شاهد قبر) لافتراضٍ إلى كل الأجهزة. حذف/تعديل باقي المعالجات (حشوا
+// العصب وأيّ إضافة) يبقى متاحاً.
+// م181 — مجموعة المعالجات المقفلة صارت مشتركة (core/locked_services)
+// لأن المعالج ونماذج الإدخال وهجرة التطهير تشاركها؛ وسعر «تركيبات» لم
+// يعد قابلاً للضبط إطلاقاً (سعرها متغيّر بطبيعته — قرار المالك).
 const Set<String> _kLockedPayments = {'كاش', 'تحويل'};
-const Set<String> _kLockedServices = {'تركيبات'};
 
 // م143 — مهلة التراجع عن الحذف (بالثواني): تفضيلٌ محليٌّ لكل جهاز في
 // sync_meta (لا يُزامَن — نفس مكان تفضيلات القفل م87). الغياب ⇒ 3 ثوانٍ،
@@ -1466,34 +1470,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 itemRow(
                   Text(services[i], style: const TextStyle(fontSize: 12.5)),
                   actions: [
-                    SizedBox(
-                      width: 74,
-                      child: TextField(
-                        key: Key('svc-price-${services[i]}'),
-                        controller: _svcPriceCtl(
-                          services[i],
-                          prices[services[i]],
+                    // م181 — «تركيبات» بلا حقل سعر نهائياً (قرار المالك):
+                    // سعرها متغيّر بطبيعته (وحدات × سعر نوع المختبر لكل
+                    // حالة) فضبطُ رقمٍ ثابت لها تضليل. مكانه شارة توضيحية.
+                    if (kLockedServices.contains(services[i]))
+                      Container(
+                        key: Key('svc-variable-${services[i]}'),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: BrandColors.gold.withValues(alpha: .10),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color:
+                                  BrandColors.gold.withValues(alpha: .35),
+                              width: .8),
                         ),
-                        focusNode: _svcPriceFocus(services[i]),
-                        keyboardType: TextInputType.number,
-                        style: const TextStyle(fontSize: 11.5),
-                        decoration: const InputDecoration(
-                          isDense: true,
-                          hintText: 'السعر',
+                        child: Text(kVariablePriceLabel,
+                            style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: BrandColors.goldDark)),
+                      )
+                    else
+                      SizedBox(
+                        width: 74,
+                        child: TextField(
+                          key: Key('svc-price-${services[i]}'),
+                          controller: _svcPriceCtl(
+                            services[i],
+                            prices[services[i]],
+                          ),
+                          focusNode: _svcPriceFocus(services[i]),
+                          keyboardType: TextInputType.number,
+                          style: const TextStyle(fontSize: 11.5),
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            hintText: 'السعر',
+                          ),
+                          // م55 — اللمس خارج الحقل على الهاتف لا يُفقده
+                          // التركيز افتراضياً: نُفقده صراحةً فيمر الحفظ
+                          // بمستمع فقد التركيز نفسه (مسار حفظ واحد).
+                          onTapOutside: (_) =>
+                              svcPriceFocusNodes[services[i]]?.unfocus(),
+                          onSubmitted: (_) => _commitSvcPrice(services[i]),
                         ),
-                        // م55 — اللمس خارج الحقل على الهاتف لا يُفقده
-                        // التركيز افتراضياً: نُفقده صراحةً فيمر الحفظ
-                        // بمستمع فقد التركيز نفسه (مسار حفظ واحد).
-                        onTapOutside: (_) =>
-                            svcPriceFocusNodes[services[i]]?.unfocus(),
-                        onSubmitted: (_) => _commitSvcPrice(services[i]),
                       ),
-                    ),
                     // م143 — «تركيبات» مقفولةٌ ضد الحذف (بلا زر حذف): حذفُها
                     // يبثّ شاهدَ قبرٍ لكل الأجهزة فيمحو افتراضاً لازماً.
-                    // سعرُها يبقى قابلاً للتعديل (حقل السعر أعلاه)، وباقي
-                    // المعالجات تُحذف بحرّية.
-                    if (!_kLockedServices.contains(services[i]))
+                    // وباقي المعالجات تُحذف بحرّية.
+                    if (!kLockedServices.contains(services[i]))
                       IconButton(
                         key: Key('svc-del-$i'),
                         visualDensity: VisualDensity.compact,
@@ -1707,6 +1733,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _setSvcPrice(String svc, String val, {bool ui = true}) {
+    // م181 — صمام أمان: المعالجات المقفلة بلا سعر إطلاقاً (لا حقل لها في
+    // الواجهة أصلاً، وهذا يمنع أي مسار مستقبلي من كتابة سعرٍ لها).
+    if (kLockedServices.contains(svc)) return;
     final repos = _repos;
     if (repos == null) return;
     final cfg = _readConfig();
