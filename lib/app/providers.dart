@@ -19,6 +19,7 @@ import '../data/cloud/cloud_config.dart';
 import '../data/cloud/gotrue_client.dart';
 import '../data/cloud/session_store.dart' show SessionStore;
 import '../data/net/network_status.dart';
+import '../data/rates/rate_snapshot.dart' show ratesFeatureEnabled;
 import '../data/net/reconnect_kick.dart';
 import '../features/auth/onboarding_service.dart';
 import '../features/auth/oauth_signin.dart';
@@ -770,6 +771,12 @@ final appConfigProvider = Provider<Map<String, Object?>>((ref) {
   final v = ref.watch(reposProvider).settings.get('app.config');
   return v is Map ? Map<String, Object?>.from(v) : <String, Object?>{};
 });
+
+/// م180 — مفتاح ميزة «نسبة المعالجات» للواجهات (مطفأ افتراضياً):
+/// عند الإطفاء تختفي حصة الطبيب من كل الشاشات والطباعة، والإجمالي كله
+/// للعيادة. المصدر الواحد: ratesFeatureEnabled في rate_snapshot.
+final ratesEnabledProvider = Provider<bool>(
+    (ref) => ratesFeatureEnabled(ref.watch(appConfigProvider)));
 
 /// نبضة إعادة قراءة للإعدادات (تزيد بعد كل كتابة).
 final configRevProvider = StateProvider<int>((ref) => 0);
