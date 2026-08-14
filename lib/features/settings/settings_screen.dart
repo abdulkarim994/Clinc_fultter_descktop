@@ -1196,7 +1196,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _inputSave(
                 const Key('center-name-input'),
                 centerCtl,
-                'طب الأسنان الرقمي',
+                'DENTSHINE',
                 saveKey: const Key('center-name-save'),
                 () {
                   _update((c) => {...c, 'centerName': centerCtl.text.trim()});
