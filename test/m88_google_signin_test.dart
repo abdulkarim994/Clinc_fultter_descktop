@@ -99,6 +99,9 @@ void main() {
 
       // زر Google حاضرٌ في شاشة الدخول.
       expect(find.byKey(const Key('google-signin-btn')), findsOneWidget);
+      // م180/د — البطاقة صارت أطول (المبدّل المنزلق): يُمرَّر للزر أولاً.
+      await tester.ensureVisible(find.byKey(const Key('google-signin-btn')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('google-signin-btn')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -120,6 +123,9 @@ void main() {
       ));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
+      // م180/د — البطاقة صارت أطول (المبدّل المنزلق): يُمرَّر للزر أولاً.
+      await tester.ensureVisible(find.byKey(const Key('google-signin-btn')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('google-signin-btn')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -135,6 +141,9 @@ void main() {
           reason: 'م88/ج: الخروج من الإعداد يعيد لشاشة الدخول');
 
       // وعودتُه بنفس الحساب ⇒ الإعدادُ الإجباري نفسه — الإجبارية تصمد.
+      // م180/د — البطاقة صارت أطول (المبدّل المنزلق): يُمرَّر للزر أولاً.
+      await tester.ensureVisible(find.byKey(const Key('google-signin-btn')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('google-signin-btn')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
@@ -166,6 +175,9 @@ void main() {
       ));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
+      // م180/د — البطاقة صارت أطول (المبدّل المنزلق): يُمرَّر للزر أولاً.
+      await tester.ensureVisible(find.byKey(const Key('google-signin-btn')));
+      await tester.pump();
       await tester.tap(find.byKey(const Key('google-signin-btn')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
