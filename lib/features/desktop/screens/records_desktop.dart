@@ -35,6 +35,7 @@ import '../../patients/patients_logic.dart'
         clinicSortLabels,
         editPatientCascade,
         filterClinicPatients,
+        IdentityIndex,
         rowMatchesIdentity;
 import '../../patients/patients_tab.dart'
     show
@@ -272,13 +273,20 @@ class _DesktopRecordsScreenState
   Future<void> _editPatient(ClinicPatientRow p) async {
     final repos = ref.read(reposProvider);
     // م-عزل الهوية — التعبئة من صفوف هذه الهوية وحدها (لا هاتف السميّ).
+    // م181 — بالحلّال الموروث (دفعة/دين بلا هاتف يتبعان أصلهما).
+    final idIdx = IdentityIndex(
+      repos.records.getAll(),
+      repos.prosthetics.getAll(),
+      repos.debts.getAll(),
+    );
     final all = [
       ...repos.records.getAll(),
       ...repos.prosthetics.getAll(),
       ...repos.debts.getAll(),
     ]
         .where((r) =>
-            r['name'] == p.agg.name && rowMatchesIdentity(r, p.agg.identity))
+            r['name'] == p.agg.name &&
+            rowMatchesIdentity(r, p.agg.identity, idIdx))
         .toList()
       ..sort((a, b) =>
           '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'));
