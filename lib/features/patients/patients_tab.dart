@@ -1097,13 +1097,20 @@ class _ClinicPatientsScreenState
     final repos = ref.read(reposProvider);
     // م-عزل الهوية — قصر مصادر التعبئة على صفوف هذه الهوية: هاتفُ السميّ
     // لا يُعبَّأ في حوار تعديل سميّه.
+    // م181 — بالحلّال الموروث (دفعة/دين بلا هاتف يتبعان أصلهما).
+    final idIdx = IdentityIndex(
+      repos.records.getAll(),
+      repos.prosthetics.getAll(),
+      repos.debts.getAll(),
+    );
     final all = [
       ...repos.records.getAll(),
       ...repos.prosthetics.getAll(),
       ...repos.debts.getAll(),
     ]
         .where((r) =>
-            r['name'] == p.agg.name && rowMatchesIdentity(r, p.agg.identity))
+            r['name'] == p.agg.name &&
+            rowMatchesIdentity(r, p.agg.identity, idIdx))
         .toList()
       ..sort((a, b) =>
           '${b['date'] ?? ''}'.compareTo('${a['date'] ?? ''}'));

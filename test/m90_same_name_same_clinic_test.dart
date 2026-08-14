@@ -492,16 +492,20 @@ void main() {
       expect(a2.debtRemaining, 700);
       expect(a2.visitCount, 2);
 
-      // **جذر لقطة 0/0/0 حرفياً**: بلا تمرير هوية، buildPatientMap يقسم
-      // مجموعة الاسم على هاتفين فأكثر بمفاتيح مركّبة («حسن||p:هاتف»)،
-      // فلا يجد patientForClinic مفتاح الاسم المجرّد ⇒ يعيد null، وتقرؤه
-      // الترويسة PatientAgg(name) فارغاً (0/0/0) بينما الصفوف المرشحة
-      // بالهوية تعرض قيمها. تمرير الهوية (a1/a2 أعلاه) هو الإصلاح.
+      // **جذر لقطة 0/0/0 حرفياً**: بلا تمرير هوية، كان buildPatientMap
+      // يقسم مجموعة الاسم بمفاتيح مركّبة («حسن||p:هاتف») فلا يجد
+      // patientForClinic مفتاح الاسم المجرّد ⇒ null ⇒ ترويسة 0/0/0.
+      // م181 — الإصلاح الجذري الثاني: البناء صار بلا انقسام داخلي
+      // (splitSameName:false) فيعيد الفتحُ بلا هوية تجميعةً **موحّدة**
+      // تطابق كل الصفوف الظاهرة — لا null ولا 0/0/0 بأي مسار.
       final merged = patientForClinic('حسن', 'الصفوة',
           records: recs, prosthetics: const [], debts: dbts);
-      expect(merged, isNull,
-          reason: 'اسمٌ بهاتفين ⇒ تجميعةٌ منقسمة لا يجدها مفتاح الاسم = 0/0/0');
-      // والإصلاح: تمرير الهوية يعيد تجميعةً غير فارغة تطابق صفوفها.
+      expect(merged, isNotNull,
+          reason: 'م181: مفتاح الاسم يجد التجميعة دائماً — زال 0/0/0');
+      expect(merged!.grossTotal, 1250, reason: '100 + 250 + 900 موحّدة');
+      expect(merged.total, 550, reason: '100 + 250 + 200 مدفوع الدين');
+      expect(merged.debtRemaining, 700);
+      // وتمرير الهوية يبقى العزل الصحيح لكل سميّ.
       expect(a1.grossTotal, 100);
       expect(a2.grossTotal, 1150);
     });

@@ -173,6 +173,10 @@ PayInstallmentResult payDebtInstallment(
           isPros: true),
       'clinic': debt['clinic'], 'service': svcLabel, 'payment': payment,
       'incomeDate': ?incomeDay,
+      // م181 — سكّ الهوية: سجل الدفعة يرث هاتف دينه ومعرّف مريضه، فلا
+      // ينزلق «بلا رقم» شبحاً يوازي سميّاً حقيقياً في قوائم المرضى.
+      if (jsTruthy(debt['phone'])) 'phone': debt['phone'],
+      'patient_id': ?resolvePid(debt),
       // م76 — أرقام لا منطقيات. هذه الأعلام أعمدة مرقّاة في `records`
       // فكان `_bindable` ينقذها بالمصادفة لا بالتصميم؛ وإسقاط أيٍّ منها
       // من قائمة الأعمدة يوماً كان سيحوّلها صامتاً إلى منطقيات في كتلة
@@ -200,6 +204,9 @@ PayInstallmentResult payDebtInstallment(
           isPros: false),
       'clinic': debt['clinic'], 'service': svcLabel, 'payment': payment,
       'incomeDate': ?incomeDay,
+      // م181 — سكّ الهوية (توأم فرع التركيبات أعلاه).
+      if (jsTruthy(debt['phone'])) 'phone': debt['phone'],
+      'patient_id': ?resolvePid(debt),
       'isDebt': 0, 'isPros': 0, 'isDebtPayment': 1, // م76 — أرقام لا منطقيات
       'debtId': debt['id'],
       'debtPaymentType': isFull ? 'full' : 'partial',

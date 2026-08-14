@@ -16,6 +16,8 @@
 library;
 
 import 'treatment_plan_store.dart';
+import '../../data/repositories/patients_repository.dart'
+    show patientKeyFor;
 import '../../data/sync/merge/config_tombs.dart';
 import '../../core/utils/ar_normalize.dart';
 import '../../core/utils/js_compat.dart';
@@ -63,29 +65,106 @@ int fuzzyScore(String query, String name) {
 //    إلحاقها بأحد الهاتفين.
 //  الهاتف الأول وحده هو المعرِّف (كما patientKeyFor في الخلفية) —
 //  phone2 وسيلة تواصل لا هوية.
+//
+// ── م181 — الحلّال الموحّد بالوراثة (العزل الجذري) ─────────────────────────
+//
+//  م90 كان يقرأ هاتف كل صفٍّ **الخام وحده**، وسجلات الدفعات (الدفعة
+//  الأولى ودفعات الديون) كانت تُكتب بلا هاتفٍ ولا معرّف — فكل دفعةٍ
+//  لمريضٍ متشابهٍ كانت تلد مريض «بلا رقم» شبحاً بصفر قيم، وترويسة الملف
+//  تنكسر (لقطات بلاغ المالك). الحل الجذري طبقتان:
+//  • كتابةً: كل صفٍّ يُسكّ بهويته كاملة (هاتف + patient_id) — انظر
+//    record_saver وdebt_actions.
+//  • قراءةً: [IdentityIndex] يحلّ هوية أي صفٍّ من ثلاثة مصادر بالترتيب:
+//    هاتفه الخام ← هاتف patient_id المسكوك (`p:<هاتف>:…`) ← **وراثةً من
+//    صفّ أصله عبر الروابط الموجودة** (دفعة→دينها عبر debtId، دين→سجله
+//    عبر recordId/prostheticId، تحليل→زيارته عبر analysisOf) — فتُصلَح
+//    بيانات ما قبل م181 المكسورة قراءةً، حتمياً وبلا هجرة كتابة.
 
-/// هاتف الهوية المطبَّع لصفٍّ (أرقام فقط؛ فارغ = بلا هاتف).
+/// هاتف الهوية المطبَّع لصفٍّ (أرقام فقط؛ فارغ = بلا هاتف) — الخام وحده.
 String rowIdentityPhone(JMap r) =>
     '${r['phone'] ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
 
+/// م181 — هاتف patient_id المسكوك (`p:<هاتف>:<اسم>`) أو فارغ.
+String _pidPhone(JMap r) {
+  final pid = '${r['patient_id'] ?? ''}';
+  if (!pid.startsWith('p:')) return '';
+  final cut = pid.indexOf(':', 2);
+  final ph = cut < 0 ? pid.substring(2) : pid.substring(2, cut);
+  return ph.replaceAll(RegExp(r'[^0-9]'), '');
+}
+
+/// م181 — فهرس الروابط: يحلّ هوية الصفوف المرتبطة وراثةً من أصولها.
+/// يُبنى مرة واحدة لكل عملية تجميع/ترشيح من الجداول الثلاثة معاً.
+class IdentityIndex {
+  IdentityIndex(List<JMap> records, List<JMap> prosthetics, List<JMap> debts)
+      : _byId = {
+          for (final r in records) '${r['id']}': r,
+          for (final p in prosthetics) '${p['id']}': p,
+          for (final d in debts) '${d['id']}': d,
+        };
+
+  final Map<String, JMap> _byId;
+
+  /// روابط الأصل بترتيب القرب: دفعة→دينها، دين→سجله/تركيبته، تحليل→زيارته.
+  static const _linkKeys = ['debtId', 'recordId', 'prostheticId', 'analysisOf'];
+
+  /// هاتف هوية الصف: الخام ← المسكوك ← الموروث عبر الروابط (عمق محدود
+  /// بمجموعة زيارةٍ ضد أي دورة). فارغ = «بلا رقم» حقيقةً.
+  String phoneOf(JMap r, [Set<String>? seen]) {
+    final own = rowIdentityPhone(r);
+    if (own.isNotEmpty) return own;
+    final minted = _pidPhone(r);
+    if (minted.isNotEmpty) return minted;
+    for (final k in _linkKeys) {
+      final id = '${r[k] ?? ''}';
+      if (id.isEmpty || id == 'null') continue;
+      final parent = _byId[id];
+      if (parent == null || identical(parent, r)) continue;
+      final visited = seen ?? {'${r['id']}'};
+      if (!visited.add(id)) continue;
+      final ph = phoneOf(parent, visited);
+      if (ph.isNotEmpty) return ph;
+    }
+    return '';
+  }
+}
+
 /// هوية الصفّ الفرعية داخل مجموعةٍ **منقسمة**: `p:<هاتف>` أو `none`.
-String identityOfRow(JMap r) {
-  final ph = rowIdentityPhone(r);
+/// م181 — بالحلّال الموروث عند تمرير [idx] (المسار المعتمد في كل العرض).
+String identityOfRow(JMap r, [IdentityIndex? idx]) {
+  final ph = idx?.phoneOf(r) ?? rowIdentityPhone(r);
   return ph.isEmpty ? 'none' : 'p:$ph';
 }
 
 /// الهواتف المميزة غير الفارغة داخل صفوف مجموعةٍ واحدة — قرار الانقسام.
-Set<String> distinctIdentityPhones(Iterable<JMap> rows) => {
+Set<String> distinctIdentityPhones(Iterable<JMap> rows,
+        [IdentityIndex? idx]) =>
+    {
       for (final r in rows)
-        if (rowIdentityPhone(r).isNotEmpty) rowIdentityPhone(r),
+        if ((idx?.phoneOf(r) ?? rowIdentityPhone(r)).isNotEmpty)
+          idx?.phoneOf(r) ?? rowIdentityPhone(r),
     };
 
 /// هل يخصّ الصفُّ الهويةَ المطلوبة؟ هويةٌ فارغة = الكل (السلوك القائم).
-bool rowMatchesIdentity(JMap r, String identity) {
+/// م181 — بالحلّال الموروث عند تمرير [idx].
+bool rowMatchesIdentity(JMap r, String identity, [IdentityIndex? idx]) {
   if (identity.isEmpty) return true;
-  final ph = rowIdentityPhone(r);
+  final ph = idx?.phoneOf(r) ?? rowIdentityPhone(r);
   return identity == 'none' ? ph.isEmpty : identity == 'p:$ph';
 }
+
+/// م181 — هوية الملاحة لصفٍّ من المستودعات مباشرة (فتح ملف المريض من أي
+/// شاشة: الديون، دخل اليوم، سطح المكتب…): تُبنى الفهرسة من الجداول
+/// الثلاثة فيرث الصفُّ المرتبط هويةَ أصله — **كل مسارات الفتح تمرّ من
+/// هنا** فلا يفتح مسارٌ ملفاً بهويةٍ خاطئة تخلط سميّاً بسميّه.
+String navIdentityOf(dynamic repos, JMap row) => identityOfRow(
+      row,
+      IdentityIndex(
+        (repos.records.getAll() as List).cast<JMap>(),
+        (repos.prosthetics.getAll() as List).cast<JMap>(),
+        (repos.debts.getAll() as List).cast<JMap>(),
+      ),
+    );
 
 /// تجميعة مريض — صنوان قيم buildPatientMap.
 /// م35 (قرار مالك): الهوية = (اسم + عيادة) — نفس الاسم في عيادتين
@@ -120,25 +199,35 @@ class PatientAgg {
 /// buildPatientMap — النقل الحرفي الكامل.
 /// م35: التجميع الافتراضي بمفتاح (اسم|عيادة)؛ [groupByClinic]=false يعيد
 /// التجميع العالمي بالاسم (للتجميعة الشاملة عند فتح ملف بلا عيادة).
+/// م181 — [splitSameName]=false يعطّل انقسام المتشابهين كلياً (تجميعة
+/// واحدة بالاسم): يمرّره patientForClinic بعد ترشيح الصفوف بالهوية سلفاً
+/// فتطابق الترويسةُ الصفوفَ الظاهرة دائماً (كان بحث خريطةٍ منقسمة بمفتاح
+/// الاسم المجرد يعيد null ⇒ ترويسة 0/0/0 — لقطة بلاغ المالك).
 Map<String, PatientAgg> buildPatientMap(
     List<JMap> recs, List<JMap> pros, List<JMap> dbts,
-    {bool groupByClinic = true}) {
+    {bool groupByClinic = true, bool splitSameName = true}) {
   final all = [...recs, ...pros];
   // وسم صفوف التركيبات قبل الدمج (توأم _t == 'p').
   final prosIds = {for (final p in pros) '${p['id']}'};
   final map = <String, PatientAgg>{};
   final matchedDebtIds = <String>{};
 
+  // م181 — حلّال الهوية الموروث: يُبنى من الجداول الثلاثة معاً فتحلّ
+  // دفعةٌ بلا هاتف إلى هوية دينها وسجلها (إصلاح بيانات ما قبل م181).
+  final idx = IdentityIndex(recs, pros, dbts);
+
   // م90 — تمريرة أولى: هواتف كل مجموعة (اسم|عيادة) من الجداول الثلاثة
   // معاً — فيتطابق قرارُ الانقسام بين حلقتي السجلات والديون حتماً.
   final groupPhones = <String, Set<String>>{};
-  for (final r in [...all, ...dbts]) {
-    final nm = '${r['name'] ?? ''}'.trim();
-    if (nm.isEmpty) continue;
-    final cl = groupByClinic ? '${r['clinic'] ?? ''}'.trim() : '';
-    final ph = rowIdentityPhone(r);
-    if (ph.isNotEmpty) {
-      (groupPhones[clinicScopedKey(nm, cl)] ??= {}).add(ph);
+  if (splitSameName) {
+    for (final r in [...all, ...dbts]) {
+      final nm = '${r['name'] ?? ''}'.trim();
+      if (nm.isEmpty) continue;
+      final cl = groupByClinic ? '${r['clinic'] ?? ''}'.trim() : '';
+      final ph = idx.phoneOf(r);
+      if (ph.isNotEmpty) {
+        (groupPhones[clinicScopedKey(nm, cl)] ??= {}).add(ph);
+      }
     }
   }
 
@@ -146,7 +235,7 @@ Map<String, PatientAgg> buildPatientMap(
   (String, String) keyAndIdentity(JMap r, String nm, String cl) {
     final base = clinicScopedKey(nm, cl);
     if ((groupPhones[base]?.length ?? 0) < 2) return (base, '');
-    final ident = identityOfRow(r);
+    final ident = identityOfRow(r, idx);
     return ('$base||$ident', ident);
   }
 
@@ -430,6 +519,8 @@ List<ClinicPatientRow> clinicPatients(
   // م-عزل الهوية — الفهرس بمفتاح **اسم|هوية** (لا الاسم وحده): صفوف كل
   // هوية هاتفية تُجمَّع منفصلة، فلا يتسرّب هاتفُ سميٍّ إلى بحث/عرض سميّه.
   // (بقاء البناء عابراً للعيادات كالأصل — الترشيح بالعيادة في العرض.)
+  // م181 — الهوية بالحلّال الموروث (دفعة/دين بلا هاتف تتبع أصلها).
+  final idIdx = IdentityIndex(records, prosthetics, debts);
   final phoneIdx = <String, String>{};
   final phoneIdxByName = <String, String>{};
   for (final r in [...records, ...prosthetics, ...debts]) {
@@ -439,7 +530,7 @@ List<ClinicPatientRow> clinicPatients(
         .replaceAll(RegExp(r'[^0-9 ]'), '')
         .trim();
     if (ph.isEmpty) continue;
-    final k = '$name|${identityOfRow(r)}';
+    final k = '$name|${identityOfRow(r, idIdx)}';
     phoneIdx[k] = ('${phoneIdx[k] ?? ''} $ph').trim();
     // اتحادُ هواتف الاسم — للهوية الموحّدة (غير المنقسمة) التي تضم كل صفوفه.
     phoneIdxByName[name] = ('${phoneIdxByName[name] ?? ''} $ph').trim();
@@ -457,7 +548,7 @@ List<ClinicPatientRow> clinicPatients(
               d['name'] == p.name &&
               '${d['clinic'] ?? ''}' == clinicName &&
               d['status'] != 'paid' &&
-              rowMatchesIdentity(d, p.identity)),
+              rowMatchesIdentity(d, p.identity, idIdx)),
           hasPros: p.entries
               .any((e) => e['_s'] == 'p' || e['_t'] == 'p'),
           hasReport: p.entries.any(_entryHasReport),
@@ -558,19 +649,32 @@ int editPatientCascade(
   final nm = newName.trim();
   if (nm.isEmpty) return 0;
   final cl = clinic.trim();
+  final allRecs = repos.records.getAll() as List<JMap>;
+  final allPros = repos.prosthetics.getAll() as List<JMap>;
+  final allDebts = repos.debts.getAll() as List<JMap>;
+  // م181 — نطاق الهوية بالحلّال الموروث: دفعات ما قبل م181 بلا هاتفٍ
+  // تتبع دينَها فتُكتسح مع صاحبها لا مع «بلا رقم».
+  final idx = IdentityIndex(allRecs, allPros, allDebts);
   bool inScope(JMap r) =>
       r['name'] == origName &&
       (cl.isEmpty || '${r['clinic'] ?? ''}'.trim() == cl) &&
-      rowMatchesIdentity(r, identity);
+      rowMatchesIdentity(r, identity, idx);
   var touched = 0;
   void sweep(List<JMap> rows, void Function(JMap) save,
-      {bool withPhone2 = true}) {
+      {bool withPhone2 = true, bool withPid = true}) {
     for (final r in rows) {
       if (inScope(r)) {
+        // م181 — إعادة سكّ معرّف المريض مع كل اكتساح: الهوية المسكوكة
+        // تلاحق الاسم/الهاتف الجديدين (هاتف النموذج وإلا هاتف الصف) —
+        // فلا يبقى معرّفٌ قديم يشدّ الصف لهوية ما قبل التعديل.
+        final effPhone =
+            phone.isNotEmpty ? phone : '${r['phone'] ?? ''}';
+        final pid = patientKeyFor(name: nm, phone: effPhone);
         final changes = <String, Object?>{
           'name': nm,
           if (phone.isNotEmpty) 'phone': phone,
           if (withPhone2 && phone2.isNotEmpty) 'phone2': phone2,
+          if (withPid && pid != null) 'patient_id': pid,
         };
         save({
           ...r,
@@ -584,12 +688,9 @@ int editPatientCascade(
     }
   }
 
-  sweep(repos.records.getAll() as List<JMap>,
-      (r) => repos.records.upsertLocal(r));
-  sweep(repos.prosthetics.getAll() as List<JMap>,
-      (r) => repos.prosthetics.upsertLocal(r));
-  sweep(repos.debts.getAll() as List<JMap>,
-      (r) => repos.debts.upsertLocal(r));
+  sweep(allRecs, (r) => repos.records.upsertLocal(r));
+  sweep(allPros, (r) => repos.prosthetics.upsertLocal(r));
+  sweep(allDebts, (r) => repos.debts.upsertLocal(r));
   sweep(repos.appointments.getAll() as List<JMap>,
       (r) => repos.appointments.upsertLocal(r),
       withPhone2: false);
@@ -666,6 +767,12 @@ bool _sameKeys(Map a, Map b) =>
 /// المجمَّعة بتلك الهوية عبر [rowMatchesIdentity]، فترويسة الملف (الإجمالي/
 /// المدفوع/الديون/الزيارات) تطابق **الصفوف المرشحة بالهوية** نفسها ولا
 /// تخلط سميّاً بسميّه (هذا سبب لقطة المالك 0/0/0). فارغةٌ = السلوك القائم.
+/// م181 — إصلاحان جذريان:
+/// • الترشيح بالحلّال الموروث ([IdentityIndex] على القوائم الكاملة) —
+///   فدفعةُ ما قبل م181 بلا هاتفٍ تتبع دينَها لا هويةَ «بلا رقم».
+/// • البناء بلا انقسام (splitSameName:false): الصفوف مرشّحة سلفاً،
+///   والانقسام الداخلي كان يشظّي الخريطة بمفاتيح `اسم||هوية` فيعود بحثُ
+///   الاسم المجرد null ⇒ ترويسة 0/0/0 رغم سجلات ظاهرة (لقطة المالك).
 PatientAgg? patientForClinic(
   String name,
   String clinic, {
@@ -676,11 +783,12 @@ PatientAgg? patientForClinic(
 }) {
   final nm = name.trim();
   if (nm.isEmpty) return null;
+  final idx = IdentityIndex(records, prosthetics, debts);
   bool inClinic(JMap r) => clinic.isEmpty || r['clinic'] == clinic;
   bool mine(JMap r) =>
       '${r['name'] ?? ''}'.trim() == nm &&
       inClinic(r) &&
-      rowMatchesIdentity(r, identity);
+      rowMatchesIdentity(r, identity, idx);
   // م35 — الصفوف مرشّحة سلفاً: تجميع عالمي بالاسم يعيد تجميعة واحدة
   // صحيحة سواء فُتح الملف بعيادة أم بلا عيادة.
   return buildPatientMap(
@@ -688,6 +796,7 @@ PatientAgg? patientForClinic(
     [for (final p in prosthetics) if (mine(p)) p],
     [for (final d in debts) if (mine(d)) d],
     groupByClinic: false,
+    splitSameName: false,
   )[nm];
 }
 
@@ -739,11 +848,14 @@ List<TreatmentCardGroup> treatmentCards({
   // (p:هاتف / none) فلا تظهر بطاقات معالجات سميّه. فارغة = السلوك القائم.
   // (سجلات المجموعات تأتي من patient.entries المرشّحة سلفاً بالهوية.)
   String identity = '',
+  // م181 — حلّال الهوية الموروث من المنادي (الملف يبنيه من قوائمه الخام
+  // الثلاث) — فيتبع دينٌ بلا هاتفٍ سجلَّه لا هويةَ «بلا رقم».
+  IdentityIndex? idx,
 }) {
   bool scoped(JMap r) =>
       r['name'] == patientName &&
       (clinic.isEmpty || r['clinic'] == clinic) &&
-      rowMatchesIdentity(r, identity);
+      rowMatchesIdentity(r, identity, idx);
   final pros = [for (final p in prosthetics) if (scoped(p)) p];
   final myDebts = [for (final d in debts) if (scoped(d)) d];
   final groups = <String, TreatmentCardGroup>{};
