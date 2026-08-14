@@ -2202,10 +2202,41 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget _ratesBody(JMap cfg) {
     final clinics = _list(cfg, 'clinics');
     final services = _list(cfg, 'services');
+    // م180 — مفتاح الميزة (مطفأة افتراضياً — قرار المالك): طبيبٌ وحده
+    // لا يحتاج النسب، فالإجمالي كله للعيادة وتختفي حصة الطبيب من كل
+    // الشاشات والطباعة. التفعيل يسري من يومه (لقطات الماضي محفوظة).
+    final ratesOn = ratesFeatureEnabled(cfg);
     return _glass(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Expanded(child: _secH('ميزة نسبة المعالجات')),
+              Switch(
+                key: const Key('set-rates-enabled'),
+                value: ratesOn,
+                activeTrackColor: BrandColors.brand600,
+                onChanged: (v) =>
+                    _update((c) => {...c, 'ratesEnabled': v}),
+              ),
+            ],
+          ),
+          Text(
+            ratesOn
+                ? 'مفعّلة: للعمليات الجديدة نسبة طبيبٍ تُجمَّد لقطةً لحظة '
+                    'الحفظ. إيقافها يخفي حصة الطبيب من كل الشاشات '
+                    'والطباعة ويجعل الجديد كله للعيادة — القيم القديمة '
+                    'تبقى محفوظة بلقطاتها.'
+                : 'مطفأة: الإجمالي كله للعيادة ولا تظهر حصة طبيبٍ في أي '
+                    'شاشة أو طباعة. فعّلها إن كان يعمل معك أطباء بنسبة '
+                    'من المعالجات — تسري على الجديد من يوم التفعيل.',
+            style: TextStyle(fontSize: 11, color: BrandColors.mut2),
+          ),
+          if (ratesOn) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
           _secH('نسب الطبيب لكل عيادة'),
           Text(
             'اختر عيادة لضبط نسبة الطبيب لكل معالجة على حِدة — تشمل '
@@ -2255,6 +2286,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ),
+          ],
         ],
       ),
     );
@@ -3157,7 +3189,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         // م118 — المستخدمون والصلاحيات (للإدارة حصراً).
-        if (isAdmin)
+        // م180 — بشرط hasUsers أيضاً: بعد إيقاف النظام من جهازٍ آخر كانت
+        // جلسة الإدارة العالقة تُظهر هذه البطاقة **مع** بطاقة التفعيل معاً
+        // (علة «الخيارين» التي أبلغ عنها المالك) — الشرطان متنافيان الآن.
+        if (hasUsers && isAdmin)
           _glass(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
