@@ -23,6 +23,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart' show BrandColors;
+import '../../core/locked_services.dart'
+    show kLockedServices, kVariablePriceLabel;
 import 'license_service.dart'
     show LicenseGateResult, LicenseSnapshot, LicenseException;
 import 'idle_lock.dart' show IdleLockScope, lockedProvider, hasLockVerifier;
@@ -98,10 +100,12 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
   int _step = 0;
 
   /// معالجات الخطوة ٢: (الاسم، السعر) — مبذورة بالافتراضية القائمة.
+  /// م181 — «تركيبات» لم تعد صفاً حراً هنا: معالجة نظامية مثبتة تُعرض
+  /// صفاً مقفلاً (بلا اسم يحرَّر ولا سعر ولا حذف) وتُكتب دائماً عند
+  /// الحفظ — سعرها متغيّر بطبيعته (وحدات × سعر نوع المختبر لكل حالة).
   final List<(TextEditingController, TextEditingController)> _svcCtls = [
     (TextEditingController(text: 'حشو عصب أمامي'), TextEditingController()),
     (TextEditingController(text: 'حشو عصب خلفي'), TextEditingController()),
-    (TextEditingController(text: 'تركيبات'), TextEditingController()),
   ];
 
   /// مختبرات الخطوة ٣: لكل مختبر اسمٌ وقائمة أنواع (اسم، سعر).
@@ -491,12 +495,19 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
 
   /// م180/ج — الخطوة ٢: المعالجات وأسعارها (واحدة على الأقل — إلزامية).
   /// تُكتب `services` و`servicePrices` معاً ثم ننتقل للمختبرات.
+  /// م181 — «تركيبات» تُلحق دائماً في ذيل القائمة (مثبتة، بلا سعر)؛
+  /// وكتابتها يدوياً كصفٍّ حر مرفوضة كي لا تتكرر أو تحمل سعراً.
   void _submitServices() {
     final names = <String>[];
     final prices = <String, Object?>{};
     for (final (n, p) in _svcCtls) {
       final nm = n.text.trim();
       if (nm.isEmpty) continue;
+      if (kLockedServices.contains(nm)) {
+        setState(() =>
+            _formError = '«$nm» مثبتة تلقائياً — لا حاجة لإدخالها');
+        return;
+      }
       if (names.contains(nm)) {
         setState(() => _formError = 'المعالجة «$nm» مكررة');
         return;
@@ -509,6 +520,7 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
       setState(() => _formError = 'أضِف معالجة واحدة على الأقل');
       return;
     }
+    names.addAll(kLockedServices);
     final repos = ref.read(reposProvider);
     final cur = repos.settings.get('app.config');
     final cfg = cur is Map
@@ -1284,6 +1296,44 @@ class _PostLoginGateState extends ConsumerState<PostLoginGate>
                       onTap: () => _removeService(i),
                     ),
                   ],
+                ),
+              ),
+            // م181 — صف «تركيبات» المثبت: معالجة نظامية تُكتب دائماً،
+            // بلا اسم يحرَّر ولا حقل سعر ولا حذف — سعرها متغيّر بطبيعته
+            // (وحدات × سعر نوع المختبر) فيُدخل مع كل حالة لا هنا.
+            for (final locked in kLockedServices)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  key: Key('gate-svc-locked-$locked'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                  decoration: BoxDecoration(
+                    color: BrandColors.gold.withValues(alpha: .06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: BrandColors.gold.withValues(alpha: .30),
+                        width: .8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_rounded,
+                          size: 14, color: BrandColors.goldDark),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(locked,
+                            style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: BrandColors.brandText)),
+                      ),
+                      Text(kVariablePriceLabel,
+                          style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: BrandColors.goldDark)),
+                    ],
+                  ),
                 ),
               ),
             _addBtn('إضافة معالجة', _addService,
