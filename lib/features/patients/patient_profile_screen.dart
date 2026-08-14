@@ -3312,8 +3312,13 @@ class _PatientProfileScreenState extends ConsumerState<PatientProfileScreen> {
                       child: Column(
                         children: [
                           _prevRow('الصافي:', formatNumber(net)),
-                          _prevRow('حصة الطبيب:', formatNumber(doc)),
-                          _prevRow('حصة العيادة:', formatNumber(net - doc)),
+                          // م180 — الميزة مطفأة ⇒ لا حصص: الصافي كله
+                          // للعيادة، والصفان يختفيان.
+                          if (ref.watch(ratesEnabledProvider)) ...[
+                            _prevRow('حصة الطبيب:', formatNumber(doc)),
+                            _prevRow(
+                                'حصة العيادة:', formatNumber(net - doc)),
+                          ],
                         ],
                       ),
                     ),
