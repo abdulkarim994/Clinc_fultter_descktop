@@ -22,6 +22,7 @@ import '../expenses/expenses_report.dart'
 import '../expenses/expenses_screen.dart' show expensesRefreshProvider;
 import '../finance/finance_screen.dart' show financeRevProvider;
 import '../patients/patient_profile_screen.dart' show PatientProfileScreen;
+import '../patients/patients_logic.dart' show navIdentityOf;
 import '../patients/patients_tab.dart' show patientsRevProvider;
 import '../patients/profile_actions.dart' show deleteEntryCascade;
 import '../patients/quick_info_dialog.dart' show showQuickInfoDialog;
@@ -201,12 +202,27 @@ class _DailyIncomeScreenState extends ConsumerState<DailyIncomeScreen> {
     SnackBar(content: Text(msg), duration: const Duration(milliseconds: 1600)),
   );
 
+  /// م181 — هوية الملاحة من صف الدفتر نفسه: الكيان الأصلي من مستودعه
+  /// (سجل/تركيبة/دفعة) ثم الحلّال الموروث — كان الفتح بلا هوية يدمج كل
+  /// صفوف الاسم فيخلط سميّاً بسميّه (بلاغ المالك «من شاشة الإدخال»).
+  String _rowIdentity(LedgerRow row) {
+    if (row.id.isEmpty) return '';
+    final repos = ref.read(reposProvider);
+    final src = row.kind == 'p'
+        ? repos.prosthetics.getById(row.id)
+        : repos.records.getById(row.id);
+    if (src != null) return navIdentityOf(repos, src);
+    final ph = row.phone.replaceAll(RegExp(r'[^0-9]'), '');
+    return ph.isEmpty ? '' : 'p:$ph';
+  }
+
   void _openProfile(LedgerRow row) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PatientProfileScreen(
           patientName: row.name,
           clinic: row.clinic == kNoClinic ? '' : row.clinic,
+          identity: _rowIdentity(row),
         ),
       ),
     );
