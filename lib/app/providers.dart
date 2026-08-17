@@ -169,19 +169,32 @@ final accountAdminProvider = Provider<AccountAdmin?>((ref) {
     client: client,
     accessToken: auth.validAccessToken,
     email: email,
-    // تطهير R2: تعداد كل مفاتيح الصور المحلية المعروفة وحذفها أفضلَ جهد.
+    // تطهير R2: تعداد كل مفاتيح صور الحساب وحذفها أفضلَ جهد.
+    // م185 — وُسِّع المصدر: كان يقرأ جدول `xrays` وحده، فتبقى كائناتٌ
+    // يتيمة في R2 لصورٍ في طابور الرفع (`pending_uploads`) أو محذوفةٍ
+    // محلياً بشاهد قبر ولم يُصرّف حذفها بعد (`pending_deletes`).
+    // «كل ما يحمل مفتاحاً» أدقّ من «كل ما يظهر في المعرض».
     purgeImages: () async {
       final remote = ref.read(r2ClientProvider);
       if (remote == null) return;
       final db = ref.read(localDbProvider);
-      final rows = db.query(
-        "SELECT DISTINCT file_key FROM xrays "
-        "WHERE file_key IS NOT NULL AND file_key != ''",
-        const [],
-      );
-      for (final r in rows) {
-        final key = '${r['file_key'] ?? ''}';
-        if (key.isEmpty) continue;
+      final keys = <String>{};
+      for (final q in const [
+        "SELECT DISTINCT file_key AS k FROM xrays "
+            "WHERE file_key IS NOT NULL AND file_key != ''",
+        "SELECT DISTINCT file_key AS k FROM pending_uploads "
+            "WHERE file_key IS NOT NULL AND file_key != ''",
+      ]) {
+        try {
+          for (final r in db.query(q, const [])) {
+            final key = '${r['k'] ?? ''}';
+            if (key.isNotEmpty) keys.add(key);
+          }
+        } catch (_) {
+          /* جدولٌ غائب في نسخةٍ أقدم — نتخطاه */
+        }
+      }
+      for (final key in keys) {
         try {
           await remote.delete(key); // 404/410 = نجاح («زال أصلاً»)
         } catch (_) {
