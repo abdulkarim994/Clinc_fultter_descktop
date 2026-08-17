@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""م182 — مولّد أيقونات DENTSHINE من الشعار الرسمي الواحد.
+"""م183 — مولّد أيقونات DENTSHINE من الشعار الرسمي الواحد.
 
 يأخذ ملف الشعار المصدر (لوحة مربّعة بحوافّ مستديرة وإطار ذهبي وخلفية
-خضراء) ويولّد **كل** الأشكال التي يحتاجها المشروع دفعةً واحدة، فلا
-تتفرّق الأيقونات ولا تُنسى نسخةٌ عند تغيير الهوية:
+خضراء تحمل الشعار المجرَّد واسم العلامة) ويولّد **كل** ما يحتاجه المشروع
+دفعةً واحدة — فلا تتفرّق الأيقونات ولا تُنسى نسخةٌ عند تغيير الهوية.
 
-  • assets/icon/icon-512.png            الشعار الكامل (المصدر داخل التطبيق
-                                        — شاشة الدخول + flutter_launcher_icons)
-  • assets/icon/icon-foreground.png     طبقة المقدّمة التكيفية (بهامش أمان)
-  • mipmap-*/ic_launcher.png            الأيقونة القديمة (48…192)
-  • drawable-*/ic_launcher_foreground   المقدّمة التكيفية (108…432)
-  • windows/runner/resources/app_icon.ico  أيقونة ويندوز متعدّدة المقاسات
+═══ الدرس الذي وُلد منه هذا التصميم (حادثة أيقونة م182) ═══
 
-**حساب هامش الأمان (مهم):** `mipmap-anydpi-v26/ic_launcher.xml` يلفّ
-المقدّمة بـ `inset=16%` من كل جهة، أي يتبقّى 68% من اللوحة. فنترك هنا
-هامشاً صغيراً (6%) فقط، ليصير المحصّل النهائي ≈ 64% من لوحة الأيقونة
-التكيفية — تظهر اللوحة كاملةً تحت أقنعة المربّع المستدير والـsquircle
-(الغالبة على أندرويد)، ولا يُقصّ منها تحت القناع الدائري إلا أطراف
-الإطار الذهبي. زيادة النسبة تقصّ النصّ، ونقصانها يصغّر الشعار بلا داعٍ.
+وُضعت اللوحة الكاملة (بإطارها الذهبي وشريطها السفلي) أيقونةً تكيفيةً
+بامتلاء 64٪، فظهرت على هاتف المالك (HyperOS/شاومي) **بخطوط مبتورة**:
+قناع النظام يُظهر ما يقارب **منطقة الأمان وحدها** (≈64٪ من لوحة الأيقونة
+التكيفية) ويقصّ ما بعدها — فقُصّ خطّا الإطار الرأسيان عند انحناء القناع،
+وبُتر الشريط الكريمي السفلي.
+
+**القاعدة المستخلَصة (وهي قاعدة أندرويد الرسمية):** أيقونة الإطلاق
+**لا إطار لها**. خلفيةٌ تملأ من الحافة إلى الحافة (فلا شيء ليُقصّ) وفوقها
+الشعار المجرَّد وحده داخل منطقة الأمان. لذلك يولّد هذا السكربت عائلتين:
+
+  • **عائلة الإطلاق (مقنَّعة)** — أندرويد:
+      drawable-*/ic_launcher_foreground.png   الشعار المجرَّد على شفافية
+      mipmap-*/ic_launcher.png                نسخة مسطّحة (أندرويد < 8)
+      والخلفية لونٌ متدرّج في drawable/ic_launcher_bg.xml (لا صورة).
+  • **عائلة اللوحة الكاملة (بلا قناع)** — حيث لا يقصّها شيء:
+      windows/runner/resources/app_icon.ico   أيقونة ويندوز
+      assets/icon/icon-512.png                شاشة الدخول وداخل التطبيق
 
 الاستعمال:
     python3 tool/gen_icons.py <ملف الشعار> [جذر المشروع]
@@ -25,13 +31,29 @@
 
 import sys
 from pathlib import Path
+from typing import Optional, Tuple
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageDraw
 
-# نسبة امتلاء اللوحة داخل صورة المقدّمة (قبل inset الـ16% في XML).
-FOREGROUND_FILL = 0.94
+# ── حدود الشعار المجرَّد داخل اللوحة (نِسَبٌ لا بكسلات: تصمد لو تغيّر مقاس
+# ملف المصدر). قيست على شعار DENTSHINE: حرف D والسن والبريق فوق الاسم.
+EMBLEM_BOX = (0.25, 0.09, 0.80, 0.56)  # (x0, y0, x1, y1) نِسَباً من اللوحة
 
-# مقاسات أندرويد: (اسم المجلد، المقاس).
+# عتبتا فصل الشعار عن الخلفية الخضراء (بالبعد اللوني): ما دون الأولى خلفيةٌ
+# صرفة، وما فوق الثانية شعارٌ صرف، وبينهما تدرّجٌ ناعم يحفظ نعومة الحواف.
+KEY_LO, KEY_HI = 25.0, 70.0
+
+# نسبة الشعار من لوحة الأيقونة التكيفية (108dp). منطقة الأمان الرسمية
+# 66dp/108dp ≈ 61٪، وقناع شاومي لا يُظهر أكثر منها — فـ46٪ تترك هامشاً
+# مريحاً داخلها (يشغل الشعار ≈78٪ من المساحة الظاهرة على شاومي و≈69٪ على
+# المشغّلات التي لا تكبّر). زيادتها تُلامس الحافة، ونقصانها تُقزّم الشعار.
+ADAPTIVE_EMBLEM = 0.50
+
+# النسخة المسطّحة (أندرويد < 8) لا يقصّها قناع: الشعار أكبر فيها.
+LEGACY_EMBLEM = 0.60
+LEGACY_RADIUS = 0.225  # نصف قطر زوايا المربّع (نسبة من الضلع)
+
 MIPMAPS = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
 FOREGROUNDS = {
     'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 432,
@@ -55,16 +77,55 @@ def load_tile(src: Path) -> Image.Image:
     return im
 
 
-def resized(tile: Image.Image, size: int) -> Image.Image:
-    return tile.resize((size, size), Image.LANCZOS)
+def extract_emblem(tile: Image.Image) -> Tuple[Image.Image, Tuple[int, int, int]]:
+    """يفصل الشعار المجرَّد عن خلفيته الخضراء، ويعيده مع لون تلك الخلفية.
+
+    الفصل بالبعد اللوني عن الأخضر المرجعي (وسيط زوايا المنطقة): يعطي
+    حوافّ ناعمة، ويجعل **جوف السن شفّافاً** — فتظهر خلفية الأيقونة من
+    خلاله تماماً كما في اللوحة الأصلية.
+    """
+    w, h = tile.size
+    x0, y0, x1, y1 = (round(v * (w if i % 2 == 0 else h))
+                      for i, v in enumerate(EMBLEM_BOX))
+    crop = np.array(tile.crop((x0, y0, x1, y1)), dtype=float)
+    rgb = crop[..., :3]
+    c = 60
+    corners = np.concatenate([
+        rgb[:c, :c].reshape(-1, 3), rgb[:c, -c:].reshape(-1, 3),
+        rgb[-c:, :c].reshape(-1, 3), rgb[-c:, -c:].reshape(-1, 3),
+    ])
+    ref = np.median(corners, axis=0)
+    dist = np.sqrt(((rgb - ref) ** 2).sum(axis=2))
+    alpha = np.clip((dist - KEY_LO) / (KEY_HI - KEY_LO), 0, 1) * 255
+    em = Image.fromarray(np.dstack([rgb, alpha]).astype(np.uint8))
+    bb = em.getchannel('A').point(lambda v: 255 if v > 18 else 0).getbbox()
+    if bb:
+        em = em.crop(bb)
+    return em, tuple(int(v) for v in ref.round())
 
 
-def foreground(tile: Image.Image, size: int) -> Image.Image:
-    """اللوحة داخل لوحة شفّافة بهامش الأمان (يكملها inset الـXML)."""
+def place(emblem: Image.Image, size: int, fill: float,
+          bg: Optional[Tuple] = None,
+          radius: Optional[float] = None) -> Image.Image:
+    """يضع الشعار في وسط لوحة `size` بنسبة `fill` من ضلعها.
+
+    `bg=None` ⇒ لوحة شفّافة (مقدّمة تكيفية). وإلا خلفيةٌ مصمتة بزوايا
+    مستديرة (النسخة المسطّحة لأندرويد القديم).
+    """
     canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    inner = max(1, round(size * FOREGROUND_FILL))
-    off = (size - inner) // 2
-    canvas.paste(resized(tile, inner), (off, off))
+    if bg is not None:
+        layer = Image.new('RGBA', (size, size), bg)
+        if radius:
+            mask = Image.new('L', (size, size), 0)
+            ImageDraw.Draw(mask).rounded_rectangle(
+                [0, 0, size - 1, size - 1], radius=round(size * radius),
+                fill=255)
+            layer.putalpha(mask)
+        canvas.alpha_composite(layer)
+    box = max(1, round(size * fill))
+    em = emblem.copy()
+    em.thumbnail((box, box), Image.LANCZOS)
+    canvas.alpha_composite(em, ((size - em.width) // 2, (size - em.height) // 2))
     return canvas
 
 
@@ -75,7 +136,10 @@ def main() -> int:
     src = Path(sys.argv[1])
     root = Path(sys.argv[2] if len(sys.argv) > 2 else '.')
     tile = load_tile(src)
-    print(f'اللوحة المقصوصة: {tile.size[0]}×{tile.size[1]}')
+    emblem, green = extract_emblem(tile)
+    print(f'اللوحة: {tile.size[0]}×{tile.size[1]}  ·  '
+          f'الشعار المجرَّد: {emblem.size[0]}×{emblem.size[1]}  ·  '
+          f'الأخضر: #{green[0]:02X}{green[1]:02X}{green[2]:02X}')
 
     out = []
 
@@ -85,23 +149,28 @@ def main() -> int:
         img.save(p, **kw)
         out.append((rel, p.stat().st_size))
 
-    save(resized(tile, 512), 'assets/icon/icon-512.png')
-    save(foreground(tile, 512), 'assets/icon/icon-foreground.png')
-
-    for d, s in MIPMAPS.items():
-        save(resized(tile, s),
-             f'android/app/src/main/res/mipmap-{d}/ic_launcher.png')
-    for d, s in FOREGROUNDS.items():
-        save(foreground(tile, s),
-             f'android/app/src/main/res/drawable-{d}/ic_launcher_foreground.png')
-
-    # ويندوز: ملفّ ico واحد يحمل كل المقاسات (المستكشف يختار الأنسب).
-    save(resized(tile, 256), 'windows/runner/resources/app_icon.ico',
+    # ── عائلة اللوحة الكاملة (بلا قناع) ──
+    save(tile.resize((512, 512), Image.LANCZOS), 'assets/icon/icon-512.png')
+    save(tile.resize((256, 256), Image.LANCZOS),
+         'windows/runner/resources/app_icon.ico',
          format='ICO', sizes=[(s, s) for s in ICO_SIZES])
+
+    # ── عائلة الإطلاق (مقنَّعة) ──
+    save(place(emblem, 512, ADAPTIVE_EMBLEM), 'assets/icon/icon-foreground.png')
+    for d, s in FOREGROUNDS.items():
+        save(place(emblem, s, ADAPTIVE_EMBLEM),
+             f'android/app/src/main/res/drawable-{d}/ic_launcher_foreground.png')
+    for d, s in MIPMAPS.items():
+        save(place(emblem, s, LEGACY_EMBLEM, bg=green + (255,),
+                   radius=LEGACY_RADIUS),
+             f'android/app/src/main/res/mipmap-{d}/ic_launcher.png')
 
     for rel, size in out:
         print(f'  ✅ {size:>8,} بايت  {rel}')
     print(f'المجموع: {len(out)} ملفاً')
+    print(f'تذكير: لون خلفية الأيقونة التكيفية في '
+          f'drawable/ic_launcher_bg.xml يجب أن يوافق '
+          f'#{green[0]:02X}{green[1]:02X}{green[2]:02X}')
     return 0
 
 
