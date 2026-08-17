@@ -25,6 +25,13 @@ String translateAuthError(String msg) {
     return 'البريد مسجّل مسبقاً';
   }
   if (m.contains('password')) return 'كلمة المرور ضعيفة (6 أحرف+)';
+  // م186 — أخطاء رمز الاستعادة (نقطة verify): رسالة واحدة للخطأ
+  // والانتهاء معاً — الخادم نفسه لا يفرّق فلا نوهم المستخدم بتفريق.
+  if (m.contains('otp') ||
+      (m.contains('token') &&
+          (m.contains('expired') || m.contains('invalid')))) {
+    return 'الرمز غير صحيح أو انتهت صلاحيته — اطلب رمزاً جديداً';
+  }
   // م185 — أخطاء قاعدة البيانات كانت تظهر للمستخدم بنصّها الإنجليزي الخام
   // (لقطة المالك: رسالة foreign key constraint كاملة في شريط الإشعار).
   // هذه الحالات تعني «الخادم رفض» لا «المستخدم أخطأ»، فتُترجم بوضوح مع
@@ -173,6 +180,25 @@ class GotrueClient {
       body: jsonEncode({'email': email}),
     );
     if (res.statusCode >= 400) _throwFrom(res);
+  }
+
+  /// م186 — التحقق برمز الاسترداد (الأرقام الستة من بريد «نسيت كلمة
+  /// المرور»): يعيد **جلسة استرداد** تُستعمل فوراً لتعيين الكلمة الجديدة
+  /// عبر [updatePassword] — فلا رابط يُفتح ولا صفحة وسيطة.
+  Future<GotrueSession> verifyRecoveryCode(String email, String code) async {
+    final res = await _http.post(
+      Uri.parse('$baseUrl/auth/v1/verify'),
+      headers: _headers,
+      body: jsonEncode({
+        'type': 'recovery',
+        'email': email.trim(),
+        'token': code.trim(),
+      }),
+    );
+    if (res.statusCode >= 400) _throwFrom(res);
+    final session = GotrueSession.fromJson(jsonDecode(_utf8Body(res)));
+    if (session == null) throw AuthException('استجابة جلسة غير صالحة');
+    return session;
   }
 
   /// supabase.auth.refreshSession.
