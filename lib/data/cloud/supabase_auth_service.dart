@@ -239,6 +239,29 @@ class SupabaseAuthService implements AuthService {
     await client.recoverPassword(em);
   }
 
+  /// م186 — إتمام الاستعادة بالرمز: تحقّقٌ يعيد جلسة استرداد ثم تعيين
+  /// الكلمة الجديدة بها مباشرة. أخطاء الرمز تصل مترجمةً من العميل.
+  @override
+  Future<void> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    final em = email.trim();
+    if (em.isEmpty || !em.contains('@')) {
+      throw AuthException('أدخل بريداً إلكترونياً صحيحاً');
+    }
+    final c = code.trim();
+    if (c.length < 6) {
+      throw AuthException('أدخل رمز التحقق المكوَّن من 6 أرقام');
+    }
+    if (newPassword.trim().length < 6) {
+      throw AuthException('كلمة المرور الجديدة 6 أحرف على الأقل');
+    }
+    final recovery = await client.verifyRecoveryCode(em, c);
+    await client.updatePassword(recovery.accessToken, newPassword.trim());
+  }
+
   @override
   Future<void> logout() async {
     markExplicitLogout();

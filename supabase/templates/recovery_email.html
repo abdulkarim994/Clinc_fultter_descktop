@@ -1,0 +1,71 @@
+<!-- ============================================================================
+  م186 — قالب بريد استعادة كلمة المرور (DENTSHINE)
+  ============================================================================
+
+  لماذا هذا القالب
+  ────────────────
+  القالب الافتراضي يرسل **رابطاً** يوجّه لعنوان الموقع المضبوط في
+  Supabase — صفحة معطوبة عند فتحها (بلاغ المالك). تدفق م186 صار
+  **رمزاً يُدخل داخل التطبيق**: هذا القالب يعرض الرمز {{ .Token }}
+  بدل الرابط نهائياً، فلا متصفح ولا صفحات وسيطة.
+
+  ⚠️ خطوة اللصق اليدوية (مرة واحدة — أدوات الإدارة لا تعدّل القوالب):
+    1. لوحة Supabase ← مشروع Dentaldk ← Authentication ← Email Templates
+    2. اختر «Reset password»
+    3. ضع في Subject:   رمز استعادة كلمة المرور — DENTSHINE
+    4. الصق **كل ما تحت هذا التعليق** في Message body (وضع <> Source)
+    5. Save
+
+  التحقق: من التطبيق «نسيت كلمة المرور؟» ⇐ يصلك بريد بالرمز الذهبي.
+============================================================================ -->
+<div dir="rtl" style="margin:0;padding:0;background:#f5f2ea;font-family:Tahoma,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f2ea;padding:28px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="440" cellpadding="0" cellspacing="0"
+               style="max-width:440px;width:100%;background:#ffffff;border-radius:18px;overflow:hidden;border:1px solid #e2ddd0;">
+          <!-- الترويسة بهوية DENTSHINE -->
+          <tr>
+            <td style="background:linear-gradient(160deg,#17392d,#0e2820);padding:26px 24px;text-align:center;">
+              <div style="color:#e4ca85;font-size:22px;font-weight:bold;letter-spacing:2px;">
+                DENT<span style="color:#ffffff;">SHINE</span>
+              </div>
+              <div style="color:#c9a24b;font-size:11px;letter-spacing:4px;margin-top:2px;">PRO</div>
+            </td>
+          </tr>
+          <!-- الجسم -->
+          <tr>
+            <td style="padding:28px 26px 10px;text-align:right;color:#0f2a20;">
+              <div style="font-size:16px;font-weight:bold;margin-bottom:10px;">استعادة كلمة المرور</div>
+              <div style="font-size:13px;line-height:1.9;color:#3d4b44;">
+                طلبتَ إعادة تعيين كلمة مرور حسابك في DENTSHINE.
+                أدخل هذا الرمز في التطبيق لإتمام العملية:
+              </div>
+            </td>
+          </tr>
+          <!-- الرمز -->
+          <tr>
+            <td align="center" style="padding:16px 26px;">
+              <div style="display:inline-block;background:#f7f3e8;border:1.5px dashed #c9a24b;border-radius:14px;padding:14px 34px;">
+                <span style="font-size:30px;font-weight:bold;letter-spacing:10px;color:#0f2a20;">{{ .Token }}</span>
+              </div>
+            </td>
+          </tr>
+          <!-- تذييل -->
+          <tr>
+            <td style="padding:6px 26px 26px;text-align:right;">
+              <div style="font-size:11.5px;line-height:1.8;color:#8a8577;">
+                الرمز صالح لمدة ساعة واحدة ولا يُستعمل إلا مرة.
+                إن لم تطلب الاستعادة فتجاهل هذه الرسالة — حسابك آمن
+                ولا يملك أحدٌ تغيير كلمة مرورك بلا هذا الرمز.
+              </div>
+            </td>
+          </tr>
+        </table>
+        <div style="color:#a39e8f;font-size:11px;margin-top:14px;">
+          DENTSHINE PRO — لعيادة أكثر ذكاءً وتنظيمًا
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>

@@ -64,13 +64,20 @@ void main() {
     // «نسيت كلمة المرور؟» متاح في وضع الدخول.
     expect(find.byKey(const Key('forgot-password')), findsOneWidget);
 
-    // التبديل لتبويب «إنشاء حساب جديد»: حقلاه وزره، وبلا حقول الدخول.
+    // التبديل لتبويب «إنشاء حساب جديد»: م186 — نفس صندوقَي البريد
+    // وكلمة المرور (المتحكمان مشتركان: النص المكتوب يبقى) + حقل
+    // «تأكيد كلمة المرور» الثالث، وبلا «نسيت» ولا Google.
     await tester.ensureVisible(find.byKey(const Key('auth-tab-register')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('auth-tab-register')));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byType(TextField), findsNWidgets(3));
+    expect(find.byKey(const Key('reg-confirm')), findsOneWidget);
+    expect(find.text('doc@clinic.ly'), findsOneWidget,
+        reason: 'م186: البريد المكتوب يبقى عند التبديل — نفس الصندوق');
     expect(find.byKey(const Key('forgot-password')), findsNothing);
+    expect(find.byKey(const Key('google-signin-btn')), findsNothing,
+        reason: 'م186: Google مسار دخولٍ حصراً — لا يظهر في الإنشاء');
     await tester.ensureVisible(find.byKey(const Key('register-btn')));
     await tester.pump();
     expect(find.byKey(const Key('register-btn')), findsOneWidget);

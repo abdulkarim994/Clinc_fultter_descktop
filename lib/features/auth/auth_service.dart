@@ -137,5 +137,15 @@ class LocalAuthService implements AuthService {
   }
 
   @override
+  Future<void> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    throw Exception(
+        'إعادة تعيين كلمة المرور تحتاج اتصالاً بالحساب السحابي');
+  }
+
+  @override
   Future<void> logout() async => _saveMeta(_sessionKey, '');
 }

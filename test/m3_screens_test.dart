@@ -64,6 +64,9 @@ void main() {
       await tester.ensureVisible(fields.at(0));
       await tester.enterText(fields.at(0), 'doc@clinic.ly');
       await tester.enterText(fields.at(1), 'secret12');
+      // م186 — حقل «تأكيد كلمة المرور» الجديد إلزامي التطابق.
+      await tester.enterText(
+          find.byKey(const Key('reg-confirm')), 'secret12');
       await tapSeen(tester, find.text('إنشاء الحساب'));
       await settle(tester);
       expect(find.textContaining('تم إنشاء الحساب'), findsOneWidget);
