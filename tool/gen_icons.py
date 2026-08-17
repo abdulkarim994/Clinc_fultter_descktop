@@ -50,6 +50,18 @@ KEY_LO, KEY_HI = 25.0, 70.0
 # المشغّلات التي لا تكبّر). زيادتها تُلامس الحافة، ونقصانها تُقزّم الشعار.
 ADAPTIVE_EMBLEM = 0.50
 
+# ── م184 — التوسيط **البصري** لا الهندسي ────────────────────────────────
+# توسيط صندوق الشعار يترك الهوامش متساوية لكن العين تراه مزاحاً: البريق
+# الصغير أعلى اليمين (≈8٪ من مساحة الشعار) يمدّ الصندوق يميناً بينما كتلة
+# الحرف D والسنّ كلها يساراً — فقِيس انحراف مركز الثقل 2.6٪–3.0٪ من الضلع
+# (بلاغ المالك: «اللوغو ليس في وسط الصورة تماماً»). لذلك يُوضع الشعار
+# بحيث يقع **مركز ثقله** على مركز اللوحة.
+#
+# الوزن = الشفافية × السطوع: الذهبي واللبني الساطعان يجذبان العين أكثر من
+# الحوافّ الباهتة، فهذا أقرب لما تراه العين من وزن الشفافية وحده.
+# القيمة 1.0 = توسيطٌ بصريٌّ تام، و0 = عودةٌ للتوسيط الهندسي القديم.
+OPTICAL_CENTERING = 1.0
+
 # النسخة المسطّحة (أندرويد < 8) لا يقصّها قناع: الشعار أكبر فيها.
 LEGACY_EMBLEM = 0.60
 LEGACY_RADIUS = 0.225  # نصف قطر زوايا المربّع (نسبة من الضلع)
@@ -104,10 +116,31 @@ def extract_emblem(tile: Image.Image) -> Tuple[Image.Image, Tuple[int, int, int]
     return em, tuple(int(v) for v in ref.round())
 
 
+def optical_offset(img: Image.Image) -> Tuple[float, float]:
+    """إزاحة مركز الثقل البصري عن مركز الصورة (بالبكسل).
+
+    الوزن = الشفافية × السطوع (انظر OPTICAL_CENTERING أعلاه). تُطرح هذه
+    الإزاحة عند اللصق فيستقرّ مركز الثقل في منتصف اللوحة تماماً.
+    """
+    a = np.asarray(img.convert('RGBA'), dtype=float)
+    lum = 0.2126 * a[..., 0] + 0.7152 * a[..., 1] + 0.0722 * a[..., 2]
+    w = a[..., 3] * lum
+    total = w.sum()
+    if total <= 0:
+        return 0.0, 0.0
+    h, wd = w.shape
+    ys, xs = np.mgrid[0:h, 0:wd]
+    return ((xs * w).sum() / total - (wd - 1) / 2,
+            (ys * w).sum() / total - (h - 1) / 2)
+
+
 def place(emblem: Image.Image, size: int, fill: float,
           bg: Optional[Tuple] = None,
           radius: Optional[float] = None) -> Image.Image:
     """يضع الشعار في وسط لوحة `size` بنسبة `fill` من ضلعها.
+
+    م184 — التوسيط **بصريّ**: يُزاح الشعار حتى يقع مركز ثقله على مركز
+    اللوحة (بنسبة OPTICAL_CENTERING) بدل مساواة هوامش صندوقه.
 
     `bg=None` ⇒ لوحة شفّافة (مقدّمة تكيفية). وإلا خلفيةٌ مصمتة بزوايا
     مستديرة (النسخة المسطّحة لأندرويد القديم).
@@ -125,7 +158,10 @@ def place(emblem: Image.Image, size: int, fill: float,
     box = max(1, round(size * fill))
     em = emblem.copy()
     em.thumbnail((box, box), Image.LANCZOS)
-    canvas.alpha_composite(em, ((size - em.width) // 2, (size - em.height) // 2))
+    dx, dy = optical_offset(em)
+    x = round((size - em.width) / 2 - dx * OPTICAL_CENTERING)
+    y = round((size - em.height) / 2 - dy * OPTICAL_CENTERING)
+    canvas.alpha_composite(em, (x, y))
     return canvas
 
 
