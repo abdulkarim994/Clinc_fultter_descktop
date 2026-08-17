@@ -48,7 +48,10 @@ void main() {
     // م180/د — «إنشاء حساب جديد» صار تبويباً في المبدّل المنزلق.
     expect(find.byKey(const Key('auth-switcher')), findsOneWidget);
     expect(find.text('إنشاء حساب جديد'), findsOneWidget);
-    expect(find.text('DENTSHINE'), findsOneWidget);
+    // م182 — الاسم صار داخل لوحة الشعار نفسها (لا سطر نصّي تحتها)؛
+    // الجملة التعريفية وحدها هي النصّ الباقي تحت الشعار.
+    expect(find.text('DENTSHINE'), findsNothing);
+    expect(find.text('لعيادة أكثر ذكاءً وتنظيمًا'), findsOneWidget);
 
     // الترتيب الحرفي: 0 بريد، 1 كلمة مرور (تكتب وتقرأ بالمواضع).
     await tester.enterText(
