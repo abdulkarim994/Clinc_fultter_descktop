@@ -25,6 +25,21 @@ String translateAuthError(String msg) {
     return 'البريد مسجّل مسبقاً';
   }
   if (m.contains('password')) return 'كلمة المرور ضعيفة (6 أحرف+)';
+  // م185 — أخطاء قاعدة البيانات كانت تظهر للمستخدم بنصّها الإنجليزي الخام
+  // (لقطة المالك: رسالة foreign key constraint كاملة في شريط الإشعار).
+  // هذه الحالات تعني «الخادم رفض» لا «المستخدم أخطأ»، فتُترجم بوضوح مع
+  // إبقاء التفصيل التقني بعيداً عن الطبيب.
+  if (m.contains('foreign key constraint') ||
+      m.contains('violates foreign key')) {
+    return 'تعذّر الحذف: بيانات مرتبطة على الخادم تمنعه — '
+        'حدّث التطبيق وأعد المحاولة، وإن تكرر فأبلغ الدعم';
+  }
+  if (m.contains('not authenticated') || m.contains('28000')) {
+    return 'انتهت الجلسة — سجّل الدخول من جديد ثم أعد المحاولة';
+  }
+  if (m.contains('permission denied') || m.contains('42501')) {
+    return 'الخادم رفض العملية لعدم كفاية الصلاحية — لم يُحذف أي شيء';
+  }
   return msg;
 }
 
