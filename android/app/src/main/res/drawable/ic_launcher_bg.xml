@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- م183 — خلفية أيقونة الإطلاق: تدرّجٌ أخضر من لوحة الهوية يملأ من
+     الحافة إلى الحافة. رسمةٌ لا صورة: تُقصّ بأي قناع بلا أي خطٍّ مبتور،
+     وتتكيّف مع كل الكثافات بملفٍّ واحد. اللونان مأخوذان من الشعار نفسه
+     (أعلى أفتح قليلاً كتدرّج اللوحة الأصلية). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#17392D"
+        android:endColor="#0E2820"
+        android:type="linear" />
+</shape>
