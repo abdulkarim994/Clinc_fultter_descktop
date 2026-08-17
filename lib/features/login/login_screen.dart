@@ -17,7 +17,6 @@ const _brand600 = Color(0xFF15604A);
 const _brand900 = Color(0xFF0A3024);
 const _brandDeep = Color(0xFF071E16);
 const _gold = Color(0xFFC9A24B);
-const _goldL = Color(0xFFE4CA85);
 const _goldD = Color(0xFF9C7A2E);
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -379,60 +378,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── الشعار: حلقة ذهبية متدرجة تحتضن أيقونة السن ──
+          // ── الشعار الرسمي كاملاً (لوحة الهوية نفسها) ──
+          // م182 — الشعار صار لوحةً مربّعة بحوافّ مستديرة تحمل الاسم
+          // «DENTSHINE PRO» داخلها، فحُذف القصّ الدائري (كان يبتر النصّ
+          // والشريط السفلي) وحلّت محلّه حوافّ مستديرة بنسبة اللوحة نفسها،
+          // وحُذف سطر «DENTSHINE» المكرَّر أسفلها (صار داخل الشعار).
           Center(
             child: Container(
-              width: 86,
-              height: 86,
-              padding: const EdgeInsets.all(2.5),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  begin: Alignment.topRight,
-                  end: Alignment.bottomLeft,
-                  colors: [_goldL, _goldD],
-                ),
+                borderRadius: BorderRadius.circular(26),
                 boxShadow: [
                   BoxShadow(
-                      color: _gold.withValues(alpha: .35),
-                      blurRadius: 26,
-                      offset: const Offset(0, 10)),
+                      color: _gold.withValues(alpha: .30),
+                      blurRadius: 28,
+                      offset: const Offset(0, 12)),
                 ],
               ),
-              // م180/د — شعار DENTSHINE الرسمي بدل أيقونة التبويب.
-              child: ClipOval(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(26),
                 child: Image.asset(
                   'assets/icon/icon-512.png',
-                  width: 84,
-                  height: 84,
-                  fit: BoxFit.cover,
+                  width: 118,
+                  height: 118,
+                  fit: BoxFit.contain,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          // م180/د — اسم العلامة بخط غامق من هوية التطبيق.
-          const Text(
-            'DENTSHINE',
-            textAlign: TextAlign.center,
-            textDirection: TextDirection.ltr,
-            style: TextStyle(
-              color: Color(0xFF114A38), // أخضر داكن — تباين واضح جداً
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 2.5,
-            ),
-          ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           const Text(
             'لعيادة أكثر ذكاءً وتنظيمًا',
             textAlign: TextAlign.center,
             style: TextStyle(
                 color: _goldD,
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
           // ── الحقول (الترتيب الحرفي: 0 بريد، 1 كلمة المرور) ──
           // م180/د — المبدّل المنزلق أعلى الحقول (بدل الطي أسفل الشاشة).
