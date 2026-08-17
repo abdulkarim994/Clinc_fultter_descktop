@@ -63,10 +63,13 @@ void main() {
   }
 
   group('م180/د — الهوية', () {
-    testWidgets('DENTSHINE والشعار والشعار النصي الجديد', (tester) async {
+    testWidgets('الشعار الرسمي والشعار النصي الجديد', (tester) async {
       await boot(tester);
-      expect(find.text('DENTSHINE'), findsOneWidget);
+      // م182 — لوحة الشعار تحمل «DENTSHINE PRO» داخلها، فحُذف السطر
+      // النصّي المكرَّر أسفلها وبقيت الجملة التعريفية وحدها.
       expect(find.text('لعيادة أكثر ذكاءً وتنظيمًا'), findsOneWidget);
+      expect(find.text('DENTSHINE'), findsNothing,
+          reason: 'م182: الاسم داخل الشعار نفسه — لا تكرار نصّي تحته');
       expect(find.text('نظام إدارة العيادة المتكامل'), findsNothing);
       expect(find.text('طب الأسنان الرقمي'), findsNothing);
       expect(
@@ -76,6 +79,10 @@ void main() {
               (w.image as AssetImage).assetName ==
                   'assets/icon/icon-512.png'),
           findsOneWidget);
+      // م182 — حوافّ مستديرة لا قصّ دائري (الدائري كان يبتر اسم الشعار
+      // وشريطه السفلي).
+      expect(find.byType(ClipOval), findsNothing,
+          reason: 'م182: لا قصّ دائري للشعار بعد الآن');
     });
 
     test('اسم المركز الافتراضي: الجديد والقديم كلاهما «غير مُعَدّ»', () {
