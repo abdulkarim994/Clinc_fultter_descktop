@@ -167,12 +167,12 @@ flutter_launcher_icons:
   image_path: "assets/icon/icon-512.png"
   android: true
   min_sdk_android: 21
-  # م182 — أخضر الشعار نفسه بالضبط: القناع التكيفي يحيط اللوحة بهذا
-  # اللون فيبدو امتداداً لخلفيتها لا إطاراً غريباً حولها.
-  adaptive_icon_background: "#133027"
-  # م182 — المقدّمة تُولَّد بـ tool/gen_icons.py (اللوحة بامتلاء 94٪،
-  # يكملها inset الـ16٪ في mipmap-anydpi-v26/ic_launcher.xml ⇒ ≈64٪ من
-  # لوحة الأيقونة: تنجو اللوحة كاملةً تحت أقنعة المربّع والدائرة معاً).
+  # 🔴 م183 — **المصدر الرسمي للأيقونات هو `tool/gen_icons.py` لا هذه
+  # الأداة.** تُترك الإعدادات هنا للتوافق فقط؛ وتشغيل flutter_launcher_icons
+  # سيدهس `mipmap-anydpi-v26/ic_launcher.xml` فيستبدل الخلفية المتدرّجة
+  # (drawable/ic_launcher_bg.xml) بلونٍ مسطّح — فإن شُغّلت، أعِد توليد
+  # الأيقونات بالسكربت بعدها.
+  adaptive_icon_background: "#102F26"
   adaptive_icon_foreground: "assets/icon/icon-foreground.png"
   windows:
     generate: true
