@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- م183 — الأيقونة التكيفية: خلفيةٌ متدرّجة تملأ الحافة، ومقدّمةٌ هي
+     الشعار المجرَّد وحده. حُذف inset الـ16٪ القديم: كل الحشوة صارت داخل
+     صورة المقدّمة نفسها (يحسبها tool/gen_icons.py بنسبة ADAPTIVE_EMBLEM)
+     فيبقى القرار في مكانٍ واحد لا مكانين متنازعين. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-  <background android:drawable="@color/ic_launcher_background"/>
-  <foreground>
-      <inset
-          android:drawable="@drawable/ic_launcher_foreground"
-          android:inset="16%" />
-  </foreground>
+    <background android:drawable="@drawable/ic_launcher_bg" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
