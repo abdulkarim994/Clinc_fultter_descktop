@@ -24,6 +24,9 @@ class _FakeAuth implements AuthService {
   final String? throwOnReset;
   final List<String> resetCalls = [];
 
+  /// م186 — نداءات إتمام الاستعادة بالرمز (بريد، رمز، كلمة جديدة).
+  final List<(String, String, String)> confirmCalls = [];
+
   @override
   AuthUser? restoreSession() => null;
 
@@ -42,6 +45,16 @@ class _FakeAuth implements AuthService {
   Future<void> sendPasswordReset(String email) async {
     resetCalls.add(email);
     if (throwOnReset != null) throw Exception(throwOnReset);
+  }
+
+  @override
+  Future<void> confirmPasswordReset({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    confirmCalls.add((email, code, newPassword));
+    if (code != '123456') throw Exception('الرمز غير صحيح');
   }
 }
 
@@ -127,8 +140,8 @@ void main() {
     });
   });
 
-  group('م180/د — نسيت كلمة المرور', () {
-    testWidgets('الحوار يرسل فعلاً عبر الخدمة ويؤكد برسالة محايدة',
+  group('م180/د + م186 — نسيت كلمة المرور (تدفق الرمز داخل التطبيق)', () {
+    testWidgets('الإرسال ثم حوار الرمز ثم تعيين الكلمة عبر الخدمة',
         (tester) async {
       final auth = _FakeAuth();
       await boot(tester, auth: auth);
@@ -142,14 +155,69 @@ void main() {
       await tester.tap(find.byKey(const Key('forgot-send')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      // نداء حقيقي بالبريد المُدخل.
+      // نداء حقيقي بالبريد المُدخل + رسالة محايدة.
       expect(auth.resetCalls, ['doc@clinic.ly']);
-      expect(
-          find.textContaining('أرسلنا رابط إعادة التعيين'), findsOneWidget);
+      expect(find.textContaining('أرسلنا رمز التحقق'), findsOneWidget);
+
+      // م186 — الخطوة الثانية تُفتح تلقائياً: الرمز + الكلمة وتأكيدها.
+      expect(find.byKey(const Key('reset-dialog')), findsOneWidget);
+      await tester.enterText(
+          find.byKey(const Key('reset-code')), '123456');
+      await tester.enterText(
+          find.byKey(const Key('reset-newpass')), 'newpass12');
+      await tester.enterText(
+          find.byKey(const Key('reset-confirm')), 'newpass11');
+      await tester.tap(find.byKey(const Key('reset-submit')));
+      await tester.pump();
+      // تطابقٌ مفقود ⇒ خطأ داخل الحوار بلا أي نداء.
+      expect(find.byKey(const Key('reset-error')), findsOneWidget);
+      expect(auth.confirmCalls, isEmpty);
+      await tester.enterText(
+          find.byKey(const Key('reset-confirm')), 'newpass12');
+      await tester.tap(find.byKey(const Key('reset-submit')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(auth.confirmCalls,
+          [('doc@clinic.ly', '123456', 'newpass12')]);
+      expect(find.byKey(const Key('reset-dialog')), findsNothing);
+      // فخ §9 — SnackBars تصطف: نصرّف «أرسلنا رمز التحقق» (4 ثوانٍ)
+      // بإطارٍ لخروجها وإطارٍ لدخول التالية ثم نتحقق.
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('تم تغيير كلمة المرور'), findsOneWidget);
+    });
+
+    testWidgets('رمز خاطئ ⇒ الخطأ داخل الحوار ويبقى مفتوحاً للتصحيح',
+        (tester) async {
+      final auth = _FakeAuth();
+      await boot(tester, auth: auth);
+      await tester.ensureVisible(find.byKey(const Key('forgot-password')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('forgot-password')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.enterText(
+          find.byKey(const Key('forgot-email')), 'doc@clinic.ly');
+      await tester.tap(find.byKey(const Key('forgot-send')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.enterText(
+          find.byKey(const Key('reset-code')), '000000');
+      await tester.enterText(
+          find.byKey(const Key('reset-newpass')), 'newpass12');
+      await tester.enterText(
+          find.byKey(const Key('reset-confirm')), 'newpass12');
+      await tester.tap(find.byKey(const Key('reset-submit')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byKey(const Key('reset-dialog')), findsOneWidget,
+          reason: 'م186: الحوار لا يُغلق — يصحح المستخدم ويعيد');
+      expect(find.textContaining('الرمز غير صحيح'), findsOneWidget);
     });
 
     testWidgets('فشل الإرسال يُعرض خطأً صريحاً لا صمتاً', (tester) async {
       final auth = _FakeAuth(throwOnReset: 'تعذّر الاتصال بالخادم');
+      // (لا يصل لحوار الرمز أصلاً — الإرسال نفسه فشل.)
       await boot(tester, auth: auth);
       await tester.ensureVisible(find.byKey(const Key('forgot-password')));
       await tester.pump();
