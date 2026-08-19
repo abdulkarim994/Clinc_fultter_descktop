@@ -96,7 +96,10 @@ void main() {
     final today = getCurrentDate();
     repos.settings.set('app.config', config());
 
-    String visit(String name, String clinic, String pay) => saveNewRecord(
+    // م189 — الزيارات بهواتفها: عمود الهاتف الجديد يورّث الرقم عنها.
+    String visit(String name, String clinic, String pay,
+            [String phone = '']) =>
+        saveNewRecord(
           repos,
           config(),
           SaveRecordInput(
@@ -106,18 +109,19 @@ void main() {
             clinic: clinic,
             service: 'حشو',
             payment: pay,
+            phone: phone,
           ),
         ).entryId;
 
     addAnalysisToVisit(repos,
-        analysisOf: visit('أحمد', 'الصفوة', 'كاش'),
+        analysisOf: visit('أحمد', 'الصفوة', 'كاش', '0911111111'),
         patientName: 'أحمد',
         clinic: 'الصفوة',
         date: today,
         cfg: config(),
         payment: 'كاش');
     addAnalysisToVisit(repos,
-        analysisOf: visit('سارة', 'النخبة', 'تحويل'),
+        analysisOf: visit('سارة', 'النخبة', 'تحويل', '0922222222'),
         patientName: 'سارة',
         clinic: 'النخبة',
         date: today,
@@ -265,6 +269,30 @@ void main() {
       expect(find.text('أحمد'), findsOneWidget);
       expect(find.text('سارة'), findsOneWidget);
       expect(t.takeException(), isNull);
+    });
+  });
+
+  // ── م189 — عمود رقم الهاتف بعد الاسم (طلب المالك: تمييز سميٍّ عن سميّه) ──
+  group('م189 — عمود الهاتف', () {
+    testWidgets('يظهر رقمَ الصفّ، ويورّثه عن زيارته حين كُتب بلا هاتف',
+        (t) async {
+      seed();
+      await pumpCard(t, dense: false);
+      expect(find.text('الهاتف'), findsOneWidget);
+      // أحمد: صفُّ تحليله كُتب بلا هاتف (قبل م189) — فيورَّث عن زيارته.
+      expect(find.text('0911111111'), findsOneWidget,
+          reason: 'م189: الوراثة عبر analysisOf');
+      expect(find.text('0922222222'), findsOneWidget);
+      // الصفّ القديم (بلا هاتفٍ ولا زيارةٍ أصل) — شرطة لا فراغ مبهم.
+      final old = t.widget<Text>(
+          find.byKey(const Key('anal-reg-phone-anal-old-m149')));
+      expect(old.data, '—');
+    });
+
+    testWidgets('النموذج المكثف (الهاتف) يعرض العمود أيضاً', (t) async {
+      seed();
+      await pumpCard(t, dense: true, size: const Size(560, 1000));
+      expect(find.text('الهاتف'), findsOneWidget);
     });
   });
 
