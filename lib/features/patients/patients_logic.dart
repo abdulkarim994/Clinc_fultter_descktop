@@ -22,7 +22,8 @@ import '../../data/sync/merge/config_tombs.dart';
 import '../../core/utils/ar_normalize.dart';
 import '../../core/utils/js_compat.dart';
 import 'audit_log.dart' show appendAudit;
-import 'clinic_scope.dart' show clinicScopedKey, clinicScopedRename;
+import 'clinic_scope.dart'
+    show clinicScopedKey, clinicScopedRename, medicalScopedKey;
 import '../appointments/appointments_logic.dart'
     show fuzzyMatch, levenshtein;
 
@@ -80,17 +81,35 @@ int fuzzyScore(String query, String name) {
 //    عبر recordId/prostheticId، تحليل→زيارته عبر analysisOf) — فتُصلَح
 //    بيانات ما قبل م181 المكسورة قراءةً، حتمياً وبلا هجرة كتابة.
 
-/// هاتف الهوية المطبَّع لصفٍّ (أرقام فقط؛ فارغ = بلا هاتف) — الخام وحده.
-String rowIdentityPhone(JMap r) =>
+// ── م189 — شكلٌ واحدٌ للهاتف في فضاء الهوية (السبب الجذري للملف الشبح) ────
+//
+//  كان في فضاء الهوية الواحد **شكلان** للرقم نفسه: هاتف الصفّ الخام يُقرأ
+//  بأرقامه كما كُتب (`0919292281`)، والهاتف المسكوك في `patient_id` يمرّ
+//  على التطبيع القانوني (`patientKeyFor` ⇒ `normPhone`) فيفقد صفر البدء
+//  (`919292281`). فصفٌّ يرث هويته من المعرّف (صفّ التحليل مثلاً) يصير هويةً
+//  **أخرى** لنفس الشخص ⇒ ملفٌّ ثالث بصفر زيارات وبرقمٍ بلا صفر — وهو
+//  حرفياً ما أظهرته لقطة المالك (`91929228I` مقابل `0919292281`).
+//
+//  العلاج: التطبيع القانوني ([normPhone]) في **كلا** المصدرين — فالمقارنة
+//  تصير على شكلٍ واحد، ويذوب الملف الشبح **قراءةً** بلا أي هجرة بيانات.
+//  والعرض يبقى بالرقم كما كتبه المالك (انظر [PatientAgg.phone]).
+
+/// هاتف الهوية القانوني لصفٍّ (فارغ = بلا هاتف) — من عموده الخام.
+/// م189 — بالتطبيع القانوني نفسه الذي يسكّ به المعرّف، لا بالأرقام الخام.
+String rowIdentityPhone(JMap r) => normPhone('${r['phone'] ?? ''}');
+
+/// أرقام الهاتف الخام لصفٍّ **للعرض** (كما كُتب) — لا للهوية.
+String rowRawPhone(JMap r) =>
     '${r['phone'] ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
 
 /// م181 — هاتف patient_id المسكوك (`p:<هاتف>:<اسم>`) أو فارغ.
+/// م189 — يمرّ على [normPhone] أيضاً فيتّحد شكلُه بشكل هاتف العمود.
 String _pidPhone(JMap r) {
   final pid = '${r['patient_id'] ?? ''}';
   if (!pid.startsWith('p:')) return '';
   final cut = pid.indexOf(':', 2);
   final ph = cut < 0 ? pid.substring(2) : pid.substring(2, cut);
-  return ph.replaceAll(RegExp(r'[^0-9]'), '');
+  return normPhone(ph);
 }
 
 /// م181 — فهرس الروابط: يحلّ هوية الصفوف المرتبطة وراثةً من أصولها.
@@ -171,7 +190,9 @@ String navIdentityOf(dynamic repos, JMap row) => identityOfRow(
 /// تجميعتان مستقلتان تماماً.
 /// م90: وعند التشابه داخل العيادة الواحدة تنقسم بالهاتف ([identity]).
 class PatientAgg {
-  PatientAgg(this.name, [this.clinic = '', this.identity = '', this.phone = '']);
+  PatientAgg(this.name,
+      [this.clinic = '', this.identity = '', String phone = ''])
+      : _idPhone = phone;
 
   final String name;
   final String clinic;
@@ -180,8 +201,26 @@ class PatientAgg {
   /// عند انقسام مجموعة (اسم|عيادة) على هاتفين فأكثر.
   final String identity;
 
+  /// هاتف الهوية القانوني (بلا صفر البدء) — أساس المقارنة لا العرض.
+  final String _idPhone;
+
+  /// أول هاتفٍ خامٍ رآه التجميع (كما كتبه المستخدم) — للعرض وحده.
+  String _rawPhone = '';
+
   /// م90 — هاتف العرض للتفريق البصري (فارغ للهوية الموحّدة و«بلا رقم»).
-  final String phone;
+  /// م189 — **الخام يتقدّم على القانوني**: بعد توحيد شكل الهوية صار
+  /// `_idPhone` بلا صفر البدء، وعرضه هكذا يربك المالك (رقمٌ يخالف ما
+  /// كتبه). فالعرض بالرقم كما كُتب، والمقارنة بالقانوني — كلٌّ في بابه.
+  /// وبهذا تبقى المفاتيح المشتقّة من هاتف العرض (المعلومات الطبية/الخطة/
+  /// الأرشفة) كما كانت حرفياً لكل مريضٍ قائم.
+  String get phone => _rawPhone.isNotEmpty ? _rawPhone : _idPhone;
+
+  /// م189 — يسجّل هاتف الصفّ الخام (أول غير فارغٍ يفوز).
+  void noteRawPhone(Object? raw) {
+    if (_rawPhone.isNotEmpty) return;
+    final d = '${raw ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
+    if (d.isNotEmpty) _rawPhone = d;
+  }
   final List<JMap> entries = [];
   num total = 0;
   num grossTotal = 0;
@@ -241,8 +280,11 @@ Map<String, PatientAgg> buildPatientMap(
 
   PatientAgg aggFor(JMap r, String nm, String cl) {
     final (k, ident) = keyAndIdentity(r, nm, cl);
-    return map[k] ??= PatientAgg(nm, cl, ident,
+    final agg = map[k] ??= PatientAgg(nm, cl, ident,
         ident.startsWith('p:') ? ident.substring(2) : '');
+    // م189 — هاتف العرض من الصفوف نفسها (كما كُتب) لا من الهوية القانونية.
+    agg.noteRawPhone(r['phone']);
+    return agg;
   }
 
   for (final r in all) {
@@ -558,9 +600,26 @@ List<ClinicPatientRow> clinicPatients(
           phones: p.identity.isEmpty
               ? phoneIdxByName[p.name] ?? ''
               : (phoneIdx['${p.name}|${p.identity}'] ?? p.phone),
-          archived: archivedKeys.contains(clinicScopedKey(p.name, p.clinic)),
+          // م189 — حالةُ الأرشفة **بالهوية**: كانت بمفتاح «اسم|عيادة» وحده
+          // فكان السميّان مؤرشفَين معاً حتماً (بلاغ المالك).
+          archived: aggArchived(archivedKeys, p),
         ),
   ];
+}
+
+/// م189 — هل هذه **الهوية** مؤرشفة؟
+///
+/// قراءة متدرجة مقصودة:
+///  1) مفتاح الهوية «اسم|عيادة|هاتف» — العزل الحقيقي بين السميَّين.
+///  2) ثم مفتاح «اسم|عيادة» القديم — **لكن للمجموعة غير المنقسمة وحدها**:
+///     فمرضى ما قبل م189 المؤرشفون (ومعظمهم بلا سميّ) لا تُفقد أرشفتهم،
+///     وفي الوقت نفسه لا يعود المفتاح القديم يجمع السميَّين في مصيرٍ واحد.
+bool aggArchived(Set<String> keys, PatientAgg p) {
+  if (keys.contains(medicalScopedKey(p.name, p.clinic, p.phone))) return true;
+  if (p.identity.isEmpty) {
+    return keys.contains(clinicScopedKey(p.name, p.clinic));
+  }
+  return false;
 }
 
 /// أنماط الفرز — sortBy الأصل.
