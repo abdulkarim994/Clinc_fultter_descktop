@@ -236,6 +236,8 @@ class _DesktopProfitsScreenState
               doctor: grand.doctorTotal + fDoc,
               clinic: grand.clinicTotal + fClin,
               expenses: ex.total,
+              // م187 — صفّا المختبرات (توأم نسخة الهاتف حرفياً).
+              lab: grand.prosLabCost,
               showDoctor: ratesOn,
             ),
           ),
