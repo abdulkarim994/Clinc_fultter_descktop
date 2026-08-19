@@ -15,6 +15,9 @@ import '../archive/month_stats.dart'
     show getMonthPdPays, getMonthPros, getMonthRecs, getMonthRegDebtPays,
         isProsDebtPay, prosDocEarnings;
 import '../print/treatment_tables.dart' show effectiveDoctorPct;
+// م188 — مصدرٌ واحدٌ لصفوف التحاليل: نفس دالة بطاقة السجل (منعُ تكرارٍ
+// بالمعرّف ويومُ احتسابٍ incomeDate يتقدم على date) — فلا يختلف رقمان.
+import 'analyses_filter.dart' show monthAnalysesRows;
 import 'treasury_logic.dart' show prosPayClin, prosPayLab, prosTotalPaid;
 
 typedef JMap = Map<String, Object?>;
@@ -30,6 +33,21 @@ bool _isCash(Object? p) => p == 'كاش' || p == 'نقد' || p == 'نقدي';
 // عبر صفوف الشهر؛ و`sumMoney` يجمع القروش الصحيحة فلا ينجرف. السلوك مكافئ
 // للقيم المضبوطة على القرش (وهي كلها بعد م85).
 num _sum(Iterable<JMap> arr, String key) => sumMoney(arr, key);
+
+/// م188 — إيراد التحاليل لمدةٍ ما: **إيرادٌ خاصٌّ بالعيادة** لا يُقسم مع
+/// الطبيب (قرار المالك). قبل م188 كانت صفوف التحاليل مستثناةً من الأرباح
+/// كلها نصّاً (شرط `isAnalysis` في [getMonthRecs] وفي [yearTotals]) —
+/// فلم تكن تُقسَم خطأً، بل كانت **غائبةً تماماً**؛ وهذا البند يظهرها.
+///
+/// [period] بادئةُ تاريخ: `YYYY-MM` لشهرٍ أو `YYYY` لسنة (المطابقة
+/// بالبادئة فيصحّ الاثنان بدالةٍ واحدة). القواعد مستعارةٌ حرفياً من
+/// بطاقة السجل: صفٌّ واحدٌ لكل معرّف (المزامنة قد تُكرّر)، ويومُ
+/// الاحتساب `incomeDate` إن وُجد وإلا `date`.
+///
+/// ⚠️ لا يُلمَس مرشِّح الإيراد ([getMonthRecs]) — فتبقى التحاليل خارج
+/// قاعدة النِّسَب أبداً، ولا تتضاعف مع الإجمالي.
+num analysesRevenue(List<JMap> records, {required String period}) =>
+    _sum(monthAnalysesRows(records, month: period), 'amount');
 
 /// recordDoctorShare — لقطة أولاً ثم النسبة الحية للقديم.
 num recordDoctorShare(JMap r, num fallbackPct) =>
@@ -329,6 +347,7 @@ class MonthProfitRow {
     required this.clinic,
     required this.expenses,
     this.lab = 0,
+    this.analyses = 0,
   });
 
   /// YYYY-MM.
@@ -350,11 +369,26 @@ class MonthProfitRow {
   /// الجدول متحقِّقاً من نفسه بنظرة.
   num get afterLab => revenue - lab;
 
-  /// صافي ربح العيادة للشهر = حصة العيادة − مصروفاته.
-  num get net => clinic - expenses;
+  /// م188 — إيراد التحاليل الثلاثية للشهر: **يضاف** لصافي العيادة ولا
+  /// يمسّ [revenue] ولا [doctor] (خاصٌّ بالعيادة — قرار المالك).
+  final num analyses;
+
+  /// صافي ربح العيادة للشهر = حصة العيادة − مصروفاته **+ تحاليله** (م188).
+  num get net => clinic - expenses + analyses;
+
+  /// م188 — صافي الشهر حين النِّسَب **مطفأة**: لا حصص، فالكل للعيادة —
+  /// الإيراد ناقص المعمل والمصروفات زائد التحاليل. تعبيرٌ واحدٌ ينادونه
+  /// كلهم (جدول + مؤشرات) فيستحيل أن يعرض رقمان متخالفان.
+  num get netOff => revenue - lab - expenses + analyses;
 
   bool get isEmpty =>
-      revenue == 0 && doctor == 0 && clinic == 0 && expenses == 0;
+      revenue == 0 &&
+      doctor == 0 &&
+      clinic == 0 &&
+      expenses == 0 &&
+      // م188 — شهرٌ لا فيه إلا تحاليل ليس فارغاً؛ لولا هذا لبقي باهتاً
+      // وصافيه ظاهرٌ فيه رقم — تناقضٌ أمام العين.
+      analyses == 0;
 }
 
 /// التقرير السنوي: إجماليات السنة + تفصيل أشهرها الاثني عشر.
@@ -367,6 +401,7 @@ class YearReport {
     required this.expenses,
     required this.months,
     this.lab = 0,
+    this.analyses = 0,
   });
 
   final String year;
@@ -389,11 +424,17 @@ class YearReport {
   /// م187 — إيراد السنة بعد خصم المختبرات (= الطبيب + العيادة).
   num get afterLab => revenue - lab;
 
+  /// م188 — إيراد تحاليل السنة (مجموع أشهرها) — خاصٌّ بالعيادة.
+  final num analyses;
+
   /// الأشهر الاثنا عشر بالترتيب (يناير..ديسمبر).
   final List<MonthProfitRow> months;
 
-  /// صافي ربح العيادة السنوي = حصة العيادة − المصروفات.
-  num get net => clinic - expenses;
+  /// صافي ربح العيادة السنوي = حصة العيادة − المصروفات **+ التحاليل** (م188).
+  num get net => clinic - expenses + analyses;
+
+  /// م188 — صافي السنة حين النِّسَب مطفأة (نظير [MonthProfitRow.netOff]).
+  num get netOff => revenue - lab - expenses + analyses;
 
   /// هامش الصافي % من الإيراد (0 عند غياب الإيراد).
   num get marginPct => revenue == 0 ? 0 : net / revenue * 100;
@@ -412,7 +453,7 @@ YearReport yearReport(
   List<ClinicProfitRow> Function(String month)? frozenRowsOf,
 }) {
   final months = <MonthProfitRow>[];
-  var revC = 0, docC = 0, clinC = 0, expC = 0, labC = 0;
+  var revC = 0, docC = 0, clinC = 0, expC = 0, labC = 0, anaC = 0;
   for (var i = 0; i < 12; i++) {
     final m = '$year-${'${i + 1}'.padLeft(2, '0')}';
     final rep = getMonthlyReport(records, prosthetics, debts, m, doctorPct);
@@ -428,6 +469,9 @@ YearReport yearReport(
       mClinC += toCents(f.clinicShare);
     }
     final mExpC = toCents(expensesOf?.call(m) ?? 0);
+    // م188 — تحاليل الشهر تُحسب هنا من الصفوف الخام نفسها (لا معامل من
+    // المنادي) فيستحيل أن يختلف السنوي عن الشهري.
+    final mAnaC = toCents(analysesRevenue(records, period: m));
     months.add(MonthProfitRow(
       month: m,
       idx: i,
@@ -436,12 +480,14 @@ YearReport yearReport(
       clinic: fromCents(mClinC),
       expenses: fromCents(mExpC),
       lab: fromCents(mLabC),
+      analyses: fromCents(mAnaC),
     ));
     revC += mRevC;
     docC += mDocC;
     clinC += mClinC;
     expC += mExpC;
     labC += mLabC;
+    anaC += mAnaC;
   }
   return YearReport(
     year: year,
@@ -450,6 +496,7 @@ YearReport yearReport(
     clinic: fromCents(clinC),
     expenses: fromCents(expC),
     lab: fromCents(labC),
+    analyses: fromCents(anaC),
     months: months,
   );
 }
