@@ -149,12 +149,18 @@ MonthlyReport getMonthlyReport(
 }
 
 class ClinicProfitRow {
-  const ClinicProfitRow(this.name, this.revenue, this.doctor, this.clinicShare);
+  const ClinicProfitRow(this.name, this.revenue, this.doctor, this.clinicShare,
+      [this.lab = 0]);
 
   final String name;
   final num revenue;
   final num doctor;
   final num clinicShare;
+
+  /// م187 — قيمة المختبرات المخصومة قبل تقسيم النِّسَب. موضعٌ اختياري
+  /// بقيمة صفر افتراضاً: **لقطات العيادات المحذوفة المجمّدة (م170) لا
+  /// تحمل قيمة معمل**، فتبقى صفراً فيها ولا تنكسر مناديها القدامى.
+  final num lab;
 }
 
 /// monthlyClinicRows — صف لكل عيادة لها أرقام، مرتبة بالإيراد تنازلياً.
@@ -189,8 +195,10 @@ List<ClinicProfitRow> monthlyClinicRows(
       doctorPct,
     );
     if (rep.grandTotal != 0 || rep.doctorTotal != 0 || rep.clinicTotal != 0) {
-      rows.add(ClinicProfitRow(
-          name, rep.grandTotal, rep.doctorTotal, rep.clinicTotal));
+      // م187 — قيمة المختبرات تُمرَّر مع الصف: الإيراد يحويها والحصتان لا
+      // (تُخصم قبل التقسيم) — فبها يصير الجدول متحقِّقاً من نفسه.
+      rows.add(ClinicProfitRow(name, rep.grandTotal, rep.doctorTotal,
+          rep.clinicTotal, rep.prosLabCost));
     }
   }
   rows.sort((a, b) => b.revenue.compareTo(a.revenue));
@@ -320,6 +328,7 @@ class MonthProfitRow {
     required this.doctor,
     required this.clinic,
     required this.expenses,
+    this.lab = 0,
   });
 
   /// YYYY-MM.
@@ -332,6 +341,14 @@ class MonthProfitRow {
   final num doctor;
   final num clinic;
   final num expenses;
+
+  /// م187 — قيمة المختبرات المخصومة قبل تقسيم النِّسَب.
+  final num lab;
+
+  /// م187 — الإيراد بعد خصم المختبرات: **يساوي حتماً** حصة الطبيب +
+  /// حصة العيادة (لأن الحصص تُقسم على الصافي بعد المعمل) — فبه يصير
+  /// الجدول متحقِّقاً من نفسه بنظرة.
+  num get afterLab => revenue - lab;
 
   /// صافي ربح العيادة للشهر = حصة العيادة − مصروفاته.
   num get net => clinic - expenses;
@@ -349,6 +366,7 @@ class YearReport {
     required this.clinic,
     required this.expenses,
     required this.months,
+    this.lab = 0,
   });
 
   final String year;
@@ -364,6 +382,12 @@ class YearReport {
 
   /// مصروفات السنة كاملة.
   final num expenses;
+
+  /// م187 — قيمة مختبرات السنة (مجموع أشهرها).
+  final num lab;
+
+  /// م187 — إيراد السنة بعد خصم المختبرات (= الطبيب + العيادة).
+  num get afterLab => revenue - lab;
 
   /// الأشهر الاثنا عشر بالترتيب (يناير..ديسمبر).
   final List<MonthProfitRow> months;
@@ -388,13 +412,15 @@ YearReport yearReport(
   List<ClinicProfitRow> Function(String month)? frozenRowsOf,
 }) {
   final months = <MonthProfitRow>[];
-  var revC = 0, docC = 0, clinC = 0, expC = 0;
+  var revC = 0, docC = 0, clinC = 0, expC = 0, labC = 0;
   for (var i = 0; i < 12; i++) {
     final m = '$year-${'${i + 1}'.padLeft(2, '0')}';
     final rep = getMonthlyReport(records, prosthetics, debts, m, doctorPct);
     var mRevC = toCents(rep.grandTotal);
     var mDocC = toCents(rep.doctorTotal);
     var mClinC = toCents(rep.clinicTotal);
+    // م187 — مختبرات الشهر (اللقطات المجمّدة بلا قيمة معمل فلا تزيدها).
+    final mLabC = toCents(rep.prosLabCost);
     // م170 — لقطات العيادات المحذوفة تدخل شهرها التاريخي كما في الشهري.
     for (final f in frozenRowsOf?.call(m) ?? const <ClinicProfitRow>[]) {
       mRevC += toCents(f.revenue);
@@ -409,11 +435,13 @@ YearReport yearReport(
       doctor: fromCents(mDocC),
       clinic: fromCents(mClinC),
       expenses: fromCents(mExpC),
+      lab: fromCents(mLabC),
     ));
     revC += mRevC;
     docC += mDocC;
     clinC += mClinC;
     expC += mExpC;
+    labC += mLabC;
   }
   return YearReport(
     year: year,
@@ -421,6 +449,7 @@ YearReport yearReport(
     doctor: fromCents(docC),
     clinic: fromCents(clinC),
     expenses: fromCents(expC),
+    lab: fromCents(labC),
     months: months,
   );
 }
@@ -439,11 +468,12 @@ List<ClinicProfitRow> yearlyClinicRows(
 }) {
   // تراكم بالقروش لكل اسم: [إيراد، طبيب، عيادة].
   final acc = <String, List<int>>{};
-  void add(String name, num rev, num doc, num clin) {
-    final a = acc.putIfAbsent(name, () => [0, 0, 0]);
+  void add(String name, num rev, num doc, num clin, [num lab = 0]) {
+    final a = acc.putIfAbsent(name, () => [0, 0, 0, 0]);
     a[0] += toCents(rev);
     a[1] += toCents(doc);
     a[2] += toCents(clin);
+    a[3] += toCents(lab);
   }
 
   for (var i = 0; i < 12; i++) {
@@ -454,17 +484,18 @@ List<ClinicProfitRow> yearlyClinicRows(
         debts: debts,
         clinics: clinics,
         doctorPct: doctorPct)) {
-      add(r.name, r.revenue, r.doctor, r.clinicShare);
+      add(r.name, r.revenue, r.doctor, r.clinicShare, r.lab);
     }
     for (final f in frozenRowsOf?.call(m) ?? const <ClinicProfitRow>[]) {
-      add(f.name, f.revenue, f.doctor, f.clinicShare);
+      // م187 — اللقطات المجمّدة بلا قيمة معمل (f.lab = 0 حتماً).
+      add(f.name, f.revenue, f.doctor, f.clinicShare, f.lab);
     }
   }
   final rows = [
     for (final e in acc.entries)
       if (e.value.any((c) => c != 0))
         ClinicProfitRow(e.key, fromCents(e.value[0]), fromCents(e.value[1]),
-            fromCents(e.value[2])),
+            fromCents(e.value[2]), fromCents(e.value[3])),
   ]..sort((a, b) => b.revenue.compareTo(a.revenue));
   return rows;
 }
