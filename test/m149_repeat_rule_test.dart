@@ -319,16 +319,41 @@ void main() {
       expect(analCount(c), 1);
       // زيارة ثانية بعلامة تحليل في نفس اليوم — الواجهة توقف الحفظ كله،
       // وإن تجاوزها مسارٌ ما فالكاتب يكتب الزيارة ويُسقط صف التحليل فقط.
-      saveNewRecord(
+      //
+      // 🔄 م187 — الحجب القاطع صار **للهوية المؤكَّدة** (هاتفٌ مشترك أو
+      // معرّفٌ يحمل هاتفاً)؛ فمريضٌ بلا هاتف حالتُه تحذيرٌ تأخذ الواجهة
+      // موافقةً عليه. فليكن الصمام مُختبراً بما يحرسه فعلاً: **نفس الهاتف**.
+      SaveRecordResult second({required String phone}) => saveNewRecord(
+            repos,
+            config(),
+            SaveRecordInput(
+              name: 'أحمد',
+              date: getCurrentDate(),
+              amount: 300,
+              clinic: 'الصفوة',
+              service: 'حشو',
+              payment: 'كاش',
+              phone: phone,
+              analysis: triAnalysisFor(
+                creating: true,
+                checked: true,
+                cfg: config(),
+                payment: 'كاش',
+              ),
+            ),
+          );
+      // نبذر هاتفاً على الأول ثم نكرّر به: هويةٌ مؤكَّدة ⇒ يُسقط التحليل.
+      final withPhone = saveNewRecord(
         repos,
         config(),
         SaveRecordInput(
-          name: 'أحمد',
+          name: 'خالد',
           date: getCurrentDate(),
-          amount: 300,
+          amount: 200,
           clinic: 'الصفوة',
           service: 'حشو',
           payment: 'كاش',
+          phone: '0911111111',
           analysis: triAnalysisFor(
             creating: true,
             checked: true,
@@ -337,7 +362,38 @@ void main() {
           ),
         ),
       );
-      expect(analCount(c), 1); // لم يُضف صف تحليل مخالف.
+      expect(withPhone.entryId, isNotEmpty);
+      expect(analCount(c), 2);
+      final before = repos.records.getAll().length;
+      final blockedVisit = saveNewRecord(
+        repos,
+        config(),
+        SaveRecordInput(
+          name: 'خالد',
+          date: getCurrentDate(),
+          amount: 300,
+          clinic: 'الصفوة',
+          service: 'حشو',
+          payment: 'كاش',
+          phone: '0911111111',
+          analysis: triAnalysisFor(
+            creating: true,
+            checked: true,
+            cfg: config(),
+            payment: 'كاش',
+          ),
+        ),
+      );
+      expect(blockedVisit.entryId, isNotEmpty,
+          reason: 'الزيارة تنجو وحدها');
+      expect(analCount(c), 2,
+          reason: 'م187: الهوية المؤكَّدة ⇒ صف التحليل يُسقط');
+      expect(repos.records.getAll().length, before + 1,
+          reason: 'صفُّ الزيارة وحده أُضيف');
+      // وبلا هاتف (تحذير) يمضي التحليل — الواجهة هي من تسأل الطبيب.
+      second(phone: '');
+      expect(analCount(c), 3,
+          reason: 'م187: التحذير يمضي في الكاتب (الموافقة بالواجهة)');
     });
   });
 }
