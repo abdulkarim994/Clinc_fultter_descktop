@@ -81,15 +81,21 @@ class PatientArchiveStore {
   }
 
   /// أرشفة/إلغاء دفعةً — للتحديد المتعدد.
-  void archiveAll(Iterable<({String name, String clinic})> patients) {
+  ///
+  /// م189 — [phone] صار جزءاً من الحمولة **إلزاماً**: كانت الدفعة تؤرشف
+  /// بمفتاح «اسم|عيادة» وحده، فأرشفةُ أحد السميَّين تُخفي الآخر وإلغاؤها
+  /// تُظهرهما معاً — «نظام الأرشفة يعتبرهم شخصاً واحداً» (بلاغ المالك).
+  void archiveAll(
+      Iterable<({String name, String clinic, String phone})> patients) {
     for (final p in patients) {
-      archive(p.name, p.clinic);
+      archive(p.name, p.clinic, p.phone);
     }
   }
 
-  void unarchiveAll(Iterable<({String name, String clinic})> patients) {
+  void unarchiveAll(
+      Iterable<({String name, String clinic, String phone})> patients) {
     for (final p in patients) {
-      unarchive(p.name, p.clinic);
+      unarchive(p.name, p.clinic, p.phone);
     }
   }
 
