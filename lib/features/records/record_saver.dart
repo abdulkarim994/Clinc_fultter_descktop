@@ -22,10 +22,10 @@ import '../../core/utils/ar_normalize.dart' show arNorm, normPhone;
 import '../settings/analyses3.dart'
     show
         kTriAnalysesName,
-        lastTriAnalysisDate,
+        lastTriAnalysisHit,
         triAnalysesEnabled,
         triAnalysesPrice,
-        triRepeatBlockMessage,
+        triRepeatGate,
         triRepeatMonths;
 
 
@@ -98,25 +98,33 @@ bool addAnalysisToVisit(
   String? incomeDate,
   required Map<String, Object?> cfg,
   required String payment,
+  /// م187 — هاتف المريض للبوابة (الهوية بالهاتف لا بالاسم).
+  String phone = '',
+  /// م187 — تجاوزُ **التحذير** وحده بعد موافقة الطبيب الصريحة (هوية
+  /// غير مؤكَّدة: اسمٌ مكرر بلا هاتف مميِّز). الحجب القاطع لا يُتجاوَز.
+  bool overrideWarn = false,
 }) {
   if (!triAnalysesEnabled(cfg)) return false;
   final aPrice = quantize(triAnalysesPrice(cfg));
   if (aPrice <= 0) return false;
   // م149 — حارس قاعدة التكرار في الكاتب نفسه (دفاعٌ في العمق): أي مسارِ
   // استدعاءٍ مستقبلي لا يفحص مسبقاً يُصَدُّ هنا أيضاً — فلا صف يخالف المدة.
-  final repeatBlocked = triRepeatBlockMessage(
-    lastDate: lastTriAnalysisDate(
+  // م187 — البوابة بدرجتيها: الحجب يُصدّ دائماً، والتحذير يمضي فقط بعلم
+  // [overrideWarn] الصريح (الواجهة تضعه بعد موافقة الطبيب).
+  final gate = triRepeatGate(
+    hit: lastTriAnalysisHit(
       repos.records.getAll().cast<Map<String, Object?>>(),
       patientId: patientId,
       patientName: patientName,
-      // م153 — القاعدة بنطاق العيادة، والهاتف من معرّف الهوية إن وُجد.
-      clinic: clinic,
+      phone: phone,
       normalize: arNorm,
+      normPhone: normPhone,
     ),
     today: getCurrentDate(),
     repeatMonths: triRepeatMonths(cfg),
   );
-  if (repeatBlocked != null) return false;
+  if (gate.isBlocked) return false;
+  if (gate.isWarning && !overrideWarn) return false;
   final aPay = payment == 'تحويل' ? 'تحويل' : 'كاش';
   final nowMod = jsNow();
   repos.records.upsertLocal({
@@ -139,6 +147,8 @@ bool addAnalysisToVisit(
     'isDebtPayment': 0,
     'analysisName': kTriAnalysesName,
     'analysisOf': analysisOf,
+    // م187 — أثرُ التجاوز على الصف (عددٌ لا منطقيّ) للتتبّع لاحقاً.
+    if (overrideWarn) 'triOverride': 1,
     '_t': 'r',
     '_activityAt': nowMod,
   });
@@ -519,21 +529,22 @@ SaveRecordResult saveNewRecord(
     // برسالة الخطأ قبل الوصول هنا؛ هذا صمام أمانٍ إضافي يمنع كتابة صفٍّ
     // مخالفٍ للمدة لو تجاوز أي مسارٍ مستقبلي فحص الواجهة (تنجو الزيارة
     // وحدها بلا صف تحليل — لا فقدان بياناتٍ ولا خرق قاعدة).
-    final aRepeatOk = triRepeatBlockMessage(
-          lastDate: lastTriAnalysisDate(
-            repos.records.getAll().cast<Map<String, Object?>>(),
-            patientId: pid,
-            patientName: name,
-            // م153 — القاعدة بنطاق عيادة الزيارة، وهاتف النموذج المطبَّع
-            // لاستثناء السميَّين بهاتفين صريحين مختلفين.
-            clinic: f.clinic,
-            phone: normPhone(f.phone),
-            normalize: arNorm,
-          ),
-          today: getCurrentDate(),
-          repeatMonths: triRepeatMonths(config),
-        ) ==
-        null;
+    // م187 — صمام الأمان بدرجتَي البوابة: الحجب القاطع يمنع الكتابة
+    // دائماً، والتحذير (اسمٌ مكرر بلا هاتف مميِّز) يمضي لأن الواجهة قد
+    // أخذت موافقة الطبيب صراحةً قبل الوصول هنا (passTriGate).
+    final aGate = triRepeatGate(
+      hit: lastTriAnalysisHit(
+        repos.records.getAll().cast<Map<String, Object?>>(),
+        patientId: pid,
+        patientName: name,
+        phone: f.phone,
+        normalize: arNorm,
+        normPhone: normPhone,
+      ),
+      today: getCurrentDate(),
+      repeatMonths: triRepeatMonths(config),
+    );
+    final aRepeatOk = !aGate.isBlocked;
     if (aPrice > 0 && aRepeatOk) {
       final aPay = (an.payment == 'كاش' || an.payment == 'تحويل')
           ? an.payment
@@ -562,6 +573,8 @@ SaveRecordResult saveNewRecord(
         'isDebtPayment': 0,
         'analysisName': an.name,
         'analysisOf': entryId,
+        // م187 — تجاوزُ تحذيرٍ (هوية غير مؤكَّدة) يُوسم للتتبّع.
+        if (aGate.isWarning) 'triOverride': 1,
         '_t': 'r',
         '_activityAt': nowMod,
       });
