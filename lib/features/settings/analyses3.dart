@@ -173,6 +173,12 @@ TriRepeatHit? lastTriAnalysisHit(
   String phone = '',
   required String Function(String) normalize,
   required String Function(String) normPhone,
+  /// م189 — حلّالُ هاتف الصفّ المخزَّن (اختياري): يُمرَّر من الواجهة
+  /// كـ`IdentityIndex.phoneOf` فيرث الصفُّ هاتفَ **زيارته الأصل** عبر
+  /// `analysisOf`. بدونه تبقى صفوفُ التحاليل المكتوبة قبل م189 (بلا عمود
+  /// هاتف) «مجهولةَ الهوية» فيصير كلُّ تطابقٍ بالاسم تحذيراً — وهو بلاغ
+  /// المالك: «مع أن المريض له رقم هاتف». القيمة المعادة قانونية.
+  String Function(Map<String, Object?> row)? phoneOfRow,
 }) {
   final pid = (patientId ?? '').trim();
   final wanted = normalize(patientName.trim());
@@ -188,7 +194,10 @@ TriRepeatHit? lastTriAnalysisHit(
     // الثلاثي» نصاً ولا يصح أن تحجب المريض بصفٍّ قديمٍ مختلف.
     if ('${r['analysisName'] ?? ''}' != kTriAnalysesName) continue;
     final rid = '${r['patient_id'] ?? ''}'.trim();
-    final rPhone = _rowPhone(r, normPhone);
+    // م189 — الحلّال الموروث أولاً (إن مُرِّر) ثم عمودُه فمعرّفه.
+    final rPhone = phoneOfRow != null && normPhone(phoneOfRow(r)).isNotEmpty
+        ? normPhone(phoneOfRow(r))
+        : _rowPhone(r, normPhone);
     final sameName = wanted.isNotEmpty &&
         normalize('${r['patient_name'] ?? r['name'] ?? ''}'.trim()) == wanted;
     final sameId = pid.isNotEmpty && rid.isNotEmpty && rid == pid;
