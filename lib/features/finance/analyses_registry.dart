@@ -26,6 +26,7 @@ import '../print/reports.dart' show simpleTablePdf;
 import '../print/treatment_tables.dart' show formatNumber;
 // م168 — بعد الإيقاف يصير السجل عرضاً تاريخياً فقط (بلا تعديل/حذف).
 import '../settings/analyses3.dart' show kTriAnalysesName, triAnalysesEnabled;
+import '../patients/patients_logic.dart' show IdentityIndex;
 import '../staff/staff_gate.dart' show staffAllowed;
 import 'analyses_filter.dart'
     show currentMonthTotal, filterAnalysesRows;
@@ -162,6 +163,26 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
     final c = '${r['clinic'] ?? ''}'.trim();
     if (c.isNotEmpty && c != 'null') return c;
     return '${r['clinic_id'] ?? ''}'.trim();
+  }
+
+  /// م189 — رقم هاتف الصفّ للعرض (طلب المالك: عمودٌ يميّز مريضاً عن سميّه).
+  ///
+  /// ثلاثة مصادر بالترتيب: عمودُه الخام ⇐ **الخام من زيارته الأصل**
+  /// (`analysisOf` — فصفوفُ ما قبل م189 المكتوبة بلا هاتف تظهر بأرقامها)
+  /// ⇐ القانوني من الحلّال الموروث. الخام مقدَّمٌ ليقرأ المالك الرقم كما
+  /// كتبه (بصفر البدء) لا مطبَّعاً.
+  String _rowPhoneText(_JMap r, Map<String, _JMap> byId, IdentityIndex idx) {
+    String raw(Object? v) =>
+        '${v ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
+    final own = raw(r['phone']);
+    if (own.isNotEmpty) return own;
+    final parent = byId['${r['analysisOf'] ?? ''}'];
+    if (parent != null) {
+      final p = raw(parent['phone']);
+      if (p.isNotEmpty) return p;
+    }
+    final canon = idx.phoneOf(r);
+    return canon.isNotEmpty ? canon : '—';
   }
 
   @override
@@ -388,6 +409,9 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
   double get _wDate => widget.dense ? 74 : 92;
   double get _wPay => widget.dense ? 58 : 70;
   double get _wVal => widget.dense ? 76 : 96;
+
+  /// م189 — عرض عمود الهاتف (عشرة أرقام تسع دون قصٍّ في الوضع المكثّف).
+  double get _wPhone => widget.dense ? 74 : 100;
   double get _wAct => widget.dense ? 34 : 34;
 
   Widget _movesTable(
@@ -399,6 +423,16 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
     final det = staffAllowed('treasury.details');
     final fs = widget.dense ? 11.5 : 12.5;
     final gap = widget.dense ? 8.0 : 10.0;
+    // م189 — مصدر أرقام عمود الهاتف: صفوف السجلات بمعرّفاتها (للوراثة عن
+    // الزيارة الأصل) + الحلّال الموروث احتياطاً. يُبنى مرة واحدة للجدول.
+    final repos = ref.read(reposProvider);
+    final allRecs = repos.records.getAll().cast<Map<String, Object?>>();
+    final byId = {for (final r in allRecs) '${r['id']}': r};
+    final idIdx = IdentityIndex(
+      allRecs,
+      repos.prosthetics.getAll().cast<Map<String, Object?>>(),
+      repos.debts.getAll().cast<Map<String, Object?>>(),
+    );
     num visibleSum = 0;
     for (final r in rows) {
       visibleSum += jsNumOr0(r['amount']);
@@ -417,9 +451,17 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
           if (widget.showDate)
             SizedBox(width: _wDate, child: Text('التاريخ', style: _head())),
           SizedBox(width: gap),
-          Expanded(flex: 3, child: Text('الاسم', style: _head())),
+          Expanded(
+              child: Text('الاسم',
+                  style: _head(), maxLines: 1, overflow: TextOverflow.ellipsis)),
           SizedBox(width: gap),
-          Expanded(flex: 2, child: Text('العيادة', style: _head())),
+          // م189 — عمود رقم الهاتف بعد الاسم (طلب المالك): يميّز المريض
+          // عن سميّه داخل السجل نفسه.
+          SizedBox(width: _wPhone, child: Text('الهاتف', style: _head())),
+          SizedBox(width: gap),
+          Expanded(
+              child: Text('العيادة',
+                  style: _head(), maxLines: 1, overflow: TextOverflow.ellipsis)),
           SizedBox(width: gap),
           SizedBox(
               width: _wPay,
@@ -463,7 +505,6 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
               ),
             SizedBox(width: gap),
             Expanded(
-              flex: 3,
               child: Text(
                   '${rows[i]['name'] ?? rows[i]['patient_name'] ?? ''}',
                   maxLines: 1,
@@ -472,8 +513,20 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
                       TextStyle(fontSize: fs, fontWeight: FontWeight.w700)),
             ),
             SizedBox(width: gap),
+            SizedBox(
+              width: _wPhone,
+              child: Text(_rowPhoneText(rows[i], byId, idIdx),
+                  key: Key('anal-reg-phone-${rows[i]['id']}'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: fs - 1,
+                      fontWeight: FontWeight.w700,
+                      color: BrandColors.mut,
+                      fontFeatures: const [FontFeature.tabularFigures()])),
+            ),
+            SizedBox(width: gap),
             Expanded(
-              flex: 2,
               child: Text(_rowClinic(rows[i]),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -677,6 +730,14 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
   Future<void> _print(List<_JMap> rows, String cur) async {
     final fonts = await loadPdfBrand(ref);
     final n = formatNumber;
+    final repos = ref.read(reposProvider);
+    final allRecs = repos.records.getAll().cast<Map<String, Object?>>();
+    final byId = {for (final r in allRecs) '${r['id']}': r};
+    final idIdx = IdentityIndex(
+      allRecs,
+      repos.prosthetics.getAll().cast<Map<String, Object?>>(),
+      repos.debts.getAll().cast<Map<String, Object?>>(),
+    );
     num sum = 0;
     final tableRows = <List<String>>[];
     for (final r in rows) {
@@ -685,6 +746,8 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
       tableRows.add([
         '${r['date'] ?? ''}',
         '${r['name'] ?? r['patient_name'] ?? ''}',
+        // م189 — الهاتف في الطباعة أيضاً (توأم عمود الشاشة).
+        _rowPhoneText(r, byId, idIdx),
         _rowClinic(r),
         '${r['payment'] ?? ''}',
         '${n(amt)} $cur',
@@ -695,9 +758,16 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
       fonts,
       title: 'سجلات $kTriAnalysesName',
       subtitle: today.length >= 7 ? today.substring(0, 7) : today,
-      headers: const ['التاريخ', 'اسم المريض', 'العيادة', 'الطريقة', 'السعر'],
+      headers: const [
+        'التاريخ',
+        'اسم المريض',
+        'الهاتف',
+        'العيادة',
+        'الطريقة',
+        'السعر'
+      ],
       rows: tableRows,
-      totRow: ['إجمالي الشهر الحالي', '', '', '', '${n(sum)} $cur'],
+      totRow: ['إجمالي الشهر الحالي', '', '', '', '', '${n(sum)} $cur'],
     );
     final msg = await printOrSharePdf(
         ref.read(dbDirProvider), bytes, 'analyses_registry.pdf');
