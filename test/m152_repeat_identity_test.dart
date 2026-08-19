@@ -129,8 +129,11 @@ void main() {
         .where((r) => jsTruthy(r['isAnalysis']))
         .length;
 
-    test('زيارة بهاتفٍ ثم بلا هاتف يُصَدّ (غموض)، وبهاتفٍ مختلف صريح يمرّ '
-        '(سميّان — م153)', () {
+    // 🔄 م187 — «الغموض» (غياب الهاتف) لم يبقَ حجباً احتياطياً بل تحذيراً
+    // قابلاً للتجاوز: الواجهة تسأل الطبيب، والكاتب لا يصدّ إلا **الهوية
+    // المؤكَّدة** (هاتفٌ مشترك أو معرّفٌ يحمل هاتفاً).
+    test('زيارة بهاتفٍ ثم بلا هاتف = تحذيرٌ يمضي، وبهاتفٍ مختلف يمرّ',
+        () {
       final c = container();
       addTearDown(c.dispose);
       final repos = c.read(reposProvider);
@@ -153,11 +156,17 @@ void main() {
           name: kTriAnalysesName, price: 50, payment: 'كاش');
       visit(phone: '0911111111', anal: anal); // الأول — يُكتب.
       expect(analCount(c), 1);
-      visit(phone: '', anal: anal); // نفس الاسم بلا هاتف — يُصَدّ (غموض).
-      expect(analCount(c), 1, reason: 'غياب الهاتف = غموض ⇒ حجب احتياطي');
-      // م153 — هاتف ثالث صريح مختلف = سميّان بقرار المالك ⇒ يمرّ.
+      // م187 — نفس الاسم بلا هاتف: هويةٌ غير مؤكَّدة ⇒ تحذير، والكاتب يمضي
+      // (الواجهة أخذت موافقة الطبيب قبله عبر passTriGate).
+      visit(phone: '', anal: anal);
+      expect(analCount(c), 2,
+          reason: 'م187: تحذيرٌ لا حجب — لا يُحبس الطبيب أمام سميٍّ');
+      // هاتف ثالث صريح مختلف = سميّان قطعاً ⇒ يمرّ بلا حتى تحذير.
       visit(phone: '0922222222', anal: anal);
-      expect(analCount(c), 2, reason: 'هاتفان صريحان مختلفان = شخصان');
+      expect(analCount(c), 3, reason: 'هاتفان صريحان مختلفان = شخصان');
+      // وتكرارٌ بنفس الهاتف الأول = هوية مؤكَّدة ⇒ يُصَدّ قطعاً.
+      visit(phone: '0911111111', anal: anal);
+      expect(analCount(c), 3, reason: 'الهوية المؤكَّدة تُحجب دائماً');
     });
 
     test('addAnalysisToVisit بمعرّفٍ مختلف لنفس الاسم يُصَدّ', () {
@@ -290,20 +299,22 @@ void main() {
       await t.tap(find.byKey(const Key('qv-analysis-toggle')));
       await t.pumpAndSettle();
 
-      // الحفظ ⇒ حوار الحجب بنص المواصفة، ولا كتابة إطلاقاً.
+      // م187 — الورقة تُفتح بلا هاتف والصفّ المبذور بهاتف ⇒ هويةٌ غير
+      // مؤكَّدة ⇒ **تحذيرٌ بخيارين** لا رفضٌ مسدود. والإلغاء لا يكتب شيئاً.
       await t.tap(find.byKey(const Key('qv-save')));
       await t.pumpAndSettle();
-      expect(find.byKey(const Key('tri-repeat-blocked-msg')), findsOneWidget,
-          reason: 'رسالة الحجب ظهرت');
-      final blocked = t.widget<Text>(
-          find.byKey(const Key('tri-repeat-blocked-msg')));
-      expect(blocked.data, contains('لا يمكن إجراء تحليل ثلاثي جديد'));
-      expect(blocked.data, contains('6 أشهر على الأقل'));
+      expect(find.byKey(const Key('tri-repeat-warn-msg')), findsOneWidget,
+          reason: 'م187: تحذيرٌ قابل للتجاوز');
+      final warn =
+          t.widget<Text>(find.byKey(const Key('tri-repeat-warn-msg')));
+      expect(warn.data, contains('نفس الاسم'));
+      await t.tap(find.byKey(const Key('tri-warn-cancel')));
+      await t.pumpAndSettle();
 
       final chk = ProviderContainer(overrides: overrides());
       addTearDown(chk.dispose);
       expect(chk.read(reposProvider).records.getAll().length, before,
-          reason: 'الحفظ توقف كله — لا زيارة ولا تحليل');
+          reason: 'الإلغاء أوقف الحفظ كله — لا زيارة ولا تحليل');
     });
 
     testWidgets('بلا علامة التحاليل: الحفظ يمرّ طبيعياً رغم الحجب', (t) async {

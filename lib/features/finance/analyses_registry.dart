@@ -186,12 +186,17 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
     final total = currentMonthTotal(visible, today: today);
     final det = staffAllowed('treasury.details');
 
-    return Card(
+    // م187 — هوية حاوية «جدول الحركات» حرفياً: بيضاء مسطّحة بزوايا 12
+    // وحدٍّ رقيق (بدل ارتفاع Card) — فتتطابق البطاقتان بصرياً.
+    return Container(
       key: const Key('anal-reg-card'),
-      color: Colors.white,
-      surfaceTintColor: Colors.transparent,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: BrandColors.line, width: .8),
+      ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -234,10 +239,9 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
                   ),
                 ),
               )
-            else if (widget.dense)
-              ..._denseTiles(visible, cur, n)
             else
-              _table(visible, cur, n),
+              // م187 — جدول واحد بهوية الحركات للهاتف والكمبيوتر معاً.
+              _movesTable(visible, cur, n),
             // ── التذييل: إجمالي الشهر الميلادي الجاري وحده ─────────────────
             const SizedBox(height: 8),
             Container(
@@ -368,221 +372,204 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
     ]);
   }
 
-  // ── جدول سطح المكتب ──────────────────────────────────────────────────────
+  // ── م187 — جدول واحد بهوية «جدول الحركات» في الخزينة ────────────────
+  //
+  // قرار المالك: «تحويل شكل التحاليل الثلاثية بالسجلات إلى جدول مشابه
+  // جدول الحركات في الخزينة (مشابه تماماً) مع بقاء إمكانية الحذف
+  // والتعديل — تغيير تصميم بس». فزال ازدواج (جدول مكتبي + بطاقات هاتف)
+  // إلى **جدول واحد** بنسختين كالحركات حرفياً: صفّ رؤوس بخطّ الرؤوس
+  // نفسه، وفواصل بين الصفوف، وشارة دفعٍ ملوّنة، وأرقام بخطٍّ جدوليّ،
+  // وتذييل مجموعٍ أخضر. المنطق (الفلاتر/التعديل/الحذف/الطباعة) لم يُمس.
 
-  static final _headStyle = TextStyle(
+  static TextStyle _head() => TextStyle(
       fontSize: 11, fontWeight: FontWeight.w800, color: BrandColors.mut2);
 
-  Widget _table(List<_JMap> rows, String cur, String Function(Object?) n) {
+  /// عرض أعمدة الحركات نفسها: التاريخ/الدفع/القيمة ثابتة والاسم يتمدد.
+  double get _wDate => widget.dense ? 74 : 92;
+  double get _wPay => widget.dense ? 58 : 70;
+  double get _wVal => widget.dense ? 76 : 96;
+  double get _wAct => widget.dense ? 34 : 34;
+
+  Widget _movesTable(
+      List<_JMap> rows, String cur, String Function(Object?) n) {
     // م168 — التعديل/الحذف بالتفعيل وحده: بعد الإيقاف عرضٌ تاريخي فقط.
     final triOn = triAnalysesEnabled(ref.read(appConfigProvider));
     final canEdit = triOn && staffAllowed('records.edit');
     final canDel = triOn && staffAllowed('records.delete');
-    // م155 — إجمالي الظاهر بعد الفلاتر لصفّ الختام داخل الجدول.
+    final det = staffAllowed('treasury.details');
+    final fs = widget.dense ? 11.5 : 12.5;
+    final gap = widget.dense ? 8.0 : 10.0;
     num visibleSum = 0;
     for (final r in rows) {
       visibleSum += jsNumOr0(r['amount']);
     }
-    final det = staffAllowed('treasury.details');
-    return Column(children: [
-      // رأس الجدول — الأعمدة الأربعة بمواصفة المالك + عمود الإجراءات
-      // (+ م155: «#» والتاريخ اختيارياً في لوح السجلات المكتبي).
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      // ── رأس الجدول (هوية الحركات: فواصل واضحة وتوسيط الدفع والقيمة) ──
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(children: [
           if (widget.showIndex)
             SizedBox(
                 width: 26,
-                child: Text('#',
-                    style: _headStyle, textAlign: TextAlign.center)),
+                child:
+                    Text('#', style: _head(), textAlign: TextAlign.center)),
           if (widget.showDate)
-            SizedBox(width: 78, child: Text('التاريخ', style: _headStyle)),
-          Expanded(flex: 3, child: Text('اسم المريض', style: _headStyle)),
-          Expanded(flex: 2, child: Text('العيادة', style: _headStyle)),
+            SizedBox(width: _wDate, child: Text('التاريخ', style: _head())),
+          SizedBox(width: gap),
+          Expanded(flex: 3, child: Text('الاسم', style: _head())),
+          SizedBox(width: gap),
+          Expanded(flex: 2, child: Text('العيادة', style: _head())),
+          SizedBox(width: gap),
           SizedBox(
-              width: 64,
-              child: Text('الطريقة',
-                  style: _headStyle, textAlign: TextAlign.center)),
+              width: _wPay,
+              child: Text('الدفع',
+                  style: _head(), textAlign: TextAlign.center)),
+          SizedBox(width: gap),
           SizedBox(
-              width: 90,
-              child: Text('السعر',
-                  style: _headStyle, textAlign: TextAlign.center)),
-          const SizedBox(width: 84),
+              width: _wVal,
+              child: Text('القيمة',
+                  style: _head(), textAlign: TextAlign.center)),
+          if (canEdit || canDel) SizedBox(width: _wAct),
         ]),
       ),
       Divider(height: 1, color: BrandColors.line),
       for (var i = 0; i < rows.length; i++) ...[
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          child: _rowCells(rows[i], i, cur, n, canEdit, canDel),
-        ),
-        Divider(height: 1, color: BrandColors.line),
-      ],
-      // م155 — صف الإجمالي ختاماً داخل الجدول (مواصفة المالك).
-      if (widget.inlineTotal)
-        Container(
-          key: const Key('anal-reg-inline-total'),
-          margin: const EdgeInsets.only(top: 2),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color.fromRGBO(46, 125, 90, .06),
-            borderRadius: BorderRadius.circular(8),
-          ),
+          padding: EdgeInsets.symmetric(
+              horizontal: 8, vertical: widget.dense ? 5 : 6),
           child: Row(children: [
-            Expanded(
-              child: Text('الإجمالي (${rows.length} بند)',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: BrandColors.strong)),
-            ),
-            SizedBox(
-              width: 90,
-              child: Text(det ? '${n(visibleSum)} $cur' : '—',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w900,
-                      color: BrandColors.green,
-                      fontFeatures: [FontFeature.tabularFigures()])),
-            ),
-            const SizedBox(width: 84),
-          ]),
-        ),
-    ]);
-  }
-
-  /// خلايا صف الجدول المكتبي — فُصلت لتُبنى بفهرس التسلسل (م155).
-  Widget _rowCells(_JMap r, int i, String cur, String Function(Object?) n,
-      bool canEdit, bool canDel) {
-    return Row(children: [
             if (widget.showIndex)
               SizedBox(
                   width: 26,
                   child: Text('${i + 1}',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 11,
+                          fontSize: fs - 1.5,
                           fontWeight: FontWeight.w700,
                           color: BrandColors.mut2))),
             if (widget.showDate)
               SizedBox(
-                  width: 78,
-                  child: Text('${r['date'] ?? ''}',
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11.5,
-                          color: BrandColors.mut,
-                          fontFeatures: const [
-                            FontFeature.tabularFigures()
-                          ]))),
+                width: _wDate,
+                child: Text('${rows[i]['date'] ?? ''}',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: fs - 1,
+                        fontWeight: FontWeight.w700,
+                        color: BrandColors.ink,
+                        fontFeatures: const [
+                          FontFeature.tabularFigures()
+                        ])),
+              ),
+            SizedBox(width: gap),
             Expanded(
               flex: 3,
-              child: Text('${r['name'] ?? r['patient_name'] ?? ''}',
+              child: Text(
+                  '${rows[i]['name'] ?? rows[i]['patient_name'] ?? ''}',
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  style:
+                      TextStyle(fontSize: fs, fontWeight: FontWeight.w700)),
             ),
+            SizedBox(width: gap),
             Expanded(
               flex: 2,
-              child: Text(_rowClinic(r),
+              child: Text(_rowClinic(rows[i]),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: BrandColors.mut)),
+                  style: TextStyle(
+                      fontSize: fs - .5,
+                      fontWeight: FontWeight.w700,
+                      color: BrandColors.strong)),
             ),
-            SizedBox(width: 64, child: Center(child: _payChip(r))),
+            SizedBox(width: gap),
             SizedBox(
-              width: 90,
-              child: Text('${n(jsNumOr0(r['amount']))} $cur',
+                width: _wPay, child: Center(child: _payChip(rows[i]))),
+            SizedBox(width: gap),
+            SizedBox(
+              width: _wVal,
+              child: Text(n(jsNumOr0(rows[i]['amount'])),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: fs,
+                      fontWeight: FontWeight.w800,
+                      color: BrandColors.green,
+                      fontFeatures: const [
+                        FontFeature.tabularFigures()
+                      ])),
+            ),
+            // م187 — التعديل والحذف في قائمةٍ واحدة مضغوطة: تبقى القدرتان
+            // كما هما (نفس مفاتيح م145) بلا أن يتكسّر إيقاع أعمدة الحركات.
+            if (canEdit || canDel)
+              SizedBox(
+                width: _wAct,
+                child: PopupMenuButton<String>(
+                  key: Key('anal-reg-menu-${rows[i]['id']}'),
+                  tooltip: 'خيارات',
+                  padding: EdgeInsets.zero,
+                  itemBuilder: (_) => [
+                    if (canEdit)
+                      PopupMenuItem(
+                        key: Key('anal-reg-edit-${rows[i]['id']}'),
+                        value: 'edit',
+                        child: const Text('تعديل',
+                            style: TextStyle(fontSize: 12.5)),
+                      ),
+                    if (canDel)
+                      PopupMenuItem(
+                        key: Key('anal-reg-del-${rows[i]['id']}'),
+                        value: 'del',
+                        child: Text('حذف',
+                            style: TextStyle(
+                                fontSize: 12.5, color: BrandColors.red)),
+                      ),
+                  ],
+                  onSelected: (v) =>
+                      v == 'edit' ? _edit(rows[i]) : _delete(rows[i]),
+                  child: Icon(Icons.more_vert_rounded,
+                      size: 16, color: BrandColors.mut2),
+                ),
+              ),
+          ]),
+        ),
+        Divider(height: 1, color: BrandColors.line),
+      ],
+      // م155 — صف الإجمالي ختاماً داخل الجدول (مواصفة المالك) — بهوية
+      // تذييل الحركات: كبسولة خضراء ورقمٌ جدوليّ.
+      if (widget.inlineTotal)
+        Container(
+          key: const Key('anal-reg-inline-total'),
+          margin: const EdgeInsets.only(top: 6),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color.fromRGBO(46, 125, 90, .08),
+            borderRadius: BorderRadius.circular(10),
+            border:
+                Border.all(color: const Color.fromRGBO(46, 125, 90, .25)),
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Text('المجموع (${rows.length} بند)',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w900,
+                      color: BrandColors.strong)),
+            ),
+            SizedBox(
+              width: _wVal,
+              child: Text(det ? n(visibleSum) : '—',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
                       color: BrandColors.green,
                       fontFeatures: [FontFeature.tabularFigures()])),
             ),
-            SizedBox(
-              width: 84,
-              child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                if (canEdit)
-                  IconButton(
-                    key: Key('anal-reg-edit-${r['id']}'),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 30, minHeight: 30),
-                    tooltip: 'تعديل',
-                    icon: Icon(Icons.edit_rounded,
-                        size: 15, color: BrandColors.brandIcon),
-                    onPressed: () => _edit(r),
-                  ),
-                if (canDel)
-                  IconButton(
-                    key: Key('anal-reg-del-${r['id']}'),
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 30, minHeight: 30),
-                    tooltip: 'حذف',
-                    icon: const Icon(Icons.delete_rounded,
-                        size: 15, color: BrandColors.red),
-                    onPressed: () => _delete(r),
-                  ),
-              ]),
-            ),
-          ]);
-  }
-
-  // ── قائمة الهاتف المكثفة ─────────────────────────────────────────────────
-
-  List<Widget> _denseTiles(
-      List<_JMap> rows, String cur, String Function(Object?) n) {
-    // م168 — التعديل/الحذف بالتفعيل وحده: بعد الإيقاف عرضٌ تاريخي فقط.
-    final triOn = triAnalysesEnabled(ref.read(appConfigProvider));
-    final canEdit = triOn && staffAllowed('records.edit');
-    final canDel = triOn && staffAllowed('records.delete');
-    return [
-      for (final r in rows)
-        Card(
-          margin: const EdgeInsets.symmetric(vertical: 3),
-          child: ListTile(
-            dense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10),
-            title: Text('${r['name'] ?? r['patient_name'] ?? ''}',
-                style: const TextStyle(
-                    fontSize: 12.5, fontWeight: FontWeight.w700)),
-            subtitle: Text(
-                '${_rowClinic(r)} · ${r['payment'] ?? ''} · '
-                '${r['date'] ?? ''}',
-                style: const TextStyle(fontSize: 11)),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text('${n(jsNumOr0(r['amount']))} $cur',
-                  style: const TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w800,
-                      color: BrandColors.green)),
-              if (canEdit)
-                IconButton(
-                  key: Key('anal-reg-edit-${r['id']}'),
-                  visualDensity: VisualDensity.compact,
-                  tooltip: 'تعديل',
-                  icon: Icon(Icons.edit_rounded,
-                      size: 15, color: BrandColors.brandIcon),
-                  onPressed: () => _edit(r),
-                ),
-              if (canDel)
-                IconButton(
-                  key: Key('anal-reg-del-${r['id']}'),
-                  visualDensity: VisualDensity.compact,
-                  tooltip: 'حذف',
-                  icon: const Icon(Icons.delete_rounded,
-                      size: 15, color: BrandColors.red),
-                  onPressed: () => _delete(r),
-                ),
-            ]),
-          ),
+            if (canEdit || canDel) SizedBox(width: _wAct),
+          ]),
         ),
-    ];
+    ]);
   }
 
   /// شارة الطريقة — أخضر للكاش وذهبيٌّ داكن للتحويل (اصطلاح جدول اليوم).

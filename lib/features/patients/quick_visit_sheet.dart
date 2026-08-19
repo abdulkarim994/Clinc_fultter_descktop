@@ -30,8 +30,7 @@ import '../records/add_record_screen.dart'
 import '../records/day_close_store.dart' show confirmClosedDayWrite;
 import '../records/income_day_dialog.dart' show askIncomeDay;
 import '../records/mini_calculator.dart' show showMiniCalculator;
-import '../records/analysis_actions.dart'
-    show showTriRepeatBlockedDialog, triRepeatCheck;
+import '../records/analysis_actions.dart' show passTriGate;
 import '../records/record_saver.dart'
     show SaveRecordInput, isProsthetic, saveNewRecord, triAnalysisFor;
 import '../records/tooth_report_dialog.dart' show showToothReportDialog;
@@ -229,15 +228,15 @@ class _QuickVisitSheetState extends ConsumerState<_QuickVisitSheet> {
           triAnalysesEnabled(cfg) &&
           triAnalysesPrice(cfg) > 0;
       if (wouldWriteAnalysis) {
-        // م153 — بنطاق عيادة الورقة وهاتف المريض (استثناء السميَّين).
-        final blocked = triRepeatCheck(
+        // م187 — البوابة بدرجتيها (حجب للهوية المؤكَّدة، وتحذير قابل
+        // للتجاوز للاسم المجرَّد) بنطاق المركز كله.
+        if (!await passTriGate(
+          context,
           ref,
           patientName: widget.name,
           clinic: widget.clinic,
           phone: widget.phone,
-        );
-        if (blocked != null) {
-          await showTriRepeatBlockedDialog(context, blocked);
+        )) {
           return;
         }
       }

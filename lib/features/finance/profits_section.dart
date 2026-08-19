@@ -233,6 +233,9 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
           doctor: grand.doctorTotal + fDoc,
           clinic: grand.clinicTotal + fClin,
           expenses: ex.total,
+          // م187 — قيمة المختبرات: صفّها + صفّ «صافي بعد المختبرات» يفسّران
+          // فرقَ (الإيراد − الحصتين) الذي كان بلا تفسير (بلاغ المالك).
+          lab: grand.prosLabCost,
           showDoctor: ratesOn,
         ),
       ],

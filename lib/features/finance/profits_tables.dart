@@ -66,6 +66,8 @@ class ProfitsClinicsTable extends StatelessWidget {
   Widget build(BuildContext context) {
     final n = formatNumber;
     final fs = dense ? 12.0 : 12.5;
+    // م187 — هل لأي عيادة قيمةُ مختبرات؟ (يقرّر ظهور العمود).
+    final anyLab = rows.any((r) => r.lab > 0);
     return Card(
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
@@ -89,6 +91,9 @@ class ProfitsClinicsTable extends StatelessWidget {
                     flex: 2,
                     child: Text('العيادة', style: _headStyle())),
                 _headCell('الإيراد'),
+                // م187 — عمود المختبرات: يظهر فقط حين لأي عيادة قيمةُ معمل
+                // (فلا يُزحم الجدول في العيادات التي لا تركيبات فيها).
+                if (anyLab) _headCell('المختبرات'),
                 if (showDoctor) _headCell('ربح الطبيب'),
                 if (showDoctor) _headCell('ربح العيادة'),
               ]),
@@ -127,6 +132,13 @@ class ProfitsClinicsTable extends StatelessWidget {
                     ),
                     _numCell(n(rows[i].revenue),
                         color: BrandColors.goldDark, fs: fs),
+                    if (anyLab)
+                      _numCell(
+                          rows[i].lab > 0 ? n(rows[i].lab) : '—',
+                          color: rows[i].lab > 0
+                              ? BrandColors.red
+                              : BrandColors.mut2,
+                          fs: fs),
                     if (showDoctor)
                       _numCell(n(rows[i].doctor),
                           color: BrandColors.green, fs: fs),
@@ -152,6 +164,7 @@ class ProfitsGrandTable extends StatelessWidget {
     required this.doctor,
     required this.clinic,
     required this.expenses,
+    this.lab = 0,
     this.title = 'الإجمالي العام لجميع العيادات',
     this.dense = false,
     this.showDoctor = true,
@@ -165,6 +178,13 @@ class ProfitsGrandTable extends StatelessWidget {
   final num doctor;
   final num clinic;
   final num expenses;
+
+  /// م187 — قيمة المختبرات (بلاغ المالك: «الإجمالي بعد تحديد النسبة يبقى
+  /// فرق قيمة المعمل»). سببه أن المعمل يُخصم **قبل** تقسيم النِّسَب، فالإيراد
+  /// يحويه والحصتان لا — فبقي الفرق بلا صفٍّ يفسّره. صفّاه أدناه («قيمة
+  /// المختبرات» ثم «صافي بعد المختبرات») يجعلان الجدول متحقِّقاً من نفسه:
+  /// صافي بعد المختبرات = ربح الطبيب + ربح العيادة **حتماً**.
+  final num lab;
   final String title;
   final bool dense;
 
@@ -257,6 +277,33 @@ class ProfitsGrandTable extends StatelessWidget {
                     key: const Key('prof-grand-clinic')),
               ),
               Divider(height: 1, color: BrandColors.line),
+              // م187 — صفّ المختبرات: قيمته تحت عمود **الإيراد** لأنها
+              // تُخصم منه (كما وُضعت المصروفات تحت عمود ربح العيادة).
+              if (lab > 0)
+                row(
+                  'قيمة المختبرات (−)',
+                  _numCell(n(lab),
+                      color: BrandColors.red,
+                      bold: true,
+                      fs: fs,
+                      key: const Key('prof-grand-lab')),
+                  dash,
+                  dash,
+                  key: const Key('prof-grand-lab-row'),
+                ),
+              if (lab > 0)
+                row(
+                  'صافي بعد المختبرات',
+                  _numCell(n(revenue - lab),
+                      color: BrandColors.brand900,
+                      bold: true,
+                      fs: fs,
+                      key: const Key('prof-grand-after-lab')),
+                  _numCell(n(doctor), color: BrandColors.green, fs: fs),
+                  _numCell(n(clinic), color: BrandColors.brand600, fs: fs),
+                  key: const Key('prof-grand-after-lab-row'),
+                ),
+              if (lab > 0) Divider(height: 1, color: BrandColors.line),
               // صف المصروفات: قيمته تحت عمود ربح العيادة (طلب المالك).
               row(
                 'المصروفات (−)',
@@ -296,6 +343,33 @@ class ProfitsGrandTable extends StatelessWidget {
                     key: const Key('prof-grand-revenue')),
               ),
               Divider(height: 1, color: BrandColors.line),
+              // م187 — المختبرات تُخصم من الإجمالي في هذا الفرع أيضاً:
+              // النِّسَب مطفأة ⇒ كل الصافي للعيادة، لكن المعمل كلفةٌ فعلية.
+              if (lab > 0)
+                row(
+                  'قيمة المختبرات (−)',
+                  spacer(),
+                  spacer(),
+                  _numCell(n(lab),
+                      color: BrandColors.red,
+                      bold: true,
+                      fs: fs,
+                      key: const Key('prof-grand-lab')),
+                  key: const Key('prof-grand-lab-row'),
+                ),
+              if (lab > 0)
+                row(
+                  'صافي بعد المختبرات',
+                  spacer(),
+                  spacer(),
+                  _numCell(n(revenue - lab),
+                      color: BrandColors.brand900,
+                      bold: true,
+                      fs: fs,
+                      key: const Key('prof-grand-after-lab')),
+                  key: const Key('prof-grand-after-lab-row'),
+                ),
+              if (lab > 0) Divider(height: 1, color: BrandColors.line),
               row(
                 'المصروفات (−)',
                 spacer(),
@@ -312,7 +386,7 @@ class ProfitsGrandTable extends StatelessWidget {
                 'صافي العيادة',
                 spacer(),
                 spacer(),
-                _numCell(n(revenue - expenses),
+                _numCell(n(revenue - lab - expenses),
                     color: BrandColors.brand900,
                     bold: true,
                     fs: fs,
@@ -465,10 +539,60 @@ class YearPnlTable extends StatelessWidget {
                 _numCell(
                     n(showDoctor
                         ? report.net
-                        : report.revenue - report.expenses),
+                        : report.revenue - report.lab - report.expenses),
                     color: BrandColors.brand900, bold: true, fs: fs),
               ]),
             ),
+            // م187 — سطرا المختبرات أسفل إجمالي السنة: القيمة وصافيها.
+            // موضعهما هنا (لا عموداً ثالث عشر) كي لا يُزحم جدول الاثني
+            // عشر شهراً — والمعادلة تبقى ظاهرةً للعين:
+            //   صافي بعد المختبرات = الطبيب + العيادة (حين النِّسَب مفعّلة).
+            if (report.lab > 0) ...[
+              const SizedBox(height: 6),
+              Padding(
+                key: const Key('prof-pnl-lab'),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text('قيمة المختبرات (−)',
+                        style: TextStyle(
+                            fontSize: fs - .5,
+                            fontWeight: FontWeight.w700,
+                            color: BrandColors.mut)),
+                  ),
+                  Text(n(report.lab),
+                      style: TextStyle(
+                          fontSize: fs,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.red,
+                          fontFeatures: const [
+                            FontFeature.tabularFigures()
+                          ])),
+                ]),
+              ),
+              const SizedBox(height: 4),
+              Padding(
+                key: const Key('prof-pnl-after-lab'),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text('صافي بعد المختبرات',
+                        style: TextStyle(
+                            fontSize: fs - .5,
+                            fontWeight: FontWeight.w800,
+                            color: BrandColors.brandText)),
+                  ),
+                  Text(n(report.afterLab),
+                      style: TextStyle(
+                          fontSize: fs,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.brand900,
+                          fontFeatures: const [
+                            FontFeature.tabularFigures()
+                          ])),
+                ]),
+              ),
+            ],
           ],
         ),
       ),

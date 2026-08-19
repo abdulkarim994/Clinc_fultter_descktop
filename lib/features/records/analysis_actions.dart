@@ -15,10 +15,11 @@ import '../../core/utils/ar_normalize.dart' show arNorm, normPhone;
 import '../../core/utils/js_compat.dart' show getCurrentDate;
 import '../settings/analyses3.dart'
     show
-        lastTriAnalysisDate,
+        TriGate,
+        lastTriAnalysisHit,
         triAnalysesEnabled,
         triAnalysesPrice,
-        triRepeatBlockMessage,
+        triRepeatGate,
         triRepeatMonths;
 import 'record_saver.dart' show addAnalysisToVisit;
 
@@ -26,7 +27,10 @@ import 'record_saver.dart' show addAnalysisToVisit;
 /// النصية أو null إن كان مسموحاً. مصدرٌ واحد لكل مسارات الإضافة.
 /// م153 — [clinic] تقصر القاعدة على العيادة نفسها، و[phone] (خام —
 /// يُطبَّع هنا) لاستثناء السميَّين بهاتفين صريحين مختلفين.
-String? triRepeatCheck(
+/// م187 — البوابة الكاملة: قرارٌ بدرجتين (حجب/تحذير) بدل رسالةٍ واحدة.
+/// النطاق **المركز كله** (لا العيادة) والهوية **بالهاتف** — انظر
+/// `lastTriAnalysisHit`. [clinic] لم تبقَ مؤثّرة وأُبقيت للتوافق.
+TriGate triRepeatGateFor(
   WidgetRef ref, {
   String? patientId,
   required String patientName,
@@ -36,17 +40,87 @@ String? triRepeatCheck(
   final cfg = ref.read(appConfigProvider);
   final records =
       ref.read(reposProvider).records.getAll().cast<Map<String, Object?>>();
-  return triRepeatBlockMessage(
-    lastDate: lastTriAnalysisDate(
+  return triRepeatGate(
+    hit: lastTriAnalysisHit(
       records,
       patientId: patientId,
       patientName: patientName,
-      clinic: clinic,
-      phone: normPhone(phone),
+      phone: phone,
       normalize: arNorm,
+      normPhone: normPhone,
     ),
     today: getCurrentDate(),
     repeatMonths: triRepeatMonths(cfg),
+  );
+}
+
+/// توافقٌ خلفي: رسالة **الحجب القاطع** وحدها (null للمسموح والتحذير).
+String? triRepeatCheck(
+  WidgetRef ref, {
+  String? patientId,
+  required String patientName,
+  String clinic = '',
+  String phone = '',
+}) {
+  final g = triRepeatGateFor(ref,
+      patientId: patientId,
+      patientName: patientName,
+      clinic: clinic,
+      phone: phone);
+  return g.isBlocked ? g.message : null;
+}
+
+/// م187 — تشغيل البوابة أمام المستخدم: يعيد true إن جاز المضي.
+///  • مسموح ⇒ true بلا أي حوار.
+///  • حجب ⇒ حوارُ رفضٍ بزرّ واحد ⇒ false.
+///  • تحذير ⇒ حوارٌ بخيارَين، فيمضي إن اختار «متابعة على مسؤوليتي».
+Future<bool> passTriGate(
+  BuildContext context,
+  WidgetRef ref, {
+  String? patientId,
+  required String patientName,
+  String clinic = '',
+  String phone = '',
+}) async {
+  final g = triRepeatGateFor(ref,
+      patientId: patientId,
+      patientName: patientName,
+      clinic: clinic,
+      phone: phone);
+  if (g.isAllowed) return true;
+  if (g.isBlocked) {
+    if (context.mounted) await showTriRepeatBlockedDialog(context, g.message);
+    return false;
+  }
+  if (!context.mounted) return false;
+  return await showTriRepeatWarnDialog(context, g.message) ?? false;
+}
+
+/// حوار التحذير (هوية غير مؤكَّدة): يمضي بموافقةٍ صريحة.
+Future<bool?> showTriRepeatWarnDialog(
+  BuildContext context,
+  String message,
+) {
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      key: const Key('tri-repeat-warn'),
+      title: const Text('تنبيه — اسم مكرر'),
+      content: Text(message.replaceAll('**', ''),
+          key: const Key('tri-repeat-warn-msg')),
+      actions: [
+        TextButton(
+          key: const Key('tri-warn-cancel'),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('إلغاء'),
+        ),
+        FilledButton(
+          key: const Key('tri-warn-proceed'),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('متابعة على مسؤوليتي'),
+        ),
+      ],
+    ),
   );
 }
 
@@ -143,6 +217,9 @@ Future<bool> promptAddAnalysisToVisit(
   required String clinic,
   required String date,
   String? incomeDate,
+  /// م187 — هاتف المريض للبوابة: يُمرَّر من المنادي إن عرفه، وإلا يُقرأ
+  /// من صفّ الزيارة نفسها (analysisOf) — فلا يبقى الفحص أعمى عن الهاتف.
+  String? patientPhone,
 }) async {
   final repos = ref.read(reposProvider);
   final cfg = ref.read(appConfigProvider);
@@ -156,16 +233,20 @@ Future<bool> promptAddAnalysisToVisit(
     }
     return false;
   }
-  // م149 — قاعدة تكرار التحليل: حجبٌ برسالة المواصفة قبل سؤال الطريقة.
-  // م153 — بنطاق عيادة الزيارة نفسها (والهاتف من معرّف الهوية إن وُجد).
-  final blocked = triRepeatCheck(
+  // م149 — قاعدة تكرار التحليل قبل سؤال الطريقة.
+  // م187 — البوابة بدرجتيها (حجب/تحذير)، و**الهاتف يُمرَّر أخيراً**: كان
+  // هذا المسار (ثلاث نقاط الجدول وبطاقة المريض) لا يمرّره إطلاقاً فيُعطَّل
+  // استثناء السميَّين عملياً — وهو أكثر المسارات استعمالاً (بلاغ المالك).
+  final gatePhone = patientPhone ??
+      '${repos.records.getById(analysisOf)?['phone'] ?? ''}';
+  if (!await passTriGate(
+    context,
     ref,
     patientId: patientId,
     patientName: patientName,
     clinic: clinic,
-  );
-  if (blocked != null) {
-    if (context.mounted) await showTriRepeatBlockedDialog(context, blocked);
+    phone: gatePhone,
+  )) {
     return false;
   }
   final pay = context.mounted ? await pickAnalysisPayment(context) : null;
@@ -180,6 +261,10 @@ Future<bool> promptAddAnalysisToVisit(
     incomeDate: incomeDate,
     cfg: cfg,
     payment: pay,
+    // م187 — نفس هاتف البوابة، و**التحذير مُتجاوَزٌ سلفاً**: passTriGate
+    // أعلاه لم يرجع true إلا بموافقة الطبيب الصريحة، فلا يردّه الكاتب.
+    phone: gatePhone,
+    overrideWarn: true,
   );
   if (ok && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
