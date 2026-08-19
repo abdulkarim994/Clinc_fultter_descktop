@@ -9,6 +9,10 @@
 ///  • هاتفٌ مميز واحد أو لا شيء في المجموعة ⇒ هوية واحدة — سلوك م35 حرفياً.
 ///  • هاتفان مختلفان فأكثر ⇒ صفوف كل هاتف هوية، والصفوف بلا هاتف هوية
 ///    «بلا رقم» مستقلة (لا تخمين في إلحاقها).
+///
+/// 🔄 **م189:** شكل الهاتف في فضاء الهوية صار **قانونياً** (`normPhone`) —
+/// فالهويات هنا بلا صفر البدء (`p:911111111`)، والعزل نفسه محفوظ. السبب:
+/// تعايش الشكل الخام مع المسكوك في `patient_id` كان يلد ملفاً شبحاً.
 library;
 
 import 'dart:io';
@@ -68,6 +72,7 @@ void main() {
         250,
       }, reason: 'م90: أموال كل هوية لها وحدها — لا خلط');
       final phones = map.values.map((a) => a.phone).toSet();
+      // م189 — هاتف **العرض** خامٌ كما كتبه المستخدم (والهوية قانونية).
       expect(phones, {'0911111111', '0922222222'});
       for (final a in map.values) {
         expect(
@@ -154,8 +159,8 @@ void main() {
         isTrue,
         reason: 'بلا هوية = الكل (السلوك القائم)',
       );
-      expect(rowMatchesIdentity({'phone': '0911'}, 'p:0911'), isTrue);
-      expect(rowMatchesIdentity({'phone': '0922'}, 'p:0911'), isFalse);
+      expect(rowMatchesIdentity({'phone': '0911'}, 'p:911'), isTrue);
+      expect(rowMatchesIdentity({'phone': '0922'}, 'p:911'), isFalse);
       expect(rowMatchesIdentity({'phone': ''}, 'none'), isTrue);
       expect(rowMatchesIdentity({'phone': '0911'}, 'none'), isFalse);
     });
@@ -327,12 +332,12 @@ void main() {
     ) async {
       await boot(tester);
       expect(
-        find.byKey(const Key('patient-card-محمد علي|p:0911111111')),
+        find.byKey(const Key('patient-card-محمد علي|p:911111111')),
         findsOneWidget,
         reason: 'م90: بطاقة الهوية الأولى',
       );
       expect(
-        find.byKey(const Key('patient-card-محمد علي|p:0922222222')),
+        find.byKey(const Key('patient-card-محمد علي|p:922222222')),
         findsOneWidget,
         reason: 'م90: بطاقة الهوية الثانية',
       );
@@ -369,7 +374,7 @@ void main() {
       expect(p.clinic, 'ع1');
       expect(
         p.identity,
-        'p:0922222222',
+        'p:922222222',
         reason: 'م90: هوية صفّ الدين المنقور تمرّ حتى شاشة الملف',
       );
     });
@@ -391,12 +396,12 @@ void main() {
       await boot(tester);
 
       // الهوية الأولى: زيارة 100، بلا دين.
-      await openCard(tester, 'patient-card-محمد علي|p:0911111111');
+      await openCard(tester, 'patient-card-محمد علي|p:911111111');
       expect(find.byType(PatientProfileScreen), findsOneWidget);
       final p1 = tester.widget<PatientProfileScreen>(
         find.byType(PatientProfileScreen),
       );
-      expect(p1.identity, 'p:0911111111');
+      expect(p1.identity, 'p:911111111');
       expect(
         find.textContaining('250'),
         findsNothing,
@@ -406,12 +411,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
 
       // الهوية الثانية: زيارة 250 ودين 900/700.
-      await openCard(tester, 'patient-card-محمد علي|p:0922222222');
+      await openCard(tester, 'patient-card-محمد علي|p:922222222');
       expect(find.byType(PatientProfileScreen), findsOneWidget);
       final p2 = tester.widget<PatientProfileScreen>(
         find.byType(PatientProfileScreen),
       );
-      expect(p2.identity, 'p:0922222222');
+      expect(p2.identity, 'p:922222222');
     });
 
     testWidgets('ترويسة الملف تطابق صفوف الهوية (لا 0/0/0) — لقطة المالك', (
@@ -419,7 +424,7 @@ void main() {
     ) async {
       await boot(tester);
       // هوية الهاتف الثاني: 250 زيارة + دين 900 (متبقٍّ 700، مدفوع 200).
-      await openCard(tester, 'patient-card-محمد علي|p:0922222222');
+      await openCard(tester, 'patient-card-محمد علي|p:922222222');
       expect(find.byType(PatientProfileScreen), findsOneWidget);
       // فتح الملخص المالي (البطاقة مطوية افتراضياً).
       await tester.tap(find.byKey(const Key('pp-summary-toggle')),
@@ -477,7 +482,7 @@ void main() {
       // الهوية الأولى: زيارة 100 فقط، بلا دين — لا يتسرّب 250 ولا الدين.
       final a1 = patientForClinic('حسن', 'الصفوة',
           records: recs, prosthetics: const [], debts: dbts,
-          identity: 'p:0911111111')!;
+          identity: 'p:911111111')!;
       expect(a1.grossTotal, 100);
       expect(a1.total, 100);
       expect(a1.debtRemaining, 0);
@@ -486,7 +491,7 @@ void main() {
       // الهوية الثانية: 250 + دين 900 (متبقٍّ 700، مدفوع 200).
       final a2 = patientForClinic('حسن', 'الصفوة',
           records: recs, prosthetics: const [], debts: dbts,
-          identity: 'p:0922222222')!;
+          identity: 'p:922222222')!;
       expect(a2.grossTotal, 1150, reason: '250 زيارة + 900 دين');
       expect(a2.total, 450, reason: '250 + 200 مدفوع الدين');
       expect(a2.debtRemaining, 700);
@@ -526,28 +531,28 @@ void main() {
       ];
       final aggA = patientForClinic('حسن', 'الصفوة',
           records: recs, prosthetics: pros, debts: dbts,
-          identity: 'p:0911111111')!;
+          identity: 'p:911111111')!;
       final cardsA = treatmentCards(
         patient: aggA,
         patientName: 'حسن',
         clinic: 'الصفوة',
         prosthetics: pros,
         debts: dbts,
-        identity: 'p:0911111111',
+        identity: 'p:911111111',
       );
       // الهوية الأولى بلا تركيبات (تركيبة السميّ لا تظهر لها).
       expect(cardsA.any((c) => c.service == 'تركيبات'), isFalse);
 
       final aggB = patientForClinic('حسن', 'الصفوة',
           records: recs, prosthetics: pros, debts: dbts,
-          identity: 'p:0922222222')!;
+          identity: 'p:922222222')!;
       final cardsB = treatmentCards(
         patient: aggB,
         patientName: 'حسن',
         clinic: 'الصفوة',
         prosthetics: pros,
         debts: dbts,
-        identity: 'p:0922222222',
+        identity: 'p:922222222',
       );
       expect(cardsB.any((c) => c.service == 'تركيبات'), isTrue,
           reason: 'تركيبة صاحب الهاتف الثاني تظهر لهويته');
@@ -673,7 +678,7 @@ void main() {
         newName: 'محمد علي الأب',
         phone: '0911111111',
         clinic: 'الصفوة',
-        identity: 'p:0911111111',
+        identity: 'p:911111111',
       );
       expect(touched, greaterThanOrEqualTo(1));
 

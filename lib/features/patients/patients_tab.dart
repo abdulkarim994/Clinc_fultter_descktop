@@ -19,7 +19,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/js_compat.dart';
 import '../print/treatment_tables.dart' show formatNumber;
 import 'archive_store.dart' show PatientArchiveStore;
-import 'clinic_scope.dart' show clinicScopedKey;
+import 'clinic_scope.dart' show medicalScopedKey;
 import 'patient_profile_screen.dart' hide JMap;
 import 'patients_logic.dart';
 import '../finance/analyses_registry.dart'
@@ -472,8 +472,10 @@ class _ClinicPatientsScreenState
   PatientArchiveStore get _archive =>
       PatientArchiveStore(ref.read(reposProvider).settings);
 
+  /// م189 — مفتاح الصفّ **بالهوية** (اسم|عيادة|هاتف): كان بلا هاتف فكان
+  /// النقر على أحد السميَّين يحدّد الآخر معه ويؤرشفهما معاً (بلاغ المالك).
   String _pkey(ClinicPatientRow p) =>
-      clinicScopedKey(p.agg.name, p.agg.clinic);
+      medicalScopedKey(p.agg.name, p.agg.clinic, p.agg.phone);
 
   void _exitSelect() => setState(() {
         selectMode = false;
@@ -1017,7 +1019,8 @@ class _ClinicPatientsScreenState
     if (ok != true || !mounted) return;
 
     final targets = [
-      for (final p in pts) (name: p.agg.name, clinic: p.agg.clinic),
+      for (final p in pts)
+        (name: p.agg.name, clinic: p.agg.clinic, phone: p.agg.phone),
     ];
     _archive.archiveAll(targets);
     _exitSelect();
@@ -1039,7 +1042,7 @@ class _ClinicPatientsScreenState
   }
 
   void _unarchiveOne(ClinicPatientRow p) {
-    _archive.unarchive(p.agg.name, p.agg.clinic);
+    _archive.unarchive(p.agg.name, p.agg.clinic, p.agg.phone);
     ref.read(patientsRevProvider.notifier).state++;
     _snack('أُلغيت أرشفة «${p.agg.name}»');
   }
@@ -1056,7 +1059,8 @@ class _ClinicPatientsScreenState
         if (selected.contains(_pkey(p)) && p.archived) p,
     ];
     _archive.unarchiveAll(
-        [for (final p in pts) (name: p.agg.name, clinic: p.agg.clinic)]);
+        [for (final p in pts)
+          (name: p.agg.name, clinic: p.agg.clinic, phone: p.agg.phone)]);
     final c = pts.length;
     _exitSelect();
     ref.read(patientsRevProvider.notifier).state++;

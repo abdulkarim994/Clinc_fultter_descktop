@@ -12,7 +12,11 @@
 ///  • **هوية الملاحة** (navIdentityOf): فتح الملف من أي صف دفترٍ يمرّ
 ///    بالحلّال — لا فتح مدموجاً يخلط سميّاً بسميّه.
 ///  • **الاكتساح**: تعديل بيانات هويةٍ يعيد سكّ patient_id ولا يمسّ
-///    السميّ (بما فيه دفعاته القديمة بلا هاتف — تتبع دينها).
+///    السميّ (بما فيه دفعاته القديمة بلا هاتف — تتبع دينها).///
+/// 🔄 **م189 — تحديثٌ لهذه التوقّعات (لا نقضٌ للقرار):** صار شكل الهاتف في
+/// فضاء الهوية **قانونياً واحداً** (`normPhone`) بعد أن ثبت أن تعايش الشكل
+/// الخام (`0919…`) مع المسكوك في `patient_id` (`919…`) كان يلد ملفاً شبحاً
+/// لنفس الشخص. فالهويات أدناه بلا صفر البدء — والعزل نفسه محفوظٌ حرفياً.
 library;
 
 import 'dart:io';
@@ -86,7 +90,7 @@ void main() {
 
       // ملف أ (0919292254): تركيباته وحدها — 1500/1500.
       final a = map.values
-          .singleWhere((x) => x.identity == 'p:0919292254');
+          .singleWhere((x) => x.identity == 'p:919292254');
       expect(a.grossTotal, 1500);
       expect(a.total, 1500);
       expect(a.debtRemaining, 0);
@@ -95,7 +99,7 @@ void main() {
       // ملف ب (09192922258): حالته الدَّينية + دفعتُه الموروثة — قيمه
       // كما في لقطات المالك: إجمالي 1500، محصَّل 500، متبقٍّ 1000.
       final b = map.values
-          .singleWhere((x) => x.identity == 'p:09192922258');
+          .singleWhere((x) => x.identity == 'p:9192922258');
       expect(b.grossTotal, 1500);
       expect(b.total, 500, reason: 'المحصَّل = مدفوع الدين وحده');
       expect(b.debtRemaining, 1000);
@@ -107,9 +111,9 @@ void main() {
       final s = ownerScenario();
       final idx = IdentityIndex(s.recs, s.pros, s.dbts);
       // خام.
-      expect(idx.phoneOf(s.recs[0]), '09192922258');
+      expect(idx.phoneOf(s.recs[0]), '9192922258');
       // موروث عبر debtId (دفعة ← دين).
-      expect(idx.phoneOf(s.recs[1]), '09192922258');
+      expect(idx.phoneOf(s.recs[1]), '9192922258');
       // موروث بقفزتين: دفعةٌ لدينٍ بلا هاتف مربوطٍ بسجلٍ بهاتف.
       final rec = <JMap>[
         {'id': 'r1', 'name': 'س', 'clinic': 'ع', 'phone': '0911'},
@@ -120,12 +124,12 @@ void main() {
         {'id': 'd1', 'name': 'س', 'clinic': 'ع', 'recordId': 'r1'},
       ];
       final idx2 = IdentityIndex(rec, const [], dbt);
-      expect(idx2.phoneOf(rec[1]), '0911',
+      expect(idx2.phoneOf(rec[1]), '911',
           reason: 'دفعة ← دين ← سجل (قفزتان)');
-      expect(idx2.phoneOf(dbt[0]), '0911', reason: 'دين ← سجله');
+      expect(idx2.phoneOf(dbt[0]), '911', reason: 'دين ← سجله');
       // مسكوك: patient_id يحمل الهاتف حين يغيب الحقل الخام.
       expect(
-          idx2.phoneOf({'id': 'x', 'patient_id': 'p:0922:اسم'}), '0922');
+          idx2.phoneOf({'id': 'x', 'patient_id': 'p:0922:اسم'}), '922');
       // بلا أي مصدر ⇒ فارغ («بلا رقم» حقيقةً).
       expect(idx2.phoneOf({'id': 'y', 'name': 'س'}), '');
     });
@@ -151,7 +155,7 @@ void main() {
       final s = ownerScenario();
       final b = patientForClinic('محمد حسين', 'عيادة ا',
           records: s.recs, prosthetics: s.pros, debts: s.dbts,
-          identity: 'p:09192922258')!;
+          identity: 'p:9192922258')!;
       expect(b.grossTotal, 1500);
       expect(b.total, 500);
       expect(b.debtRemaining, 1000);
@@ -281,10 +285,10 @@ void main() {
         repos.debts.upsertLocal(d);
       }
       final payRow = repos.records.getById('rp')!;
-      expect(navIdentityOf(repos, payRow), 'p:09192922258',
+      expect(navIdentityOf(repos, payRow), 'p:9192922258',
           reason: 'م181: الملاحة من صف الدفعة تفتح ملف صاحبها لا شبحاً');
       final prosRow = repos.prosthetics.getById('pa')!;
-      expect(navIdentityOf(repos, prosRow), 'p:0919292254');
+      expect(navIdentityOf(repos, prosRow), 'p:919292254');
     });
 
     test('الاكتساح بهوية يعيد سكّ patient_id ولا يمسّ السميّ ودفعاته', () {
@@ -306,7 +310,7 @@ void main() {
         newName: 'محمد حسين الأب',
         phone: '0919292254',
         clinic: 'عيادة ا',
-        identity: 'p:0919292254',
+        identity: 'p:919292254',
       );
       expect(touched, greaterThanOrEqualTo(1));
       // أ: أعيدت تسميته وسُكّ معرّفه من جديد.

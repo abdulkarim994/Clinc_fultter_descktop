@@ -137,15 +137,15 @@ void main() {
       seedTwo();
       saveNewRecord(d.repos, const {}, visit('سالم خالد', 'الرئيسية'));
       d.archive.archiveAll([
-        (name: 'نوري سالم', clinic: 'الرئيسية'),
-        (name: 'هدى علي', clinic: 'الرئيسية'),
+        (name: 'نوري سالم', clinic: 'الرئيسية', phone: ''),
+        (name: 'هدى علي', clinic: 'الرئيسية', phone: ''),
       ]);
       expect(visibleList(d.repos, d.archive, clinic: 'الرئيسية')
           .map((r) => r.agg.name), ['سالم خالد']);
 
       d.archive.unarchiveAll([
-        (name: 'نوري سالم', clinic: 'الرئيسية'),
-        (name: 'هدى علي', clinic: 'الرئيسية'),
+        (name: 'نوري سالم', clinic: 'الرئيسية', phone: ''),
+        (name: 'هدى علي', clinic: 'الرئيسية', phone: ''),
       ]);
       expect(visibleList(d.repos, d.archive, clinic: 'الرئيسية').length, 3);
     });

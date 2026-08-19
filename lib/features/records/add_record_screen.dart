@@ -23,6 +23,7 @@ import '../../core/locked_services.dart' show kLockedServices;
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/js_compat.dart';
 import '../../data/rates/rate_snapshot.dart';
+import '../../core/utils/ar_normalize.dart' show normPhone;
 import '../patients/patients_logic.dart'
     show IdentityIndex, distinctIdentityPhones;
 import '../patients/patients_tab.dart'
@@ -568,7 +569,11 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
     final nm = nameCtl.text.trim();
     if (nm.isEmpty) return true;
     final repos = ref.read(reposProvider);
-    final typedPhone = phoneCtl.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+    // م189 — الهاتف المكتوب يُقارَن بهويات الصفوف، وهي **قانونية**
+    // (normPhone) — فيجب تطبيعه بنفس الدالة. كان بأرقامه الخام فبقي صفر
+    // البدء، فما طابق أبداً هويةَ مريضٍ قائم ⇒ حوار «سميّ جديد» كذباً
+    // للمريض نفسه.
+    final typedPhone = normPhone(phoneCtl.text);
     final rows = <Map<String, Object?>>[
       for (final r in repos.records.getByPatient(nm))
         if ('${r['clinic'] ?? ''}' == clinic) r,
