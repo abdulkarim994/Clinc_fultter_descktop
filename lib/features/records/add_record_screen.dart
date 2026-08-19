@@ -42,7 +42,7 @@ import 'mini_calculator.dart' show showMiniCalculator;
 import 'record_saver.dart';
 import 'tooth_report_dialog.dart' show showToothReportDialog, teethKeysOf;
 import '../settings/analyses3.dart' show triAnalysesEnabled, triAnalysesPrice;
-import 'analysis_actions.dart' show showTriRepeatBlockedDialog, triRepeatCheck;
+import 'analysis_actions.dart' show passTriGate;
 import '../staff/staff_gate.dart' show gateStaff;
 
 /// config.labs — كما في labsList computed.
@@ -690,15 +690,16 @@ class _AddRecordScreenState extends ConsumerState<AddRecordScreen> {
           triAnalysesEnabled(cfg) &&
           triAnalysesPrice(cfg) > 0;
       if (wouldWriteAnalysis) {
-        // م153 — بنطاق العيادة المختارة وهاتف النموذج (استثناء السميَّين).
-        final blocked = triRepeatCheck(
+        // م187 — البوابة بدرجتيها: حجبٌ قاطع للهوية المؤكَّدة (نفس
+        // الهاتف/المعرّف في أي عيادة بالمركز)، وتحذيرٌ قابل للتجاوز حين
+        // يكون التطابق بالاسم وحده بلا هاتفٍ مميِّز.
+        if (!await passTriGate(
+          context,
           ref,
           patientName: nameCtl.text.trim(),
           clinic: clinic,
           phone: phoneCtl.text.trim(),
-        );
-        if (blocked != null) {
-          await showTriRepeatBlockedDialog(context, blocked);
+        )) {
           return;
         }
       }
