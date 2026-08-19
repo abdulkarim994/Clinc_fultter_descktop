@@ -165,6 +165,7 @@ class ProfitsGrandTable extends StatelessWidget {
     required this.clinic,
     required this.expenses,
     this.lab = 0,
+    this.analyses = 0,
     this.title = 'الإجمالي العام لجميع العيادات',
     this.dense = false,
     this.showDoctor = true,
@@ -185,6 +186,11 @@ class ProfitsGrandTable extends StatelessWidget {
   /// المختبرات» ثم «صافي بعد المختبرات») يجعلان الجدول متحقِّقاً من نفسه:
   /// صافي بعد المختبرات = ربح الطبيب + ربح العيادة **حتماً**.
   final num lab;
+
+  /// م188 — إيراد التحاليل الثلاثية: **إيرادٌ خاصٌّ بالعيادة** (قرار
+  /// المالك) — يُضاف صفّاً تحت المصروفات ولا يدخل عمود «الإيراد» ولا
+  /// «ربح الطبيب»، ثم يُعاد جمع صافي ربح العيادة.
+  final num analyses;
   final String title;
   final bool dense;
 
@@ -316,12 +322,27 @@ class ProfitsGrandTable extends StatelessWidget {
                     key: const Key('prof-grand-exp')),
                 key: const Key('prof-grand-exp-row'),
               ),
+              // م188 — إيراد التحاليل: قيمته تحت عمود **ربح العيادة**
+              // (كالمصروفات) لأنه يُضاف إليه وحده — وعمود الطبيب شرطة
+              // إذ لا حصة له فيه.
+              if (analyses > 0)
+                row(
+                  'إيراد التحاليل (+)',
+                  spacer(),
+                  dash,
+                  _numCell(n(analyses),
+                      color: BrandColors.green,
+                      bold: true,
+                      fs: fs,
+                      key: const Key('prof-grand-analyses')),
+                  key: const Key('prof-grand-analyses-row'),
+                ),
               const SizedBox(height: 8),
               row(
                 'صافي ربح العيادة',
                 spacer(),
                 dash,
-                _numCell(n(clinic - expenses),
+                _numCell(n(clinic - expenses + analyses),
                     color: BrandColors.brand900,
                     bold: true,
                     fs: fs,
@@ -381,12 +402,26 @@ class ProfitsGrandTable extends StatelessWidget {
                     key: const Key('prof-grand-exp')),
                 key: const Key('prof-grand-exp-row'),
               ),
+              // م188 — الفرع المطفأ النِّسَب: عمودُ قيمةٍ واحد، فالتحاليل
+              // تُضاف فيه هي أيضاً — وإلا غاب إيرادها عن هذه الحالة.
+              if (analyses > 0)
+                row(
+                  'إيراد التحاليل (+)',
+                  spacer(),
+                  spacer(),
+                  _numCell(n(analyses),
+                      color: BrandColors.green,
+                      bold: true,
+                      fs: fs,
+                      key: const Key('prof-grand-analyses')),
+                  key: const Key('prof-grand-analyses-row'),
+                ),
               const SizedBox(height: 8),
               row(
                 'صافي العيادة',
                 spacer(),
                 spacer(),
-                _numCell(n(revenue - lab - expenses),
+                _numCell(n(revenue - lab - expenses + analyses),
                     color: BrandColors.brand900,
                     bold: true,
                     fs: fs,
@@ -463,7 +498,13 @@ class YearPnlTable extends StatelessWidget {
                 color: c(BrandColors.brand600), fs: fs),
           _numCell(muted ? '—' : n(m.expenses),
               color: c(BrandColors.red), fs: fs),
-          _numCell(muted ? '—' : n(showDoctor ? m.net : m.revenue - m.expenses),
+          // م188 — صافي الشهر: `net` صار يحوي التحاليل. وفرعُ إطفاء
+          // النِّسَب كان يُغفل المعمل هنا (بينما صفُّ السنة يخصمه) فما
+          // كان مجموعُ الأشهر يطابق سطر السنة — ذيلُ إصلاح م187 نفسه.
+          _numCell(
+              muted
+                  ? '—'
+                  : n(showDoctor ? m.net : m.netOff),
               color: c(BrandColors.brand900), bold: true, fs: fs),
         ]),
       );
@@ -537,9 +578,7 @@ class YearPnlTable extends StatelessWidget {
                 _numCell(n(report.expenses),
                     color: BrandColors.red, bold: true, fs: fs),
                 _numCell(
-                    n(showDoctor
-                        ? report.net
-                        : report.revenue - report.lab - report.expenses),
+                    n(showDoctor ? report.net : report.netOff),
                     color: BrandColors.brand900, bold: true, fs: fs),
               ]),
             ),
@@ -587,6 +626,32 @@ class YearPnlTable extends StatelessWidget {
                           fontSize: fs,
                           fontWeight: FontWeight.w900,
                           color: BrandColors.brand900,
+                          fontFeatures: const [
+                            FontFeature.tabularFigures()
+                          ])),
+                ]),
+              ),
+            ],
+            // م188 — إيراد التحاليل: سطرٌ بذيل السنة (خاصٌّ بالعيادة —
+            // ولذلك هو داخلٌ في «الصافي» أعلاه لا في «الإيراد»).
+            if (report.analyses > 0) ...[
+              const SizedBox(height: 4),
+              Padding(
+                key: const Key('prof-pnl-analyses'),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text('إيراد التحاليل (+) — للعيادة',
+                        style: TextStyle(
+                            fontSize: fs - .5,
+                            fontWeight: FontWeight.w700,
+                            color: BrandColors.mut)),
+                  ),
+                  Text(n(report.analyses),
+                      style: TextStyle(
+                          fontSize: fs,
+                          fontWeight: FontWeight.w900,
+                          color: BrandColors.green,
                           fontFeatures: const [
                             FontFeature.tabularFigures()
                           ])),
