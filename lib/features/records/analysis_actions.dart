@@ -13,6 +13,7 @@ import '../../app/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/ar_normalize.dart' show arNorm, normPhone;
 import '../../core/utils/js_compat.dart' show getCurrentDate;
+import '../patients/patients_logic.dart' show IdentityIndex;
 import '../settings/analyses3.dart'
     show
         TriGate,
@@ -38,16 +39,27 @@ TriGate triRepeatGateFor(
   String phone = '',
 }) {
   final cfg = ref.read(appConfigProvider);
-  final records =
-      ref.read(reposProvider).records.getAll().cast<Map<String, Object?>>();
+  final repos = ref.read(reposProvider);
+  final records = repos.records.getAll().cast<Map<String, Object?>>();
+  // م189 — حلّال الهوية الموروث: صفُّ تحليلٍ قديمٍ بلا عمود هاتف يرث هاتف
+  // زيارته الأصل (`analysisOf`) — فتعود الهوية مؤكَّدة ويحلّ الحجبُ/السماحُ
+  // الصحيح مكان التحذير الأعمى.
+  final idx = IdentityIndex(
+    records,
+    repos.prosthetics.getAll().cast<Map<String, Object?>>(),
+    repos.debts.getAll().cast<Map<String, Object?>>(),
+  );
   return triRepeatGate(
     hit: lastTriAnalysisHit(
       records,
       patientId: patientId,
       patientName: patientName,
+      // م189 — هاتف الطرف الحالي أيضاً: الممرَّر صراحةً وإلا الموروث من
+      // صفّ الزيارة عبر معرّفه (المسار الأكثر استعمالاً لا يمرّره).
       phone: phone,
       normalize: arNorm,
       normPhone: normPhone,
+      phoneOfRow: idx.phoneOf,
     ),
     today: getCurrentDate(),
     repeatMonths: triRepeatMonths(cfg),
@@ -237,8 +249,19 @@ Future<bool> promptAddAnalysisToVisit(
   // م187 — البوابة بدرجتيها (حجب/تحذير)، و**الهاتف يُمرَّر أخيراً**: كان
   // هذا المسار (ثلاث نقاط الجدول وبطاقة المريض) لا يمرّره إطلاقاً فيُعطَّل
   // استثناء السميَّين عملياً — وهو أكثر المسارات استعمالاً (بلاغ المالك).
-  final gatePhone = patientPhone ??
-      '${repos.records.getById(analysisOf)?['phone'] ?? ''}';
+  // م189 — وإن خلا عمودُ الزيارة من الهاتف: يُورَّث من معرّف هويتها أو من
+  // أصلها بالحلّال — فلا يمضي الفحص أعمى ولا يُكتب صفٌّ بلا هوية (ملفٌ
+  // فارغ في سجلات المريض — بلاغ المالك).
+  final visitRow = repos.records.getById(analysisOf);
+  final gatePhone = (patientPhone ?? '').trim().isNotEmpty
+      ? patientPhone!.trim()
+      : (visitRow == null
+          ? ''
+          : IdentityIndex(
+              repos.records.getAll().cast<Map<String, Object?>>(),
+              repos.prosthetics.getAll().cast<Map<String, Object?>>(),
+              repos.debts.getAll().cast<Map<String, Object?>>(),
+            ).phoneOf(visitRow.cast<String, Object?>()));
   if (!await passTriGate(
     context,
     ref,
