@@ -236,6 +236,9 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
           // م187 — قيمة المختبرات: صفّها + صفّ «صافي بعد المختبرات» يفسّران
           // فرقَ (الإيراد − الحصتين) الذي كان بلا تفسير (بلاغ المالك).
           lab: grand.prosLabCost,
+          // م188 — إيراد التحاليل الثلاثية: صفٌّ تحت المصروفات يُضاف
+          // لصافي العيادة وحدها (إيرادٌ خاصٌّ بها — قرار المالك).
+          analyses: analysesRevenue(records, period: month),
           showDoctor: ratesOn,
         ),
       ],
@@ -308,16 +311,16 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
               yoy: prev == null ? null : yoyPct(rep.revenue, prev.revenue)),
           YearKpi(
               ratesOn ? 'صافي ربح العيادة' : 'صافي العيادة',
-              '${n(ratesOn ? rep.net : rep.revenue - rep.expenses)} $cur',
+              '${n(ratesOn ? rep.net : rep.netOff)} $cur',
               BrandColors.brand900,
               keyId: 'prof-year-net',
               yoy: prev == null
                   ? null
                   : yoyPct(
-                      ratesOn ? rep.net : rep.revenue - rep.expenses,
-                      ratesOn
-                          ? prev.net
-                          : prev.revenue - prev.expenses)),
+                      // م188 — تعبيرٌ واحد (netOff) للمؤشر والجدول معاً:
+                      // كان المؤشر يُغفل المعمل فيخالف سطر السنة.
+                      ratesOn ? rep.net : rep.netOff,
+                      ratesOn ? prev.net : prev.netOff)),
           if (ratesOn)
             YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur',
                 BrandColors.green,
@@ -330,7 +333,7 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
               keyId: 'prof-year-exp'),
           YearKpi(
               'هامش الصافي',
-              '${(ratesOn ? rep.marginPct : (rep.revenue == 0 ? 0 : (rep.revenue - rep.expenses) / rep.revenue * 100)).toStringAsFixed(1)}٪',
+              '${(ratesOn ? rep.marginPct : (rep.revenue == 0 ? 0 : rep.netOff / rep.revenue * 100)).toStringAsFixed(1)}٪',
               BrandColors.goldDark,
               keyId: 'prof-year-margin'),
         ]),

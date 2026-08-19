@@ -238,6 +238,8 @@ class _DesktopProfitsScreenState
               expenses: ex.total,
               // م187 — صفّا المختبرات (توأم نسخة الهاتف حرفياً).
               lab: grand.prosLabCost,
+              // م188 — صفّ إيراد التحاليل (توأم نسخة الهاتف حرفياً).
+              analyses: analysesRevenue(records, period: month),
               showDoctor: ratesOn,
             ),
           ),
@@ -310,16 +312,16 @@ class _DesktopProfitsScreenState
               yoy: prev == null ? null : yoyPct(rep.revenue, prev.revenue)),
           YearKpi(
               ratesOn ? 'صافي ربح العيادة' : 'صافي العيادة',
-              '${n(ratesOn ? rep.net : rep.revenue - rep.expenses)} $cur',
+              '${n(ratesOn ? rep.net : rep.netOff)} $cur',
               BrandColors.brand900,
               keyId: 'prof-year-net',
               yoy: prev == null
                   ? null
                   : yoyPct(
-                      ratesOn ? rep.net : rep.revenue - rep.expenses,
-                      ratesOn
-                          ? prev.net
-                          : prev.revenue - prev.expenses)),
+                      // م188 — تعبيرٌ واحد (netOff) للمؤشر والجدول معاً:
+                      // كان المؤشر يُغفل المعمل فيخالف سطر السنة.
+                      ratesOn ? rep.net : rep.netOff,
+                      ratesOn ? prev.net : prev.netOff)),
           if (ratesOn)
             YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur',
                 BrandColors.green,
@@ -332,7 +334,7 @@ class _DesktopProfitsScreenState
               keyId: 'prof-year-exp'),
           YearKpi(
               'هامش الصافي',
-              '${(ratesOn ? rep.marginPct : (rep.revenue == 0 ? 0 : (rep.revenue - rep.expenses) / rep.revenue * 100)).toStringAsFixed(1)}٪',
+              '${(ratesOn ? rep.marginPct : (rep.revenue == 0 ? 0 : rep.netOff / rep.revenue * 100)).toStringAsFixed(1)}٪',
               BrandColors.goldDark,
               keyId: 'prof-year-margin'),
         ]),
