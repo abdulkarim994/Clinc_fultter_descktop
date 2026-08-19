@@ -17,6 +17,7 @@ import '../../data/rates/rate_snapshot.dart';
 import '../../data/repositories/repositories.dart';
 import '../../data/sync/feature_flags.dart';
 import '../patients/archive_store.dart' show PatientArchiveStore;
+import '../patients/patients_logic.dart' show IdentityIndex;
 import '../staff/staff_session.dart' show staffCreatedBy;
 import '../../core/utils/ar_normalize.dart' show arNorm, normPhone;
 import '../settings/analyses3.dart'
@@ -111,14 +112,23 @@ bool addAnalysisToVisit(
   // استدعاءٍ مستقبلي لا يفحص مسبقاً يُصَدُّ هنا أيضاً — فلا صف يخالف المدة.
   // م187 — البوابة بدرجتيها: الحجب يُصدّ دائماً، والتحذير يمضي فقط بعلم
   // [overrideWarn] الصريح (الواجهة تضعه بعد موافقة الطبيب).
+  final allRecs = repos.records.getAll().cast<Map<String, Object?>>();
   final gate = triRepeatGate(
     hit: lastTriAnalysisHit(
-      repos.records.getAll().cast<Map<String, Object?>>(),
+      allRecs,
       patientId: patientId,
       patientName: patientName,
       phone: phone,
       normalize: arNorm,
       normPhone: normPhone,
+      // م189 — الحلّال الموروث في الكاتب أيضاً (دفاعٌ في العمق): يجب أن
+      // يحكم الكاتبُ والواجهةُ بنفس الهوية حتماً، وإلا صدّ الكاتبُ ما
+      // أجازته البوابة (أو العكس).
+      phoneOfRow: IdentityIndex(
+        allRecs,
+        repos.prosthetics.getAll().cast<Map<String, Object?>>(),
+        repos.debts.getAll().cast<Map<String, Object?>>(),
+      ).phoneOf,
     ),
     today: getCurrentDate(),
     repeatMonths: triRepeatMonths(cfg),
@@ -127,6 +137,16 @@ bool addAnalysisToVisit(
   if (gate.isWarning && !overrideWarn) return false;
   final aPay = payment == 'تحويل' ? 'تحويل' : 'كاش';
   final nowMod = jsNow();
+  // م189 — الصفّ يُسكّ **بهويته كاملة** (هاتفٌ + معرّف) كصفوف الدفعات في
+  // م181. كان يُكتب بلا هاتفٍ إطلاقاً، فكانت ثمرتاه المُبلَّغتان:
+  //  • التنبيه يقول «لا رقم هاتف يميّز بينهما» ولو كان للمريض رقم —
+  //    لأن الصفّ المخزَّن الذي يُقارَن به لا يحمل رقماً.
+  //  • وصفٌّ بلا هوية يلد ملفاً فارغاً بصفر زيارات في سجلات المريض.
+  final aPhone = phone.trim();
+  final aPid = patientId ??
+      (isPhoneIdentityEnabled() && aPhone.isNotEmpty
+          ? patientKeyFor(name: patientName.trim(), phone: aPhone)
+          : null);
   repos.records.upsertLocal({
     'id': genId(),
     'createdBy': ?staffCreatedBy(),
@@ -134,7 +154,8 @@ bool addAnalysisToVisit(
     'name': patientName,
     'patient_name': patientName,
     'amount': aPrice,
-    'patient_id': ?patientId,
+    'phone': ?(aPhone.isEmpty ? null : aPhone),
+    'patient_id': ?aPid,
     'clinic': clinic,
     'clinic_id': clinic,
     'service': 'تحاليل',
@@ -617,7 +638,10 @@ SaveRecordResult saveNewRecord(
   // جديدة يعود نشطاً بحكم الفعل، فلا يحتاج الطبيب أن يتذكّر من أرشف. بعد
   // الالتزام لا داخله: إلغاء الأرشفة كتابةُ إعدادات مستقلة، وإبقاؤها خارج
   // معاملة السجل يمنع أي تشابك، ولا تفعل شيئاً إن لم يكن مؤرشفاً.
-  PatientArchiveStore(repos.settings).autoReactivateOnActivity(name, f.clinic);
+  // م189 — العودة التلقائية بهوية المريض (هاتفه) لا باسمه وحده:
+  // زيارةٌ لسميٍّ لا تُخرج سميَّه من الأرشيف.
+  PatientArchiveStore(repos.settings)
+      .autoReactivateOnActivity(name, f.clinic, f.phone);
 
   var msg = ip ? 'تم حفظ التركيبة' : 'تم حفظ السجل';
   if (f.isDebt) msg += ' + تم إنشاء دين جديد مرتبط';
