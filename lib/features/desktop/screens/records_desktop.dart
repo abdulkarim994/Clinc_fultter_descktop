@@ -22,7 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../patients/archive_store.dart' show PatientArchiveStore;
-import '../../patients/clinic_scope.dart' show clinicScopedKey;
+import '../../patients/clinic_scope.dart' show medicalScopedKey;
 import '../../patients/patient_profile_screen.dart'
     show PatientProfileScreen;
 import '../../patients/patients_logic.dart'
@@ -150,8 +150,10 @@ class _DesktopRecordsScreenState
       PatientArchiveStore(ref.read(reposProvider).settings);
 
   /// مفتاح المريض المعزول بالعيادة (م35) — نفس مفتاح بقية بياناته.
+  /// م189 — مفتاح الصفّ **بالهوية** (اسم|عيادة|هاتف): كان بلا هاتف فكان
+  /// النقر على أحد السميَّين يحدّد الآخر معه ويؤرشفهما معاً (بلاغ المالك).
   String _pkey(ClinicPatientRow p) =>
-      clinicScopedKey(p.agg.name, p.agg.clinic);
+      medicalScopedKey(p.agg.name, p.agg.clinic, p.agg.phone);
 
   // ── بناء قائمة المرضى المفلترة ───────────────────────────────────────────
 
@@ -396,7 +398,8 @@ class _DesktopRecordsScreenState
     if (ok != true || !mounted) return;
 
     final targets = [
-      for (final p in pts) (name: p.agg.name, clinic: p.agg.clinic),
+      for (final p in pts)
+        (name: p.agg.name, clinic: p.agg.clinic, phone: p.agg.phone),
     ];
     _archive.archiveAll(targets);
     _exitSelect();
@@ -419,7 +422,7 @@ class _DesktopRecordsScreenState
   }
 
   void _unarchiveOne(ClinicPatientRow p) {
-    _archive.unarchive(p.agg.name, p.agg.clinic);
+    _archive.unarchive(p.agg.name, p.agg.clinic, p.agg.phone);
     ref.read(patientsRevProvider.notifier).state++;
     _snack('أُلغيت أرشفة «${p.agg.name}»');
   }
@@ -437,7 +440,8 @@ class _DesktopRecordsScreenState
         if (_selected.contains(_pkey(p)) && p.archived) p,
     ];
     _archive.unarchiveAll(
-        [for (final p in pts) (name: p.agg.name, clinic: p.agg.clinic)]);
+        [for (final p in pts)
+          (name: p.agg.name, clinic: p.agg.clinic, phone: p.agg.phone)]);
     final c = pts.length;
     _exitSelect();
     ref.read(patientsRevProvider.notifier).state++;
