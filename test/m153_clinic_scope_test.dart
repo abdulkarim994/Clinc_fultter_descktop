@@ -1,14 +1,15 @@
-/// م153 — قاعدة تكرار التحليل بنطاق العيادة + استثناء السميَّين (قرارا
-/// المالك 2026-08-10).
+/// م153 — استثناء السميَّين في قاعدة تكرار التحليل.
 ///
-/// (أ) نطاق العيادة: «محمد أحمد» في عيادتين حرٌّ في كلٍّ منهما على حدة —
-///     المطابقة داخل نفس العيادة فقط (clinic ثم clinic_id احتياطاً)،
-///     والفارغة = بلا قصر (سلوك احتياطي).
-/// (ب) استثناء السميَّين: هاتفان **صريحان مختلفان** على الطرفين = شخصان
-///     فيُسمح؛ غياب هاتف أي طرفٍ = غموض ⇒ يبقى الحجب احتياطاً؛ وتطابق
-///     المعرّفين = نفس المريض حتماً مهما كانت الهواتف.
-/// (ج) الكاتبان: نفس الاسم بعيادةٍ أخرى يمرّ عبر addAnalysisToVisit
-///     وsaveNewRecord — وبنفس العيادة يُصَدّ.
+/// 🔄 **نُسخ جزئياً بقرار المالك في م187** (2026-08-19):
+///  • **نطاق العيادة أُلغي ⇒ النطاق المركز كله**: سؤال المالك «نفس المريض
+///    يشتغل عند دكتور تاني شو حلها؟» وجوابه المعتمد أن التحليل قيدٌ طبّيٌّ
+///    على **الشخص** لا على العيادة — فأخذه في عيادةٍ أخرى داخل المدة كان
+///    ثغرة. اختبارات النطاق أدناه صارت تحرس **الحجب عبر العيادات**.
+///  • **الغموض (غياب هاتف أحد الطرفين) لم يبقَ حجباً** بل تحذيراً قابلاً
+///    للتجاوز (`TriGateKind.warn`) — فلا يُحبس الطبيب أمام سميٍّ. أما
+///    **الحجب القاطع** فيبقى للهوية المؤكَّدة (هاتف/معرّف متطابق) وحدها.
+/// عقد م187 كاملاً في `test/m187_tri_identity_test.dart`؛ وهذا الملف يحرس
+/// ما بقي من م153: استثناء السميَّين بهاتفين صريحين، وسلوك الكاتبَين.
 library;
 
 import 'dart:io';
@@ -53,15 +54,17 @@ void main() {
   group('م153/أ — نطاق العيادة', () {
     final rows = [triRow(id: 'a1', name: 'محمد أحمد', clinic: 'الصفوة')];
 
-    test('نفس الاسم بعيادةٍ أخرى = حرٌّ (لا حجب)', () {
+    // م187 — النطاق صار المركز كله: العيادة لم تبقَ فاصلاً.
+    test('نفس الاسم بعيادةٍ أخرى = يُطابَق أيضاً (م187: نطاق المركز)', () {
       expect(
         lastTriAnalysisDate(rows,
             patientName: 'محمد أحمد', clinic: 'كاريزما', normalize: arNorm),
-        isNull,
+        today,
+        reason: 'م187: التحليل قيدٌ على الشخص لا على العيادة',
       );
     });
 
-    test('نفس الاسم بنفس العيادة = محجوب', () {
+    test('نفس الاسم بنفس العيادة = يُطابَق (كما كان)', () {
       expect(
         lastTriAnalysisDate(rows,
             patientName: 'محمد أحمد', clinic: 'الصفوة', normalize: arNorm),
@@ -69,7 +72,7 @@ void main() {
       );
     });
 
-    test('عيادة فارغة (احتياط) = بلا قصر — يطابق عبر العيادات', () {
+    test('بلا تمرير عيادة = يُطابَق (النتيجة واحدة بعد م187)', () {
       expect(
         lastTriAnalysisDate(rows,
             patientName: 'محمد أحمد', normalize: arNorm),
@@ -77,7 +80,7 @@ void main() {
       );
     });
 
-    test('صف قديم بلا clinic يُطابَق بـ clinic_id احتياطاً', () {
+    test('صفٌّ قديم بلا clinic يُطابَق باسمه (لا يعتمد على العيادة)', () {
       final legacy = [
         {
           'id': 'a2',
@@ -90,16 +93,14 @@ void main() {
           'date': today,
         },
       ];
-      expect(
-        lastTriAnalysisDate(legacy,
-            patientName: 'سالم', clinic: 'النخبة', normalize: arNorm),
-        today,
-      );
-      expect(
-        lastTriAnalysisDate(legacy,
-            patientName: 'سالم', clinic: 'الصفوة', normalize: arNorm),
-        isNull,
-      );
+      // م187 — يُطابَق بأي عيادةٍ مُرِّرت: الهوية بالاسم/الهاتف لا بالعيادة.
+      for (final c in ['النخبة', 'الصفوة', '']) {
+        expect(
+          lastTriAnalysisDate(legacy,
+              patientName: 'سالم', clinic: c, normalize: arNorm),
+          today,
+        );
+      }
     });
   });
 
@@ -227,12 +228,13 @@ void main() {
           name: kTriAnalysesName, price: 50, payment: 'كاش');
       visit('الصفوة', anal: anal);
       expect(analCount(c), 1);
-      visit('كاريزما', anal: anal); // عيادة أخرى — حرّ.
-      expect(analCount(c), 2, reason: 'كل عيادة مستقلة بقاعدتها');
-      visit('الصفوة', anal: anal); // تكرار بنفس العيادة — يُصَدّ.
-      expect(analCount(c), 2);
-      visit('كاريزما', anal: anal); // تكرار بالثانية — يُصَدّ.
-      expect(analCount(c), 2);
+      // م187 — مريضٌ بلا هاتف: التطابق بالاسم ⇒ **تحذير** لا حجب، وحارس
+      // الكاتب يمضي لأن الواجهة تأخذ موافقة الطبيب قبله (passTriGate).
+      visit('كاريزما', anal: anal);
+      expect(analCount(c), 2,
+          reason: 'م187: الهوية غير مؤكَّدة ⇒ تحذيرٌ يمضي لا رفضٌ صامت');
+      visit('الصفوة', anal: anal);
+      expect(analCount(c), 3);
     });
 
     test('addAnalysisToVisit: عيادة أخرى تمرّ ونفسها تُصَدّ', () {
@@ -260,9 +262,23 @@ void main() {
           date: today,
           cfg: config(),
           payment: 'كاش');
+      // م187 — بلا هاتفٍ مميِّز: الحالة **تحذير**، وaddAnalysisToVisit
+      // يصدّها إلا بعلم [overrideWarn] الصريح (الواجهة تضعه بعد الموافقة).
       expect(add(e1, 'الصفوة'), isTrue);
-      expect(add(e2, 'كاريزما'), isTrue, reason: 'عيادة أخرى مستقلة');
-      expect(add(e1, 'الصفوة'), isFalse, reason: 'تكرار بنفس العيادة');
+      expect(add(e2, 'كاريزما'), isFalse,
+          reason: 'م187: تحذيرٌ يحتاج موافقةً صريحة لا يمضي صامتاً');
+      expect(
+          addAnalysisToVisit(repos,
+              analysisOf: e2,
+              patientName: 'محمد أحمد',
+              clinic: 'كاريزما',
+              date: today,
+              cfg: config(),
+              payment: 'كاش',
+              overrideWarn: true),
+          isTrue,
+          reason: 'م187: بموافقة الطبيب يمضي');
+      expect(add(e1, 'الصفوة'), isFalse, reason: 'تكرار بلا موافقة');
       expect(analCount(c), 2);
     });
   });
