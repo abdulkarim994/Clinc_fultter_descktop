@@ -236,6 +236,10 @@ void main() {
           .getAll()
           .firstWhere((r) =>
               jsTruthy(r['isAnalysis']) && r['patient_name'] == 'أحمد');
+      // م187 — التعديل والحذف صارا في قائمة الصف المضغوطة (⋮) بهوية
+      // جدول الحركات: نفتحها ثم نختار «حذف» — نفس المفاتيح القائمة.
+      await t.tap(find.byKey(Key('anal-reg-menu-${target['id']}')));
+      await t.pumpAndSettle();
       await t.tap(find.byKey(Key('anal-reg-del-${target['id']}')));
       await t.pumpAndSettle();
       await t.tap(find.byKey(const Key('anal-reg-del-confirm')));
