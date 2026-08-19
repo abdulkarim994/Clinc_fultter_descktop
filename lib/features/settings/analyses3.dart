@@ -125,21 +125,105 @@ String _pidPhone(String pid) {
   return i < 0 ? '' : pid.substring(2, i);
 }
 
-/// تاريخ آخر تحليلٍ ثلاثيٍّ للمريض من صفوف السجلات — أو null إن لم يوجد.
+/// م187 — هاتف الصفّ المخزَّن: من عمود `phone` أولاً ثم من معرّف هويته.
 ///
-/// هوية المريض (م152 — قاعدة المالك المؤكدة: «لكل اسم مرة واحدة»):
-/// **الاسم المطبَّع أساس المطابقة** ([normalize] — أداة التطبيع العربي
-/// القائمة، فتُدرك «إبراهيم» رغم كتابتها «ابراهيم»)، **أو** تطابقُ
-/// معرّفَي المريض حين يتوفر الطرفان (يلتقط تغيير الاسم على نفس الهوية).
+/// كان يُقرأ من المعرّف **وحده**، فصفٌّ معرّفه `n:اسم` (مريض بلا هاتف في
+/// جدول الهوية) يبدو «بلا هاتف» ولو كان عموده يحمل رقماً — فيُحجب سميُّه
+/// ظلماً. مصدران أفضل من واحد.
+String _rowPhone(Map<String, Object?> r, String Function(String) normPhoneFn) {
+  final col = normPhoneFn('${r['phone'] ?? ''}');
+  if (col.isNotEmpty) return col;
+  return _pidPhone('${r['patient_id'] ?? ''}'.trim());
+}
+
+/// نتيجة فحص قاعدة التكرار: تاريخ آخر تحليل + **درجة تأكّد الهوية**.
 ///
-/// م153 (قرارا المالك):
-/// • **نطاق العيادة**: [clinic] غير الفارغة تقصر المطابقة على تحاليل
-///   العيادة نفسها — «محمد أحمد» في عيادتين حرٌّ في كلٍّ منهما على حدة.
-/// • **استثناء السميَّين**: هاتفان مختلفان **صريحان** على الطرفين
-///   (من [phone] المطبَّع أو من معرّفَي الهوية `p:هاتف:اسم`) = شخصان
-///   مختلفان فلا يتحاجبان. غياب هاتف أي طرفٍ يُبقي الحجب احتياطاً.
+/// م187 (قرار المالك) — القاعدة الحاكمة: **حجبٌ قاطع حين تكون الهوية
+/// مؤكَّدة، وتحذيرٌ قابل للتجاوز حين تكون تخميناً**:
+///  • [certain] = true ⇒ تطابقُ هاتفٍ صريح أو تطابقُ معرّفَي هوية ⇒ هو
+///    الشخص نفسه يقيناً ⇒ حجب.
+///  • [certain] = false ⇒ التطابق بالاسم وحده (أحد الطرفين بلا هاتف) ⇒
+///    تحذيرٌ يمضي بموافقة الطبيب («متابعة على مسؤوليتي») بدل رفضٍ يحبسه.
+class TriRepeatHit {
+  const TriRepeatHit(this.date, {required this.certain});
+
+  final String date;
+
+  /// هل الهوية مؤكَّدة (هاتف/معرّف) أم تخمينٌ بالاسم؟
+  final bool certain;
+}
+
+/// آخر تحليلٍ ثلاثيٍّ لهذا المريض — أو null إن لم يوجد.
+///
+/// **هوية المريض (م187 — تحديثٌ لقرارَي م152/م153):**
+///  • المميِّز هو **الهاتف** لا الاسم: سميّان بهاتفين مختلفين لا يتحاجبان
+///    أبداً (بلاغ المالك: «عند تشابه الأسماء يرفض ويعتبرهم نفس الشخص»).
+///  • **النطاق المركز كله** لا العيادة (قرار المالك بعد سؤاله «نفس المريض
+///    عند دكتور تاني»): التحليل قيدٌ طبّيٌّ على **الشخص**، فأخذه في عيادةٍ
+///    أخرى داخل المدة كان ثغرةً. [clinic] لم تبقَ للترشيح — تُستعمل
+///    للرسالة فقط عند اللزوم (وأُبقيت في التوقيع توافقاً مع المنادين).
+///  • مريضٌ **بلا هاتف** على أي طرف: يُحتسب تطابقاً **غير مؤكَّد** (بالاسم
+///    المطبَّع) فيصير تحذيراً لا حجباً — انظر [TriRepeatHit].
 ///
 /// التاريخ نصيٌّ بصيغة YYYY-MM-DD فالمقارنة المعجمية = الزمنية.
+TriRepeatHit? lastTriAnalysisHit(
+  List<Map<String, Object?>> records, {
+  String? patientId,
+  required String patientName,
+  String phone = '',
+  required String Function(String) normalize,
+  required String Function(String) normPhone,
+}) {
+  final pid = (patientId ?? '').trim();
+  final wanted = normalize(patientName.trim());
+  // هاتف الطرف الحالي: الممرَّر صراحةً وإلا من معرّفه.
+  final qPhone = normPhone(phone).isNotEmpty
+      ? normPhone(phone)
+      : _pidPhone(pid);
+  TriRepeatHit? best;
+  for (final r in records) {
+    if (!_isTri(r['isAnalysis'])) continue;
+    // التحليل الثلاثي حصراً — صفوف التحاليل الحرة من النظام القديم
+    // (أسماء متعددة قبل م145) لا تُحتسب، فالقاعدة قاعدةُ «التحليل
+    // الثلاثي» نصاً ولا يصح أن تحجب المريض بصفٍّ قديمٍ مختلف.
+    if ('${r['analysisName'] ?? ''}' != kTriAnalysesName) continue;
+    final rid = '${r['patient_id'] ?? ''}'.trim();
+    final rPhone = _rowPhone(r, normPhone);
+    final sameName = wanted.isNotEmpty &&
+        normalize('${r['patient_name'] ?? r['name'] ?? ''}'.trim()) == wanted;
+    final sameId = pid.isNotEmpty && rid.isNotEmpty && rid == pid;
+    final samePhone =
+        qPhone.isNotEmpty && rPhone.isNotEmpty && qPhone == rPhone;
+    // م187 — **معرّفٌ مشتقٌّ من الاسم ليس إثبات هوية**: `n:اسم` (وTRIM(name)
+    // حين علم هوية الهاتف مطفأ) يتطابق بين سميَّين حتماً، فتساويه يساوي
+    // تساوي الاسم لا أكثر. الهوية المؤكَّدة = هاتفٌ مشترك أو معرّفٌ يحمل
+    // هاتفاً (`p:هاتف:اسم`). لولا هذا التمييز لعاد الحجبُ الظالم من بابٍ
+    // آخر: سميّان بلا هاتف لهما نفس `n:اسم`.
+    final strongId = sameId && pid.startsWith('p:');
+    // م187 — هاتفان صريحان مختلفان = شخصان مختلفان قطعاً: لا يتحاجبان
+    // ولو تطابق الاسم حرفاً بحرف (إلا أن يتطابق المعرّفان فهو هو).
+    if (!sameId &&
+        qPhone.isNotEmpty &&
+        rPhone.isNotEmpty &&
+        qPhone != rPhone) {
+      continue;
+    }
+    if (!sameName && !sameId && !samePhone) continue;
+    final d = '${r['date'] ?? ''}'.trim();
+    if (d.isEmpty || d == 'null') continue;
+    final certain = strongId || samePhone;
+    // الأحدث أولاً؛ وعند تساوي التاريخ يفوز المؤكَّد (حجبٌ أدقّ).
+    if (best == null ||
+        d.compareTo(best.date) > 0 ||
+        (d == best.date && certain && !best.certain)) {
+      best = TriRepeatHit(d, certain: certain);
+    }
+  }
+  return best;
+}
+
+/// توافقٌ خلفي (م149-م153): التاريخ وحده بلا درجة التأكّد.
+/// يبقى مستعملاً في المسارات التي لا تفرّق بين الحجب والتحذير.
 String? lastTriAnalysisDate(
   List<Map<String, Object?>> records, {
   String? patientId,
@@ -147,45 +231,18 @@ String? lastTriAnalysisDate(
   String clinic = '',
   String phone = '',
   required String Function(String) normalize,
-}) {
-  final pid = (patientId ?? '').trim();
-  final wanted = normalize(patientName.trim());
-  final wantClinic = clinic.trim();
-  // هاتف الطرف الحالي: الممرَّر صراحةً (مطبَّعاً من المنادي) وإلا من معرّفه.
-  final qPhone = phone.trim().isNotEmpty ? phone.trim() : _pidPhone(pid);
-  String? last;
-  for (final r in records) {
-    if (!_isTri(r['isAnalysis'])) continue;
-    // التحليل الثلاثي حصراً — صفوف التحاليل الحرة من النظام القديم
-    // (أسماء متعددة قبل م145) لا تُحتسب، فالقاعدة قاعدةُ «التحليل
-    // الثلاثي» نصاً ولا يصح أن تحجب المريض بصفٍّ قديمٍ مختلف.
-    if ('${r['analysisName'] ?? ''}' != kTriAnalysesName) continue;
-    // م153 — نطاق العيادة: تحاليل نفس العيادة فقط (clinic ثم clinic_id).
-    if (wantClinic.isNotEmpty) {
-      final rc = '${r['clinic'] ?? ''}'.trim();
-      final rowClinic =
-          (rc.isNotEmpty && rc != 'null') ? rc : '${r['clinic_id'] ?? ''}'.trim();
-      if (rowClinic != wantClinic) continue;
-    }
-    final rid = '${r['patient_id'] ?? ''}'.trim();
-    final sameName = wanted.isNotEmpty &&
-        normalize('${r['patient_name'] ?? r['name'] ?? ''}'.trim()) == wanted;
-    final sameId = pid.isNotEmpty && rid.isNotEmpty && rid == pid;
-    if (!sameName && !sameId) continue;
-    // م153 — استثناء السميَّين: هاتفان صريحان مختلفان = شخصان (إلا حين
-    // يتطابق المعرّفان — فهو المريض نفسه حتماً).
-    if (!sameId) {
-      final rPhone = _pidPhone(rid);
-      if (qPhone.isNotEmpty && rPhone.isNotEmpty && qPhone != rPhone) {
-        continue;
-      }
-    }
-    final d = '${r['date'] ?? ''}'.trim();
-    if (d.isEmpty || d == 'null') continue;
-    if (last == null || d.compareTo(last) > 0) last = d;
-  }
-  return last;
-}
+  String Function(String)? normPhone,
+}) =>
+    lastTriAnalysisHit(
+      records,
+      patientId: patientId,
+      patientName: patientName,
+      phone: phone,
+      normalize: normalize,
+      // بلا مطبِّع هاتفٍ صريح: الأرقام وحدها (نفس تطبيع normPhone عملياً).
+      normPhone: normPhone ??
+          ((v) => v.replaceAll(RegExp(r'[^0-9]'), '')),
+    )?.date;
 
 /// يضيف [months] شهراً تقويمياً إلى تاريخ YYYY-MM-DD (بمعايرة DateTime —
 /// نهاية الشهر تفيض للشهر التالي كسلوك التقويم القياسي).
@@ -215,4 +272,62 @@ String? triRepeatBlockMessage({
   return 'لا يمكن إجراء تحليل ثلاثي جديد لهذا المريض. '
       'آخر تحليل تم بتاريخ $lastDate. '
       'يجب مرور $months أشهر على الأقل.';
+}
+
+/// م187 — قرار القاعدة بدرجتيه: حجبٌ قاطع أو تحذيرٌ قابل للتجاوز.
+enum TriGateKind {
+  /// مسموح — لا تحليلَ سابقاً أو انقضت المدة أو القاعدة معطّلة.
+  allowed,
+
+  /// هويةٌ مؤكَّدة (هاتف/معرّف) داخل المدة ⇒ رفضٌ قاطع.
+  blocked,
+
+  /// تطابقُ اسمٍ بلا هاتفٍ مميِّز ⇒ تحذيرٌ يمضي بموافقة الطبيب.
+  warn,
+}
+
+/// قرار القاعدة على مريضٍ ما اليوم: نوعُه ورسالته.
+class TriGate {
+  const TriGate(this.kind, this.message);
+
+  const TriGate.allowed() : kind = TriGateKind.allowed, message = '';
+
+  final TriGateKind kind;
+  final String message;
+
+  bool get isAllowed => kind == TriGateKind.allowed;
+  bool get isBlocked => kind == TriGateKind.blocked;
+  bool get isWarning => kind == TriGateKind.warn;
+}
+
+/// م187 — البوابة الموحّدة: تترجم [TriRepeatHit] إلى قرارٍ برسالته.
+///
+/// **الحجب** حين الهوية مؤكَّدة (نفس الهاتف أو نفس المعرّف) — ولو كان
+/// التحليل في عيادةٍ أخرى بالمركز (قرار المالك: النطاق المركز كله).
+/// **التحذير** حين التطابق بالاسم وحده — فلا يُحبس الطبيب أمام سميٍّ.
+TriGate triRepeatGate({
+  required TriRepeatHit? hit,
+  required String today,
+  required num repeatMonths,
+}) {
+  if (hit == null) return const TriGate.allowed();
+  final months = repeatMonths.toInt();
+  if (months <= 0) return const TriGate.allowed();
+  if (today.compareTo(addMonths(hit.date, months)) >= 0) {
+    return const TriGate.allowed();
+  }
+  if (hit.certain) {
+    return TriGate(
+      TriGateKind.blocked,
+      'لا يمكن إجراء تحليل ثلاثي جديد لهذا المريض. '
+      'آخر تحليل تم بتاريخ ${hit.date}. '
+      'يجب مرور $months أشهر على الأقل.',
+    );
+  }
+  return TriGate(
+    TriGateKind.warn,
+    'يوجد مريض **بنفس الاسم** له تحليل ثلاثي بتاريخ ${hit.date} '
+    '(المدة $months أشهر). لا رقم هاتف يميّز بينهما — '
+    'إن كان مريضاً آخر فتابع، وإلا فأضِف رقم هاتفه ليتميّز.',
+  );
 }
