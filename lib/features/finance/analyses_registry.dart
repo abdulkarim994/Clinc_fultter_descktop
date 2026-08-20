@@ -26,7 +26,9 @@ import '../print/reports.dart' show simpleTablePdf;
 import '../print/treatment_tables.dart' show formatNumber;
 // م168 — بعد الإيقاف يصير السجل عرضاً تاريخياً فقط (بلا تعديل/حذف).
 import '../settings/analyses3.dart' show kTriAnalysesName, triAnalysesEnabled;
-import '../patients/patients_logic.dart' show IdentityIndex;
+import '../../core/utils/ar_normalize.dart' show normPhone;
+import '../patients/patient_profile_screen.dart' show PatientProfileScreen;
+import '../patients/patients_logic.dart' show IdentityIndex, identityOfRow;
 import '../staff/staff_gate.dart' show staffAllowed;
 import 'analyses_filter.dart'
     show currentMonthTotal, filterAnalysesRows;
@@ -171,7 +173,12 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
   /// (`analysisOf` — فصفوفُ ما قبل م189 المكتوبة بلا هاتف تظهر بأرقامها)
   /// ⇐ القانوني من الحلّال الموروث. الخام مقدَّمٌ ليقرأ المالك الرقم كما
   /// كتبه (بصفر البدء) لا مطبَّعاً.
-  String _rowPhoneText(_JMap r, Map<String, _JMap> byId, IdentityIndex idx) {
+  ///
+  /// م190 — وحين لا يبقى إلا القانوني (بلا صفر البدء) يُردُّ شكلُه الخام من
+  /// أي صفٍّ يشاركه الهوية ([rawByCanon]) — فلا يرى المالك رقماً ناقص
+  /// الصفر أبداً (بلاغه: «يعرض رقم الهاتف بدون 0 — اجعله بصفر»).
+  String _rowPhoneText(_JMap r, Map<String, _JMap> byId, IdentityIndex idx,
+      Map<String, String> rawByCanon) {
     String raw(Object? v) =>
         '${v ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
     final own = raw(r['phone']);
@@ -182,7 +189,29 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
       if (p.isNotEmpty) return p;
     }
     final canon = idx.phoneOf(r);
-    return canon.isNotEmpty ? canon : '—';
+    if (canon.isEmpty) return '—';
+    return rawByCanon[canon] ?? canon;
+  }
+
+  /// م190 — فتح ملف المريض من السجل (طلب المالك) بهويته **الموروثة**:
+  /// صفُّ التحليل قد يكون بلا هاتف، فتُحلّ هويته عن زيارته الأصل — وبها
+  /// يفتح ملف صاحبه لا ملف سميّه. بلا عيادة لا ملف، فنكتفي بتنبيه.
+  void _openPatient(_JMap r, IdentityIndex idx) {
+    final name = '${r['name'] ?? r['patient_name'] ?? ''}'.trim();
+    final clinic = _rowClinic(r);
+    if (name.isEmpty || clinic.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يمكن فتح الملف: بيانات الصف ناقصة')),
+      );
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PatientProfileScreen(
+        patientName: name,
+        clinic: clinic,
+        identity: identityOfRow(r, idx),
+      ),
+    ));
   }
 
   @override
@@ -407,11 +436,13 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
 
   /// عرض أعمدة الحركات نفسها: التاريخ/الدفع/القيمة ثابتة والاسم يتمدد.
   double get _wDate => widget.dense ? 74 : 92;
-  double get _wPay => widget.dense ? 58 : 70;
-  double get _wVal => widget.dense ? 76 : 96;
-
-  /// م189 — عرض عمود الهاتف (عشرة أرقام تسع دون قصٍّ في الوضع المكثّف).
-  double get _wPhone => widget.dense ? 74 : 100;
+  // م190 — نِسَب الأعمدة (رأساً وصفّاً): الاسم أعرضها، ثم الهاتف والعيادة
+  // متساويان، ثم الدفع والقيمة. مصدرٌ واحد ⇒ تناظرٌ حتمي بلا حسابات يدوية.
+  int get _fName => 3;
+  int get _fPhone => widget.dense ? 3 : 2;
+  int get _fClinic => 2;
+  int get _fPay => 2;
+  int get _fVal => 2;
   double get _wAct => widget.dense ? 34 : 34;
 
   Widget _movesTable(
@@ -428,11 +459,16 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
     final repos = ref.read(reposProvider);
     final allRecs = repos.records.getAll().cast<Map<String, Object?>>();
     final byId = {for (final r in allRecs) '${r['id']}': r};
-    final idIdx = IdentityIndex(
-      allRecs,
-      repos.prosthetics.getAll().cast<Map<String, Object?>>(),
-      repos.debts.getAll().cast<Map<String, Object?>>(),
-    );
+    final allPros = repos.prosthetics.getAll().cast<Map<String, Object?>>();
+    final allDebts = repos.debts.getAll().cast<Map<String, Object?>>();
+    final idIdx = IdentityIndex(allRecs, allPros, allDebts);
+    // م190 — قانوني ⇒ خام: ليُعرض الرقم بصفر البدء كما كتبه المالك.
+    final rawByCanon = <String, String>{};
+    for (final row in [...allRecs, ...allPros, ...allDebts]) {
+      final d = '${row['phone'] ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
+      if (d.isEmpty) continue;
+      rawByCanon.putIfAbsent(normPhone(d), () => d);
+    }
     num visibleSum = 0;
     for (final r in rows) {
       visibleSum += jsNumOr0(r['amount']);
@@ -451,25 +487,41 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
           if (widget.showDate)
             SizedBox(width: _wDate, child: Text('التاريخ', style: _head())),
           SizedBox(width: gap),
+          // م190 — شبكة نسبٍ واحدة للرأس وللصفوف (بلاغ المالك: «لا يوجد
+          // تناظر بحجم الأعمدة»): كانت الأسماء والعيادات تتمدد بينما
+          // الهاتف والدفع والقيمة بعروضٍ ثابتة صغيرة، فيتكدّس نصف الجدول
+          // يميناً ويبقى يسارُه فارغاً. النِّسَب أدناه مصدرٌ واحد للاثنين.
           Expanded(
+              flex: _fName,
               child: Text('الاسم',
-                  style: _head(), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  style: _head(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis)),
           SizedBox(width: gap),
-          // م189 — عمود رقم الهاتف بعد الاسم (طلب المالك): يميّز المريض
-          // عن سميّه داخل السجل نفسه.
-          SizedBox(width: _wPhone, child: Text('الهاتف', style: _head())),
+          // م189 — عمود رقم الهاتف بعد الاسم: يميّز المريض عن سميّه.
+          Expanded(
+              flex: _fPhone,
+              child: Text('الهاتف',
+                  style: _head(),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis)),
           SizedBox(width: gap),
           Expanded(
+              flex: _fClinic,
               child: Text('العيادة',
-                  style: _head(), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  style: _head(),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis)),
           SizedBox(width: gap),
-          SizedBox(
-              width: _wPay,
+          Expanded(
+              flex: _fPay,
               child: Text('الدفع',
                   style: _head(), textAlign: TextAlign.center)),
           SizedBox(width: gap),
-          SizedBox(
-              width: _wVal,
+          Expanded(
+              flex: _fVal,
               child: Text('القيمة',
                   style: _head(), textAlign: TextAlign.center)),
           if (canEdit || canDel) SizedBox(width: _wAct),
@@ -504,19 +556,32 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
                         ])),
               ),
             SizedBox(width: gap),
+            // م190 — الاسم مفتاحُ ملف المريض (طلب المالك): يفتح ملفه
+            // **بهويته الموروثة** عن زيارته — فيفتح ملف صاحبه لا سميّه.
             Expanded(
-              child: Text(
-                  '${rows[i]['name'] ?? rows[i]['patient_name'] ?? ''}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      TextStyle(fontSize: fs, fontWeight: FontWeight.w700)),
+              flex: _fName,
+              child: InkWell(
+                key: Key('anal-reg-open-${rows[i]['id']}'),
+                onTap: () => _openPatient(rows[i], idIdx),
+                child: Text(
+                    '${rows[i]['name'] ?? rows[i]['patient_name'] ?? ''}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: fs,
+                        fontWeight: FontWeight.w700,
+                        color: BrandColors.brand900,
+                        decoration: TextDecoration.underline,
+                        decorationColor:
+                            BrandColors.brand600.withValues(alpha: .35))),
+              ),
             ),
             SizedBox(width: gap),
-            SizedBox(
-              width: _wPhone,
-              child: Text(_rowPhoneText(rows[i], byId, idIdx),
+            Expanded(
+              flex: _fPhone,
+              child: Text(_rowPhoneText(rows[i], byId, idIdx, rawByCanon),
                   key: Key('anal-reg-phone-${rows[i]['id']}'),
+                  textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -527,7 +592,9 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
             ),
             SizedBox(width: gap),
             Expanded(
+              flex: _fClinic,
               child: Text(_rowClinic(rows[i]),
+                  textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -536,11 +603,11 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
                       color: BrandColors.strong)),
             ),
             SizedBox(width: gap),
-            SizedBox(
-                width: _wPay, child: Center(child: _payChip(rows[i]))),
+            Expanded(
+                flex: _fPay, child: Center(child: _payChip(rows[i]))),
             SizedBox(width: gap),
-            SizedBox(
-              width: _wVal,
+            Expanded(
+              flex: _fVal,
               child: Text(n(jsNumOr0(rows[i]['amount'])),
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -602,15 +669,19 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
                 Border.all(color: const Color.fromRGBO(46, 125, 90, .25)),
           ),
           child: Row(children: [
+            // م190 — التذييل بنفس نِسَب الجدول: المجموع يقع تحت عمود
+            // «القيمة» بالضبط (كان بعرضٍ ثابتٍ فينزاح عنه).
             Expanded(
+              flex: _fName + _fPhone + _fClinic + _fPay,
               child: Text('المجموع (${rows.length} بند)',
                   style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w900,
                       color: BrandColors.strong)),
             ),
-            SizedBox(
-              width: _wVal,
+            SizedBox(width: gap * 4),
+            Expanded(
+              flex: _fVal,
               child: Text(det ? n(visibleSum) : '—',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
@@ -733,11 +804,15 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
     final repos = ref.read(reposProvider);
     final allRecs = repos.records.getAll().cast<Map<String, Object?>>();
     final byId = {for (final r in allRecs) '${r['id']}': r};
-    final idIdx = IdentityIndex(
-      allRecs,
-      repos.prosthetics.getAll().cast<Map<String, Object?>>(),
-      repos.debts.getAll().cast<Map<String, Object?>>(),
-    );
+    final allPros = repos.prosthetics.getAll().cast<Map<String, Object?>>();
+    final allDebts = repos.debts.getAll().cast<Map<String, Object?>>();
+    final idIdx = IdentityIndex(allRecs, allPros, allDebts);
+    final rawByCanon = <String, String>{};
+    for (final row in [...allRecs, ...allPros, ...allDebts]) {
+      final d = '${row['phone'] ?? ''}'.replaceAll(RegExp(r'[^0-9]'), '');
+      if (d.isEmpty) continue;
+      rawByCanon.putIfAbsent(normPhone(d), () => d);
+    }
     num sum = 0;
     final tableRows = <List<String>>[];
     for (final r in rows) {
@@ -747,7 +822,7 @@ class _AnalysesRegistryCardState extends ConsumerState<AnalysesRegistryCard> {
         '${r['date'] ?? ''}',
         '${r['name'] ?? r['patient_name'] ?? ''}',
         // م189 — الهاتف في الطباعة أيضاً (توأم عمود الشاشة).
-        _rowPhoneText(r, byId, idIdx),
+        _rowPhoneText(r, byId, idIdx, rawByCanon),
         _rowClinic(r),
         '${r['payment'] ?? ''}',
         '${n(amt)} $cur',
