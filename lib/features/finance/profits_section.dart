@@ -321,6 +321,16 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
                       // كان المؤشر يُغفل المعمل فيخالف سطر السنة.
                       ratesOn ? rep.net : rep.netOff,
                       ratesOn ? prev.net : prev.netOff)),
+          // م190 — مؤشّرٌ يوحّد قراءة المؤشرات مع الجدول الجديد: الإيراد
+          // أعلاه إجماليٌّ، وهذا صافيه بعد كلفة المعمل — وهو الرقم الذي
+          // تُقسَم عليه النِّسَب فعلاً (طلب المالك).
+          if (rep.lab > 0)
+            YearKpi('صافي بعد المختبرات', '${n(rep.afterLab)} $cur',
+                BrandColors.brand900,
+                keyId: 'prof-year-after-lab',
+                yoy: prev == null
+                    ? null
+                    : yoyPct(rep.afterLab, prev.afterLab)),
           if (ratesOn)
             YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur',
                 BrandColors.green,
@@ -339,7 +349,23 @@ class _ProfitsSectionState extends ConsumerState<ProfitsSection> {
         ]),
         const SizedBox(height: 8),
         // ── جدول الأرباح والخسائر الشهري (قلب التقرير السنوي) ──
-        YearPnlTable(report: rep, dense: true, showDoctor: ratesOn),
+        // م190 — الهاتف: جدولٌ **مختصر** (بلا عمود مصروفات، والإيراد بعد
+        // المختبرات، والصافي شامل) + أيقونة تكبيرٍ تفتح الجدول الكامل
+        // بأعمدة الكمبيوتر مع تمريرٍ أفقي — طلب المالك.
+        Align(
+          alignment: AlignmentDirectional.topStart,
+          child: IconButton(
+            key: const Key('prof-pnl-expand'),
+            tooltip: 'تكبير الجدول (كل الأعمدة)',
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.open_in_full_rounded,
+                size: 18, color: BrandColors.brand600),
+            onPressed: () => showYearPnlFullSheet(context,
+                report: rep, showDoctor: ratesOn),
+          ),
+        ),
+        YearPnlTable(
+            report: rep, dense: true, showDoctor: ratesOn, full: false),
         const SizedBox(height: 4),
         // ── جدول العيادات سنوياً ──
         ProfitsClinicsTable(
