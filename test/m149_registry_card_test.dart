@@ -296,6 +296,41 @@ void main() {
     });
   });
 
+  // ── م190 — تناظر الأعمدة وفتح ملف المريض من السجل ───────────────────
+  group('م190 — التناظر والفتح', () {
+    testWidgets('كل رأسٍ فوق قيمته: مراكز الأعمدة متطابقة أفقياً',
+        (t) async {
+      seed();
+      await pumpCard(t, dense: false);
+      // الهاتف والقيمة: الرأس والخلية على محورٍ واحد (بلاغ المالك:
+      // «لا يوجد تناظر بحجم الأعمدة» — كانت عروضاً ثابتة وسط أعمدة متمددة).
+      final hPhone = t.getCenter(find.text('الهاتف')).dx;
+      final cPhone = t.getCenter(
+          find.byKey(const Key('anal-reg-phone-anal-old-m149'))).dx;
+      expect((hPhone - cPhone).abs(), lessThan(1.0));
+      final hClinic = t.getCenter(find.text('العيادة')).dx;
+      final cClinic = t.getCenter(find.text('النخبة')).dx;
+      expect((hClinic - cClinic).abs(), lessThan(1.0));
+    });
+
+    testWidgets('الضغط على الاسم يفتح ملف المريض', (t) async {
+      seed();
+      await pumpCard(t, dense: false);
+      final c = ProviderContainer(overrides: overrides());
+      addTearDown(c.dispose);
+      final id = c
+          .read(reposProvider)
+          .records
+          .getAll()
+          .firstWhere((r) =>
+              jsTruthy(r['isAnalysis']) && r['patient_name'] == 'أحمد')['id'];
+      await t.tap(find.byKey(Key('anal-reg-open-$id')));
+      await t.pumpAndSettle();
+      // شاشة الملف فُتحت باسم المريض (لا بقينا في السجل).
+      expect(find.byKey(const Key('anal-reg-card')), findsNothing);
+    });
+  });
+
   group('اللقطات الذهبية (GOLDENS=1 محلياً)', () {
     testWidgets('نموذج سطح المكتب — جدول كامل', (t) async {
       seed();
