@@ -322,6 +322,16 @@ class _DesktopProfitsScreenState
                       // كان المؤشر يُغفل المعمل فيخالف سطر السنة.
                       ratesOn ? rep.net : rep.netOff,
                       ratesOn ? prev.net : prev.netOff)),
+          // م190 — مؤشّرٌ يوحّد قراءة المؤشرات مع الجدول الجديد: الإيراد
+          // أعلاه إجماليٌّ، وهذا صافيه بعد كلفة المعمل — وهو الرقم الذي
+          // تُقسَم عليه النِّسَب فعلاً (طلب المالك).
+          if (rep.lab > 0)
+            YearKpi('صافي بعد المختبرات', '${n(rep.afterLab)} $cur',
+                BrandColors.brand900,
+                keyId: 'prof-year-after-lab',
+                yoy: prev == null
+                    ? null
+                    : yoyPct(rep.afterLab, prev.afterLab)),
           if (ratesOn)
             YearKpi('ربح الطبيب', '${n(rep.doctor)} $cur',
                 BrandColors.green,
@@ -341,13 +351,15 @@ class _DesktopProfitsScreenState
         const SizedBox(height: 10),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // جدول الأرباح والخسائر — عمود الصدارة بعرض مريح.
+          // م190 — نصيبه من العرض ازداد (6:3 بدل 5:4) لأن أعمدته صارت
+          // تسعة: أعمدةٌ مريحة **بلا تمريرٍ أفقي** (اختيار المالك).
           Expanded(
-              flex: 5,
+              flex: 6,
               child: YearPnlTable(report: rep, showDoctor: ratesOn)),
           const SizedBox(width: 10),
           // العمود الجانبي: العيادات سنوياً + مخطط الأشهر.
           Expanded(
-            flex: 4,
+            flex: 3,
             child: Column(children: [
               ProfitsClinicsTable(
                 title: 'أرباح العيادات — سنة $selectedYear',
